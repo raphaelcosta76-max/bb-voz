@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1c1917">
+<title>bb básico · registrar por voz</title>
+<style>
+:root{--bg:#faf8f5;--card:#fff;--fg:#1c1917;--mute:#78716c;--line:#e7e5e4;--acc:#b45309;--acc2:#92400e;--ok:#15803d;--err:#b91c1c;--chip:#f5f5f4;--chipon:#1c1917}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:17px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{padding:14px 16px 6px}
+header small{display:block;color:var(--mute);font-size:13px}
+header b{font-size:20px}
+main{padding:0 16px 120px;max-width:560px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin:12px 0}
+h2{font-size:15px;margin:0 0 8px;color:var(--mute);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.mic{display:flex;flex-direction:column;align-items:center;gap:10px;padding:24px 0 8px}
+.micbtn{width:132px;height:132px;border-radius:50%;border:0;background:var(--acc);color:#fff;font-size:17px;font-weight:600;box-shadow:0 10px 30px rgba(180,83,9,.35);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;-webkit-tap-highlight-color:transparent}
+.micbtn svg{width:40px;height:40px}
+.micbtn.rec{background:var(--err);box-shadow:0 0 0 10px rgba(185,28,28,.15);animation:p 1.2s infinite}
+@keyframes p{0%{box-shadow:0 0 0 0 rgba(185,28,28,.35)}100%{box-shadow:0 0 0 22px rgba(185,28,28,0)}}
+.micbtn:disabled{opacity:.5}
+.hint{color:var(--mute);font-size:14px;text-align:center}
+.timer{font-variant-numeric:tabular-nums;font-size:22px;font-weight:600;min-height:28px}
+label{display:block;font-size:13px;color:var(--mute);margin:12px 0 4px}
+input,textarea,select{width:100%;font:inherit;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--fg)}
+textarea{min-height:92px;resize:vertical}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1px solid var(--line);background:var(--chip);border-radius:999px;padding:9px 14px;font:inherit;font-size:15px;color:var(--fg)}
+.chip.on{background:var(--chipon);color:#fff;border-color:var(--chipon)}
+.row{display:flex;gap:8px}
+.row>*{flex:1}
+.btn{width:100%;border:0;border-radius:12px;padding:15px;font:inherit;font-size:17px;font-weight:600;background:var(--fg);color:#fff;margin-top:10px}
+.btn.sec{background:#fff;color:var(--fg);border:1px solid var(--line)}
+.btn:disabled{opacity:.5}
+.duv{background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:10px 12px;font-size:15px;margin-top:10px}
+.duv b{display:block;margin-bottom:4px}
+.msg{padding:12px;border-radius:10px;font-size:15px;margin-top:10px}
+.msg.err{background:#fef2f2;color:var(--err)}
+.msg.ok{background:#f0fdf4;color:var(--ok)}
+.cri{border:1px dashed var(--line);border-radius:12px;padding:10px 12px;margin-top:8px}
+.cri .x{float:right;background:none;border:0;color:var(--mute);font-size:20px;line-height:1}
+.link{background:none;border:0;color:var(--acc2);text-decoration:underline;font:inherit;font-size:15px;padding:8px 0}
+.done{text-align:center;padding:30px 10px}
+.done .big{font-size:52px}
+.spin{display:inline-block;width:18px;height:18px;border:3px solid #ddd;border-top-color:var(--acc);border-radius:50%;animation:s .8s linear infinite;vertical-align:middle;margin-right:8px}
+@keyframes s{to{transform:rotate(360deg)}}
+#demo{display:none;background:var(--acc);color:#fff;font-size:13px;padding:6px 16px}
+</style>
+</head>
+<body>
+<div id="demo">Demonstração — o que você gravar aqui fica numa área separada e não afeta as lojas.</div>
+<header><small id="loja">bb básico</small><b id="nome">Registrar venda por voz</b></header>
+<main>
+
+<section id="s1">
+ <div class="card">
+  <div class="mic">
+   <button class="micbtn" id="mic" type="button">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M12 17v5M8 22h8"/></svg>
+    <span id="micl">Toque e fale</span>
+   </button>
+   <div class="timer" id="timer"></div>
+   <div class="hint" id="hint">Conte a venda como contaria para a gerente: quem comprou, para quem (idade, menino ou menina), presente ou uso e a ocasião, o que a cliente queria e não tinha, se pode receber mensagem — e o número da boleta.</div>
+  </div>
+  <div id="m1"></div>
+ </div>
+ <div class="card">
+  <button class="link" type="button" id="togtxt">Prefiro digitar</button>
+  <div id="txtbox" style="display:none">
+   <textarea id="txt" placeholder="Escreva aqui a venda do jeito que você contaria..."></textarea>
+   <button class="btn sec" type="button" id="txtgo">Interpretar o texto</button>
+  </div>
+ </div>
+</section>
+
+<section id="s2" style="display:none">
+ <div class="card">
+  <h2>Entendi assim — confira e corrija</h2>
+  <label>O que você disse</label>
+  <textarea id="f_transcricao"></textarea>
+  <div id="duv"></div>
+  <div class="row">
+   <div><label>Boleta (cupom)</label><input id="f_boleta" inputmode="numeric" placeholder="ex.: 86806"></div>
+   <div><label>CPF da cliente (se não tiver boleta)</label><input id="f_cpf" inputmode="numeric" placeholder="só números"></div>
+  </div>
+  <label>Presente ou uso</label>
+  <div class="chips" data-f="tipo"><button class="chip" data-v="presente">Presente</button><button class="chip" data-v="uso">Uso próprio</button><button class="chip" data-v="ambos">Os dois</button><button class="chip" data-v="nao_sei">Não sei</button></div>
+  <label>Quem comprou</label>
+  <div class="chips" data-f="relacao"><button class="chip" data-v="mae">Mãe</button><button class="chip" data-v="pai">Pai</button><button class="chip" data-v="avo">Avó/avô</button><button class="chip" data-v="tia">Tia/tio</button><button class="chip" data-v="madrinha">Madrinha</button><button class="chip" data-v="amiga">Amiga</button><button class="chip" data-v="outra">Outra</button></div>
+  <input id="f_relacao_outra" placeholder="qual?" style="display:none;margin-top:8px">
+  <input id="f_cliente_nome" placeholder="nome de quem comprou (se souber)" style="margin-top:8px">
+  <label>Ocasião / motivo</label>
+  <input id="f_ocasiao" placeholder="aniversário, chá de fraldas, escola, viagem, Natal, troca...">
+  <label>Criança(s)</label>
+  <div id="cris"></div>
+  <button class="link" type="button" id="addcri">+ adicionar criança</button>
+  <label>O que a cliente queria e não tinha</label>
+  <input id="f_faltou" placeholder='produto, tamanho ou cor — ou "nada"'>
+  <label>Pode mandar novidades e ofertas no WhatsApp?</label>
+  <div class="chips" data-f="pode_avisar"><button class="chip" data-v="sim">Sim</button><button class="chip" data-v="nao">Não</button><button class="chip" data-v="nao_perguntei">Não perguntei</button></div>
+  <label>Celular da cliente (se ditou)</label>
+  <input id="f_celular" inputmode="tel" placeholder="DDD + número">
+  <label>Próximo evento</label>
+  <input id="f_proximo_evento" placeholder="nascimento, aniversário, viagem... e quando">
+  <div id="m2"></div>
+  <button class="btn" type="button" id="salvar">Salvar registro</button>
+  <button class="btn sec" type="button" id="denovo">Gravar de novo</button>
+ </div>
+</section>
+
+<section id="s3" style="display:none">
+ <div class="card done">
+  <div class="big">✓</div>
+  <p id="okmsg">Registro salvo.</p>
+  <button class="btn" type="button" id="nova">Registrar outra venda</button>
+ </div>
+</section>
+
+</main>
+<script>
+var URL_SCRIPT='https://script.google.com/macros/s/AKfycbyyl6b0UwqeEJIXdIeK2KasSh66BjOGK5K8RJa-z0zXorZ3N6JdWzHeuTss6Z_xCXHcWQ/exec';
+var $=function(i){return document.getElementById(i)};
+var tok=(function(){var m=/[#?&]t=([0-9a-f]{20,40})/.exec(location.hash+location.search);var t=m?m[1]:null;try{if(t)localStorage.setItem('bbvoz_t',t);else t=localStorage.getItem('bbvoz_t')}catch(e){}return t})();
+function api(b){b.tok=tok;return fetch(URL_SCRIPT,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(b)}).then(function(r){return r.json()}).then(function(j){if(!j.ok)throw new Error(j.erro||'erro');return j.r})}
+function msg(id,t,cls){var e=$(id);e.innerHTML=t?'<div class="msg '+(cls||'')+'">'+t+'</div>':''}
+function show(n){['s1','s2','s3'].forEach(function(s){$(s).style.display=s==n?'':'none'});window.scrollTo(0,0)}
+if(!tok){$('hint').textContent='Link inválido. Use o link de voz que a gerente mandou.';$('mic').disabled=true}
+else api({voz:'quem'}).then(function(q){$('nome').textContent=q.nome;$('loja').textContent='bb básico '+q.loja;if(q.nome=='Vendedora Demo')$('demo').style.display='block'}).catch(function(e){$('hint').textContent='Não consegui identificar o link: '+e.message;$('mic').disabled=true});
+
+// ---- gravação
+var rec=null,chunks=[],stream=null,t0=0,tick=null,MAX=90;
+function fmt(s){return Math.floor(s/60)+':'+('0'+(s%60)).slice(-2)}
+$('mic').onclick=function(){if(rec&&rec.state=='recording'){parar();return}
+ msg('m1','');navigator.mediaDevices.getUserMedia({audio:true}).then(function(st){stream=st;chunks=[];var mt='';['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg;codecs=opus'].some(function(m){if(window.MediaRecorder&&MediaRecorder.isTypeSupported&&MediaRecorder.isTypeSupported(m)){mt=m;return true}});
+  rec=mt?new MediaRecorder(st,{mimeType:mt}):new MediaRecorder(st);rec.ondataavailable=function(e){if(e.data&&e.data.size)chunks.push(e.data)};rec.onstop=processar;rec.start(250);
+  t0=Date.now();$('mic').classList.add('rec');$('micl').textContent='Toque para parar';$('hint').textContent='Gravando… fale normalmente.';
+  tick=setInterval(function(){var s=Math.floor((Date.now()-t0)/1000);$('timer').textContent=fmt(s)+' / '+fmt(MAX);if(s>=MAX)parar()},250)})
+ .catch(function(e){msg('m1','Não consegui usar o microfone ('+e.name+'). Permita o microfone para este site nas configurações do navegador, ou use "Prefiro digitar".','err')})};
+function parar(){clearInterval(tick);$('mic').classList.remove('rec');$('micl').textContent='Toque e fale';if(rec&&rec.state=='recording')rec.stop();if(stream)stream.getTracks().forEach(function(t){t.stop()})}
+function processar(){var blob=new Blob(chunks,{type:rec.mimeType||'audio/webm'});if(blob.size<2000){msg('m1','Gravação muito curta. Tente de novo.','err');return}
+ $('mic').disabled=true;$('hint').innerHTML='<span class="spin"></span>Interpretando o que você disse…';$('timer').textContent='';
+ blob.arrayBuffer().then(function(ab){return paraWav(ab)}).then(function(wav){return api({voz:'interpretar',d:{audio:b64(wav),mime:'audio/wav'}})})
+ .then(preencher).catch(function(e){msg('m1','Não deu: '+e.message,'err')}).then(function(){$('mic').disabled=false;$('hint').textContent='Conte a venda: quem comprou, para quem, presente ou uso e a ocasião, o que faltou, se pode receber mensagem — e a boleta.'})}
+// decodifica o áudio do aparelho e reamostra para WAV 16 kHz mono (formato que o Gemini aceita sempre)
+function paraWav(ab){var AC=window.AudioContext||window.webkitAudioContext;var ac=new AC();return new Promise(function(res,rej){ac.decodeAudioData(ab,res,rej)}).then(function(buf){var sr=16000,n=Math.ceil(buf.duration*sr),oc=new (window.OfflineAudioContext||window.webkitOfflineAudioContext)(1,n,sr),src=oc.createBufferSource();src.buffer=buf;src.connect(oc.destination);src.start();return oc.startRendering()}).then(function(out){try{ac.close()}catch(e){}var d=out.getChannelData(0),w=new ArrayBuffer(44+d.length*2),v=new DataView(w);function s(o,t){for(var i=0;i<t.length;i++)v.setUint8(o+i,t.charCodeAt(i))}
+ s(0,'RIFF');v.setUint32(4,36+d.length*2,true);s(8,'WAVE');s(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,16000,true);v.setUint32(28,32000,true);v.setUint16(32,2,true);v.setUint16(34,16,true);s(36,'data');v.setUint32(40,d.length*2,true);
+ for(var i=0,o=44;i<d.length;i++,o+=2){var x=Math.max(-1,Math.min(1,d[i]));v.setInt16(o,x<0?x*32768:x*32767,true)}return w})}
+function b64(ab){var u=new Uint8Array(ab),s='',CH=0x8000;for(var i=0;i<u.length;i+=CH)s+=String.fromCharCode.apply(null,u.subarray(i,i+CH));return btoa(s)}
+
+// ---- texto digitado
+$('togtxt').onclick=function(){var b=$('txtbox');b.style.display=b.style.display=='none'?'':'none'};
+$('txtgo').onclick=function(){var t=$('txt').value.trim();if(t.length<10){msg('m1','Escreva um pouco mais.','err');return}$('txtgo').disabled=true;$('txtgo').innerHTML='<span class="spin"></span>Interpretando…';
+ api({voz:'interpretar',d:{texto:t}}).then(preencher).catch(function(e){msg('m1','Não deu: '+e.message,'err')}).then(function(){$('txtgo').disabled=false;$('txtgo').textContent='Interpretar o texto'})};
+
+// ---- formulário
+var F={};
+function chips(el,v){el.querySelectorAll('.chip').forEach(function(c){c.classList.toggle('on',c.dataset.v===v)})}
+document.querySelectorAll('.chips[data-f]').forEach(function(g){g.addEventListener('click',function(e){var c=e.target.closest('.chip');if(!c)return;e.preventDefault();var f=g.dataset.f,v=c.classList.contains('on')?'':c.dataset.v;F[f]=v;chips(g,v);if(f=='relacao')$('f_relacao_outra').style.display=v=='outra'?'':'none'})});
+var TAM=['RN','P','M','G','GG','01','02','03','04','06','08','10','12'];
+function criHtml(c,i){return'<div class="cri" data-i="'+i+'"><button class="x" type="button" title="remover">×</button>'
+ +'<div class="row"><div><label>Nome (se souber)</label><input data-k="apelido" value="'+esc(c.apelido||'')+'"></div><div><label>Idade</label><div class="row"><input data-k="anos" inputmode="numeric" placeholder="anos" value="'+(c.idade_meses?Math.floor(c.idade_meses/12)||'':'')+'"><input data-k="meses" inputmode="numeric" placeholder="meses" value="'+(c.idade_meses?c.idade_meses%12||'':'')+'"></div></div></div>'
+ +'<label>Menino ou menina</label><div class="chips" data-k="sexo"><button class="chip'+(c.sexo=='menina'?' on':'')+'" data-v="menina">Menina</button><button class="chip'+(c.sexo=='menino'?' on':'')+'" data-v="menino">Menino</button><button class="chip'+(c.nascido=='nao'?' on':'')+'" data-v="nasc">Ainda vai nascer</button></div>'
+ +'<label>Tamanho da etiqueta</label><div class="chips" data-k="tamanho">'+TAM.map(function(t){return'<button class="chip'+(c.tamanho==t?' on':'')+'" data-v="'+t+'">'+t+'</button>'}).join('')+'</div>'
+ +'<input data-k="previsao" placeholder="previsão do nascimento (mês/ano)" style="margin-top:8px;display:'+(c.nascido=='nao'?'':'none')+'" value="'+esc(c.previsao||'')+'"></div>'}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}
+function renderCris(){$('cris').innerHTML=(F.criancas||[]).map(criHtml).join('')}
+$('cris').addEventListener('click',function(e){var box=e.target.closest('.cri');if(!box)return;var i=+box.dataset.i,c=F.criancas[i];if(e.target.classList.contains('x')){F.criancas.splice(i,1);renderCris();return}
+ var ch=e.target.closest('.chip');if(!ch)return;e.preventDefault();var g=ch.parentNode,k=g.dataset.k,v=ch.dataset.v;
+ if(k=='sexo'){if(v=='nasc'){c.nascido=c.nascido=='nao'?'sim':'nao';box.querySelector('[data-k=previsao]').style.display=c.nascido=='nao'?'':'none';ch.classList.toggle('on',c.nascido=='nao')}else{c.sexo=c.sexo==v?'':v;g.querySelectorAll('.chip').forEach(function(x){if(x.dataset.v!='nasc')x.classList.toggle('on',x.dataset.v===c.sexo)})}}
+ else if(k=='tamanho'){c.tamanho=c.tamanho==v?'':v;g.querySelectorAll('.chip').forEach(function(x){x.classList.toggle('on',x.dataset.v===c.tamanho)})}});
+$('cris').addEventListener('input',function(e){var box=e.target.closest('.cri');if(!box)return;var c=F.criancas[+box.dataset.i],k=e.target.dataset.k;if(k=='anos'||k=='meses'){var a=+box.querySelector('[data-k=anos]').value||0,m=+box.querySelector('[data-k=meses]').value||0;c.idade_meses=a*12+m}else c[k]=e.target.value});
+$('addcri').onclick=function(){F.criancas=F.criancas||[];F.criancas.push({nascido:'sim'});renderCris()};
+function preencher(r){F={transcricao:r.transcricao||'',resumo:r.resumo||'',boleta:r.boleta||'',cpf:'',tipo:r.tipo||'',relacao:r.relacao||'',relacao_outra:r.relacao_outra||'',cliente_nome:r.cliente_nome||'',ocasiao:r.ocasiao||'',criancas:(r.criancas||[]).map(function(c){return{apelido:c.apelido||'',sexo:c.sexo||'',idade_meses:+c.idade_meses||0,tamanho:c.tamanho||'',nascido:c.nascido=='nao'?'nao':'sim',previsao:c.previsao||''}}),faltou:r.faltou||'',pode_avisar:r.pode_avisar||'',celular:r.celular||'',proximo_evento:r.proximo_evento||''};
+ ['transcricao','boleta','cpf','relacao_outra','cliente_nome','ocasiao','faltou','celular','proximo_evento'].forEach(function(k){$('f_'+k).value=F[k]||''});
+ document.querySelectorAll('.chips[data-f]').forEach(function(g){chips(g,F[g.dataset.f]||'')});$('f_relacao_outra').style.display=F.relacao=='outra'?'':'none';
+ renderCris();var d=(r.duvidas||[]).filter(Boolean);$('duv').innerHTML=d.length?'<div class="duv"><b>Ficou faltando — se souber, complete abaixo:</b>'+d.map(function(x){return'• '+esc(x)}).join('<br>')+'</div>':'';
+ msg('m2','');show('s2')}
+$('salvar').onclick=function(){['transcricao','boleta','cpf','relacao_outra','cliente_nome','ocasiao','faltou','celular','proximo_evento'].forEach(function(k){F[k]=$('f_'+k).value.trim()});
+ if(!F.boleta&&!F.cpf){msg('m2','Informe a boleta ou o CPF da cliente para gravar.','err');$('f_boleta').focus();return}
+ if(!F.tipo){msg('m2','Marque se foi presente ou uso.','err');return}
+ $('salvar').disabled=true;$('salvar').innerHTML='<span class="spin"></span>Salvando…';
+ api({voz:'gravar',d:F}).then(function(r){$('okmsg').textContent='Registro salvo'+(r.chave?' · boleta '+r.chave.split('|')[1].replace(/^c.*/,'(por CPF)'):'')+'.';show('s3')}).catch(function(e){msg('m2',e.message,'err')}).then(function(){$('salvar').disabled=false;$('salvar').textContent='Salvar registro'})};
+$('denovo').onclick=function(){show('s1')};
+$('nova').onclick=function(){$('txt').value='';show('s1')};
+</script>
+</body>
+</html>
