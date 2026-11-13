@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#76d847">
-<title>TESTE · bb básico · registrar por voz</title>
+<title>TESTE · bb básico · sua assistente de vendas</title>
 <style>
 :root{--bg:#76d847;--card:#fff;--fg:#1c1917;--mute:#6b7280;--line:#e5e7eb;--acc:#76d847;--acc2:#2e6b16;--esc:#1f4a12;--ok:#15803d;--err:#b91c1c;--chip:#f3f4f6;--chipon:#1f4a12;--soft:#fffbeb;--softl:#fde68a}
 *{box-sizing:border-box}
@@ -71,7 +71,7 @@ textarea{min-height:92px;resize:vertical}
 </head>
 <body>
 <div id="demo" style="display:block">TESTE — o que você gravar aqui fica numa área separada e não afeta as lojas.</div>
-<header><div><small id="loja">bb básico</small><b id="nome">Registrar venda por voz</b></div><div class="hd"><button class="som" id="vozb" type="button">Voz ▾</button><button class="som on" id="som" type="button">🔊 Voz ligada</button></div></header>
+<header><div><small id="loja">bb básico</small><b id="nome">Sua assistente de vendas</b></div><div class="hd"><button class="som" id="vozb" type="button">Voz ▾</button><button class="som on" id="som" type="button">🔊 Voz ligada</button></div></header>
 <main>
 
 <section id="vozp" class="card" style="display:none">
@@ -85,7 +85,7 @@ textarea{min-height:92px;resize:vertical}
 <section id="s0" style="display:none">
  <div class="card">
   <div class="q">Oi! 👋</div>
-  <div class="big2">Eu sou a assistente da bb básico e estou aqui para te ajudar a vender mais. Como você se chama?</div>
+  <div class="big2">Eu sou a sua assistente de vendas da bb básico. Eu guardo o que você me contar de cada cliente e te aviso a hora certa de chamar cada uma: aniversário, troca de tamanho, a peça que ela queria e chegou. Assim você vende mais.<br><b>Como você se chama?</b></div>
   <div class="mic" id="obbox">
    <button class="micbtn p" id="obmic" type="button">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M12 17v5M8 22h8"/></svg>
@@ -323,8 +323,8 @@ function entendiFala(F){var cs=(F.criancas||[]).filter(function(c){return!c.conh
  return f.length?'Entendi assim: '+f.join(' '):'Não peguei os detalhes da venda. Vou te perguntar.'}
 // ---- v35: falas do diálogo
 function saudacao(nome,primeira,hora){var n=nome?', '+nome:'';if(!primeira)return'Oi'+n+', pode contar.';return(hora<12?'Bom dia':hora<18?'Boa tarde':'Boa noite')+n+'! Me conta a venda: para quem era, o que você mostrou e o que ela levou.'}
-function ponte(n,primeira){if(!n)return'';if(primeira)return'Agora umas perguntas rápidas. Com elas a gente te avisa a hora certa de chamar essa cliente de volta.';return n==1?'Falta uma coisa.':'Faltam '+n+' coisas.'}
-var OB_FALA='Oi! Eu sou a assistente da bb básico, e estou aqui para te ajudar a vender mais. Como você se chama?';
+function ponte(n,primeira){if(!n)return'';if(primeira)return'Agora umas perguntas rápidas. Com elas eu te lembro do que importa sobre essa cliente e te aviso quando chamar de volta.';return n==1?'Falta uma coisa.':'Faltam '+n+' coisas.'}
+var OB_FALA='Oi! Eu sou a sua assistente de vendas da bb básico. Eu guardo o que você me contar de cada cliente e te aviso a hora certa de chamar cada uma: aniversário, troca de tamanho, a peça que ela queria e chegou. Assim você vende mais. Como você se chama?';
 // ---- v35: respostas curtas entendidas no próprio celular (sem gastar IA)
 function normaliza(s){return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9\s]/g,' ').replace(/\s+/g,' ').trim()}
 var NUM={zero:0,um:1,uma:1,dois:2,duas:2,tres:3,quatro:4,cinco:5,seis:6,sete:7,oito:8,nove:9,dez:10,onze:11,doze:12,treze:13,catorze:14,quatorze:14,quinze:15,dezesseis:16,dezessete:17,dezoito:18};
@@ -368,7 +368,7 @@ function dig(s){return String(s||'').replace(/\D/g,'')}
 var EU=null;try{EU=JSON.parse(ls('bbvoz_eu')||'null')}catch(e){}
 var S=null,Q={porLoja:false,vendedoras:[],demo:false,tts:''},F=novoF(),FI=null,feitas=[],fila=[],atual=null,pulou=false,apresentar=false,primeira=true,porVoz=false;
 if(!tok){$('hint').textContent='Link inválido. Use o link de voz que a gerente mandou.';$('mic').disabled=true}
-else api({voz:'quem'}).then(function(q){Q=q;Q.vendedoras=q.vendedoras||[];if(q.rede){var ok=EU&&q.lojas.some(function(l){return l.loja==EU.loja&&l.vendedoras.indexOf(EU.nome)>=0});if(ok)souEu(EU);else{EU=null;pedeEu('s1')}}else if(q.porLoja){$('nome').textContent='Registrar venda por voz';$('loja').textContent='bb básico '+q.loja+' · link da loja'}else{$('nome').textContent=q.nome;$('loja').textContent='bb básico '+q.loja}if(q.demo)$('demo').style.display='block';api({voz:'sugestoes'}).then(function(r){S=r;if(r&&r.cat&&r.cat.length)BASICO=r.cat.map(function(c){return c.nome})}).catch(function(){});setTimeout(adianta,1500)}).catch(function(e){$('hint').textContent='Não consegui identificar o link: '+e.message;$('mic').disabled=true});
+else api({voz:'quem'}).then(function(q){Q=q;Q.vendedoras=q.vendedoras||[];if(q.rede){var ok=EU&&q.lojas.some(function(l){return l.loja==EU.loja&&l.vendedoras.indexOf(EU.nome)>=0});if(ok)souEu(EU);else{EU=null;pedeEu('s1')}}else if(q.porLoja){$('nome').textContent='Sua assistente de vendas';$('loja').textContent='bb básico '+q.loja+' · link da loja'}else{$('nome').textContent=q.nome;$('loja').textContent='bb básico '+q.loja}if(q.demo)$('demo').style.display='block';api({voz:'sugestoes'}).then(function(r){S=r;if(r&&r.cat&&r.cat.length)BASICO=r.cat.map(function(c){return c.nome})}).catch(function(){});setTimeout(adianta,1500)}).catch(function(e){$('hint').textContent='Não consegui identificar o link: '+e.message;$('mic').disabled=true});
 function nomeEu(){return EU?EU.nome:(Q.porLoja?'':(Q.nome&&!Q.demo?Q.nome:''))}
 
 // ---- voz da assistente: Sulafat no servidor (cache das frases); se falhar, a melhor voz do celular
@@ -591,8 +591,8 @@ function salvar(subst){var alvo=$('s5').style.display!='none'?'m5':'m2',bt=alvo=
  if(F.modelos_mostrados>=0&&F.modelos_mostrados<4&&!subst&&!salvar.poucos){salvar.poucos=1;msg(alvo,'Só '+F.modelos_mostrados+' modelo(s) mostrado(s) — o mínimo é 4. Está certo? Toque em Salvar de novo para confirmar.','err');return}
  $(bt).disabled=true;$(bt).innerHTML='<span class="spin"></span>Salvando…';var d=JSON.parse(JSON.stringify(F));d.boleta=b;d.cpf=dig(F.cpf);if(subst)d.substituir=true;
  api({voz:'gravar',d:d}).then(function(r){if(r.duplicada){$(alvo).innerHTML='<div class="dup"><b>A boleta '+esc(b)+' já foi registrada</b> em '+esc(r.quando)+' por '+esc(r.vendedora)+'. É a mesma venda?<button class="btn" type="button" id="subst">Sim, substituir pelo registro de agora</button><button class="btn sec" type="button" id="corr">Não, vou corrigir a boleta</button></div>';$('subst').onclick=function(){salvar(true)};$('corr').onclick=function(){if(alvo=='m5')conferir();msg('m2','');$('f_boleta').focus()};return}
-  var dc=F.dica,nm=nomeEu()||(r.vendedora&&Q.porLoja?r.vendedora:'');salvo();contaDia();$('okmsg').textContent='Pronto'+(nm?', '+nm:'')+', anotado. Boleta '+b+'.';$('okdica').style.display=dc?'':'none';$('okdica').innerHTML=dc?'💡 '+esc(dc.texto):'';show('s3');
-  fala(['Pronto'+(nm?', '+nm:'')+', anotado.',dc?dc.texto:''])}).catch(function(e){msg(alvo,e.message,'err')}).then(function(){$(bt).disabled=false;$(bt).textContent='Salvar registro'})}
+  var dc=F.dica,nm=nomeEu()||(r.vendedora&&Q.porLoja?r.vendedora:'');salvo();contaDia();var av=F.pode_avisar!='nao'?'Quando for a hora de chamar essa cliente, eu te aviso.':'';$('okmsg').textContent='Pronto'+(nm?', '+nm:'')+', anotado. Boleta '+b+'.'+(av?' '+av:'');$('okdica').style.display=dc?'':'none';$('okdica').innerHTML=dc?'💡 '+esc(dc.texto):'';show('s3');
+  fala(['Pronto'+(nm?', '+nm:'')+', anotado.',av,dc?dc.texto:''])}).catch(function(e){msg(alvo,e.message,'err')}).then(function(){$(bt).disabled=false;$(bt).textContent='Salvar registro'})}
 $('salvar').onclick=function(){salvar(false)};
 $('voltaq').onclick=function(){lerForm();pulou=false;feitas=[];proxima()};
 // rascunho: se a página fechar antes de salvar, o que foi falado volta ao abrir de novo
