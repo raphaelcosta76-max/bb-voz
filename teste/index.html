@@ -3,23 +3,24 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#1c1917">
+<meta name="theme-color" content="#76d847">
 <title>TESTE · bb básico · registrar por voz</title>
 <style>
-:root{--bg:#faf8f5;--card:#fff;--fg:#1c1917;--mute:#78716c;--line:#e7e5e4;--acc:#b45309;--acc2:#92400e;--ok:#15803d;--err:#b91c1c;--chip:#f5f5f4;--chipon:#1c1917;--soft:#fffbeb;--softl:#fde68a}
+:root{--bg:#76d847;--card:#fff;--fg:#1c1917;--mute:#6b7280;--line:#e5e7eb;--acc:#76d847;--acc2:#2e6b16;--esc:#1f4a12;--ok:#15803d;--err:#b91c1c;--chip:#f3f4f6;--chipon:#1f4a12;--soft:#fffbeb;--softl:#fde68a}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--fg);font:17px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
 header{padding:14px 16px 6px;display:flex;align-items:flex-end;justify-content:space-between;gap:8px}
-header small{display:block;color:var(--mute);font-size:13px}
-header b{font-size:20px}
+header small{display:block;color:var(--esc);font-size:13px}
+header b{font-size:20px;color:#0f2e06}
+header .link{color:#0f2e06}
 main{padding:0 16px 120px;max-width:560px;margin:0 auto}
-.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin:12px 0}
+.card{background:var(--card);border:1px solid rgba(0,0,0,.06);border-radius:16px;padding:16px;margin:12px 0;box-shadow:0 2px 10px rgba(20,60,10,.12)}
 h2{font-size:15px;margin:0 0 8px;color:var(--mute);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
 .mic{display:flex;flex-direction:column;align-items:center;gap:10px;padding:18px 0 8px}
-.micbtn{width:132px;height:132px;border-radius:50%;border:0;background:var(--acc);color:#fff;font-size:17px;font-weight:600;box-shadow:0 10px 30px rgba(180,83,9,.35);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;-webkit-tap-highlight-color:transparent}
+.micbtn{width:132px;height:132px;border-radius:50%;border:0;background:var(--acc);color:#0f2e06;font-size:17px;font-weight:600;box-shadow:0 10px 30px rgba(70,140,30,.35);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;-webkit-tap-highlight-color:transparent}
 .micbtn.p{width:96px;height:96px;font-size:14px}
 .micbtn svg{width:40px;height:40px}.micbtn.p svg{width:30px;height:30px}
-.micbtn.rec{background:var(--err);animation:p 1.2s infinite}
+.micbtn.rec{background:var(--err);color:#fff;animation:p 1.2s infinite}
 @keyframes p{0%{box-shadow:0 0 0 0 rgba(185,28,28,.35)}100%{box-shadow:0 0 0 22px rgba(185,28,28,0)}}
 .micbtn:disabled{opacity:.5}
 .hint{color:var(--mute);font-size:14px;text-align:center}
@@ -32,9 +33,9 @@ textarea{min-height:92px;resize:vertical}
 .chip.on{background:var(--chipon);color:#fff;border-color:var(--chipon)}
 .row{display:flex;gap:8px}
 .row>*{flex:1}
-.btn{width:100%;border:0;border-radius:12px;padding:15px;font:inherit;font-size:17px;font-weight:600;background:var(--fg);color:#fff;margin-top:10px}
+.btn{width:100%;border:0;border-radius:12px;padding:15px;font:inherit;font-size:17px;font-weight:600;background:var(--esc);color:#fff;margin-top:10px}
 .btn.sec{background:#fff;color:var(--fg);border:1px solid var(--line)}
-.btn.op{background:#fff;color:var(--fg);border:1px solid var(--fg);font-weight:500;margin-top:8px}
+.btn.op{background:#fff;color:var(--fg);border:1px solid var(--esc);font-weight:500;margin-top:8px}
 .btn:disabled{opacity:.5}
 .msg{padding:12px;border-radius:10px;font-size:15px;margin-top:10px}
 .msg.err{background:#fef2f2;color:var(--err)}
@@ -44,16 +45,16 @@ textarea{min-height:92px;resize:vertical}
 .link{background:none;border:0;color:var(--acc2);text-decoration:underline;font:inherit;font-size:15px;padding:8px 0}
 .done{text-align:center;padding:30px 10px}
 .done .big{font-size:52px}
-.spin{display:inline-block;width:18px;height:18px;border:3px solid #ddd;border-top-color:var(--acc);border-radius:50%;animation:s .8s linear infinite;vertical-align:middle;margin-right:8px}
+.spin{display:inline-block;width:18px;height:18px;border:3px solid #ddd;border-top-color:var(--esc);border-radius:50%;animation:s .8s linear infinite;vertical-align:middle;margin-right:8px}
 @keyframes s{to{transform:rotate(360deg)}}
-#demo{display:none;background:var(--acc);color:#fff;font-size:13px;padding:6px 16px}
+#demo{display:none;background:#b45309;color:#fff;font-size:13px;padding:6px 16px}
 .ficha{background:var(--soft);border:1px solid var(--softl)}
 .ficha ul{margin:6px 0 0;padding-left:18px}.ficha li{margin:3px 0}
 .ficha .t{font-weight:600;margin-top:10px}
 .q{font-size:21px;font-weight:600;line-height:1.3;margin:4px 0 6px}
 .qn{color:var(--mute);font-size:13px}
-.som{background:none;border:1px solid var(--line);border-radius:999px;padding:6px 10px;font:inherit;font-size:13px;color:var(--mute);white-space:nowrap}
-.som.on{color:var(--fg);border-color:var(--fg)}
+.som{background:rgba(255,255,255,.85);border:1px solid transparent;border-radius:999px;padding:6px 10px;font:inherit;font-size:13px;color:var(--esc);white-space:nowrap}
+.som.on{color:#0f2e06;border-color:#0f2e06}
 .sofar{font-size:14px;color:var(--mute);margin-top:6px}
 .sofar b{color:var(--fg);font-weight:600}
 .dup{background:var(--soft);border:1px solid var(--softl);border-radius:12px;padding:12px;margin-top:10px}
@@ -367,7 +368,7 @@ function dig(s){return String(s||'').replace(/\D/g,'')}
 var EU=null;try{EU=JSON.parse(ls('bbvoz_eu')||'null')}catch(e){}
 var S=null,Q={porLoja:false,vendedoras:[],demo:false,tts:''},F=novoF(),FI=null,feitas=[],fila=[],atual=null,pulou=false,apresentar=false,primeira=true,porVoz=false;
 if(!tok){$('hint').textContent='Link inválido. Use o link de voz que a gerente mandou.';$('mic').disabled=true}
-else api({voz:'quem'}).then(function(q){Q=q;Q.vendedoras=q.vendedoras||[];if(q.rede){var ok=EU&&q.lojas.some(function(l){return l.loja==EU.loja&&l.vendedoras.indexOf(EU.nome)>=0});if(ok)souEu(EU);else{EU=null;pedeEu('s1')}}else if(q.porLoja){$('nome').textContent='Registrar venda por voz';$('loja').textContent='bb básico '+q.loja+' · link da loja'}else{$('nome').textContent=q.nome;$('loja').textContent='bb básico '+q.loja}if(q.demo)$('demo').style.display='block';api({voz:'sugestoes'}).then(function(r){S=r;if(r&&r.cat&&r.cat.length)BASICO=r.cat.map(function(c){return c.nome})}).catch(function(){})}).catch(function(e){$('hint').textContent='Não consegui identificar o link: '+e.message;$('mic').disabled=true});
+else api({voz:'quem'}).then(function(q){Q=q;Q.vendedoras=q.vendedoras||[];if(q.rede){var ok=EU&&q.lojas.some(function(l){return l.loja==EU.loja&&l.vendedoras.indexOf(EU.nome)>=0});if(ok)souEu(EU);else{EU=null;pedeEu('s1')}}else if(q.porLoja){$('nome').textContent='Registrar venda por voz';$('loja').textContent='bb básico '+q.loja+' · link da loja'}else{$('nome').textContent=q.nome;$('loja').textContent='bb básico '+q.loja}if(q.demo)$('demo').style.display='block';api({voz:'sugestoes'}).then(function(r){S=r;if(r&&r.cat&&r.cat.length)BASICO=r.cat.map(function(c){return c.nome})}).catch(function(){});setTimeout(adianta,1500)}).catch(function(e){$('hint').textContent='Não consegui identificar o link: '+e.message;$('mic').disabled=true});
 function nomeEu(){return EU?EU.nome:(Q.porLoja?'':(Q.nome&&!Q.demo?Q.nome:''))}
 
 // ---- voz da assistente: Sulafat no servidor (cache das frases); se falhar, a melhor voz do celular
@@ -375,30 +376,38 @@ var falar=ls('bbvoz_som')!=='0';
 function somBtn(){$('som').classList.toggle('on',falar);$('som').textContent=falar?'🔊 Voz ligada':'🔈 Sem voz'}somBtn();
 $('som').onclick=function(){falar=!falar;ls('bbvoz_som',falar?'1':'0');somBtn();if(!falar){paraFala();paraOuvir()}};
 var AUD=new Audio(),VZ={pref:ls('bbvoz_voz')||'',falhas:0,cache:{},erro:''};
-function motorSrv(){var p=VZ.pref;if(p.indexOf('srv:')==0)return p.slice(4);if(p.indexOf('dev:')==0)return'';return VZ.falhas>=2?'':(Q.tts||'')}
-function fala(t,fim){fim=fim||function(){};if(!falar||!t){fim();return}var m=motorSrv(),done=false;
- function vai(a){if(done)return;done=true;clearTimeout(to);if(a)tocaAudio(a,fim);else falaDev(t,fim)}
- if(!m){falaDev(t,fim);return}var to=setTimeout(function(){vai(null)},7000);
- pegaAudio(t,m).then(vai).catch(function(e){VZ.falhas++;VZ.erro=e.message;vai(null)})}
-function pegaAudio(t,m){var k=m+'|'+t;if(VZ.cache[k])return Promise.resolve(VZ.cache[k]);return api({voz:'falar',texto:t,motor:m}).then(function(r){VZ.cache[k]=r;VZ.falhas=0;return r})}
-function tocaAudio(a,fim){var ok=false,fin=function(){if(!ok){ok=true;AUD.onended=AUD.onerror=null;fim()}};try{if(window.speechSynthesis)speechSynthesis.cancel()}catch(e){}AUD.onended=fin;AUD.onerror=fin;AUD.onloadedmetadata=function(){if(isFinite(AUD.duration))setTimeout(fin,(AUD.duration+2)*1000)};AUD.src='data:'+a.mime+';base64,'+a.audio;var p=AUD.play();if(p&&p.catch)p.catch(fin)}
-function paraFala(){try{AUD.onended=AUD.onerror=AUD.onloadedmetadata=null;AUD.pause()}catch(e){}try{if(window.speechSynthesis)speechSynthesis.cancel()}catch(e){}}
+function motorSrv(){var p=VZ.pref;if(p.indexOf('dev:')==0)return'';if(p.indexOf('srv:')==0)return p.slice(4);return VZ.falhas>=3?'':(Q.tts||'')}
+// divide a fala em frases (sempre do mesmo jeito, para a frase repetida vir do cache); frase muito curta junta com a seguinte
+function partes(x){var l=[];(Array.isArray(x)?x:[x]).forEach(function(t){t=String(t||'').replace(/\s+/g,' ').trim();if(!t)return;var cur='';(t.match(/[^.!?]+[.!?]*/g)||[t]).forEach(function(y){y=y.trim();if(!y)return;cur=cur?cur+' '+y:y;if(cur.length>=12){l.push(cur);cur=''}});if(cur)l.push(cur)});return l}
+function fala(x,fim){fim=fim||function(){};var ps=partes(x);if(!falar||!ps.length){fim();return}var m=motorSrv(),id=++fala.n;if(!m){falaDev(ps.join(' '),fim);return}
+ var pr=ps.map(function(t){return pegaAudio(t,m)}),i=0;
+ (function prox(){if(fala.n!==id)return;if(i>=ps.length){fim();return}var t=ps[i],p=pr[i],feito=false;i++;
+  var to=setTimeout(function(){if(feito)return;feito=true;VZ.falhas++;falaDev(t,prox)},i==1?9000:12000);
+  p.then(function(a){if(feito||fala.n!==id)return;feito=true;clearTimeout(to);tocaAudio(a,prox)}).catch(function(e){if(feito||fala.n!==id)return;feito=true;clearTimeout(to);VZ.falhas++;VZ.erro=e.message;falaDev(t,prox)})})()}
+fala.n=0;
+function pegaAudio(t,m){var k=m+'|'+t;if(!VZ.cache[k])VZ.cache[k]=api({voz:'falar',texto:t,motor:m}).then(function(r){VZ.falhas=0;return r},function(e){delete VZ.cache[k];throw e});return VZ.cache[k]}
+function tocaAudio(a,fim){var ok=false,fin=function(){if(!ok){ok=true;AUD.onended=AUD.onerror=AUD.onloadedmetadata=null;fim()}};try{if(window.speechSynthesis)speechSynthesis.cancel()}catch(e){}AUD.onended=fin;AUD.onerror=fin;AUD.onloadedmetadata=function(){if(isFinite(AUD.duration))setTimeout(fin,(AUD.duration+2)*1000)};AUD.src='data:'+a.mime+';base64,'+a.audio;var p=AUD.play();if(p&&p.catch)p.catch(fin)}
+function paraFala(){fala.n++;try{AUD.onended=AUD.onerror=AUD.onloadedmetadata=null;AUD.pause()}catch(e){}try{if(window.speechSynthesis)speechSynthesis.cancel()}catch(e){}}
+// adianta as frases fixas (uma de cada vez): quando a vendedora precisar, já estão prontas
+function adianta(){var m=motorSrv();if(!m||!falar||adianta.ok)return;adianta.ok=1;var nm=nomeEu(),l=[];
+ if(nm)l=l.concat(partes(saudacao(nm,true,new Date().getHours())),partes(saudacao(nm,false,0)));else l=l.concat(partes(OB_FALA));
+ l=l.concat(partes(ponte(2,true)),['Confere o resumo e toca em salvar.','Anotado.'],perguntasPendentes(novoF(),null,[]).map(function(q){return q.texto}));
+ (function vai(i){if(i>=l.length||motorSrv()!==m)return;pegaAudio(l[i],m).then(function(){setTimeout(function(){vai(i+1)},400)},function(){})})(0)}
 function vozesDev(){return(window.speechSynthesis?speechSynthesis.getVoices():[]).filter(function(v){return/pt[-_]BR/i.test(v.lang)})}
-function vozDev(){var vs=vozesDev();if(!vs.length)return null;var p=VZ.pref.indexOf('dev:')==0?VZ.pref.slice(4):'',e=vs.filter(function(v){return v.name==p})[0];if(e)return e;
- function sc(v){var n=v.name;return/Google portugu[eê]s do Brasil/i.test(n)?100:/Luciana/i.test(n)?90:/(Natural|Online)/i.test(n)?80:/Google/i.test(n)?70:/Francisca|Thalita|Antonio/i.test(n)?60:/Microsoft (Maria|Daniel)/i.test(n)?5:10}
- return vs.slice().sort(function(a,b){return sc(b)-sc(a)})[0]}
+// reserva: a mesma voz do celular da versão anterior (a primeira em português), ou a que ela escolher em "Voz"
+function vozDev(){var vs=vozesDev();if(!vs.length)return null;var p=VZ.pref.indexOf('dev:')==0?VZ.pref.slice(4):'',e=vs.filter(function(v){return v.name==p})[0];return e||vs[0]}
 function falaDev(t,fim){if(!window.speechSynthesis){fim();return}var ok=false,fin=function(){if(!ok){ok=true;fim()}};try{speechSynthesis.cancel();var u=new SpeechSynthesisUtterance(t);u.lang='pt-BR';var v=vozDev();if(v)u.voice=v;u.rate=1.05;u.onend=fin;u.onerror=fin;speechSynthesis.speak(u);setTimeout(fin,t.length*85+2000)}catch(e){fin()}}
 var SILENCIO='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=';
 function destrava(){if(destrava.ok)return;destrava.ok=1;try{AUD.src=SILENCIO;var p=AUD.play();if(p&&p.catch)p.catch(function(){})}catch(e){}try{if(window.speechSynthesis){var u=new SpeechSynthesisUtterance(' ');u.volume=0;speechSynthesis.speak(u)}}catch(e){}}
 function bip(){try{var AC=window.AudioContext||window.webkitAudioContext,ac=bip.ac||(bip.ac=new AC()),o=ac.createOscillator(),g=ac.createGain();o.frequency.value=880;g.gain.value=0.15;o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+0.12)}catch(e){}}
 // escolha da voz (fica neste celular)
 var AMOSTRA='Oi! Me conta a venda: para quem era, o que você mostrou e o que ela levou.';
-function vozLista(){var l=[['','Automática (recomendada)']];if(Q.tts||TESTE){l.push(['srv:chirp','Sulafat — voz HD do Google']);l.push(['srv:gemini','Sulafat — voz do AI Studio'])}vozesDev().forEach(function(v){l.push(['dev:'+v.name,v.name+' (do celular)'])});return l}
+function vozLista(){var l=[['','Sulafat — voz da bb básico (recomendada)']];if(!Q.tts)l.push(['srv:gemini','Sulafat (forçar)']);vozesDev().forEach(function(v){l.push(['dev:'+v.name,v.name+' (do celular)'])});return l}
 function pintaVoz(){$('vozl').innerHTML=vozLista().map(function(x){return'<button class="vi'+(VZ.pref==x[0]?' on':'')+'" type="button" data-vz="'+esc(x[0])+'">'+esc(x[1])+'</button>'}).join('')}
 $('vozb').onclick=function(){destrava();var p=$('vozp');if(p.style.display=='none'){pintaVoz();msg('vozm','');p.style.display='';window.scrollTo(0,0)}else p.style.display='none'};
 $('vozf').onclick=function(){$('vozp').style.display='none'};
 $('vozl').addEventListener('click',function(e){var b=e.target.closest('.vi');if(!b)return;VZ.pref=b.dataset.vz;VZ.falhas=0;VZ.erro='';ls('bbvoz_voz',VZ.pref);pintaVoz();if(!falar){falar=true;ls('bbvoz_som','1');somBtn()}paraFala();msg('vozm','<span class="spin"></span>Tocando…');
- fala(AMOSTRA,function(){msg('vozm',VZ.erro&&VZ.pref.indexOf('srv:')==0?'Essa voz ainda não está liberada ('+esc(VZ.erro)+'). Tocou a voz do celular.':'',VZ.erro?'err':'')})});
+ VZ.erro='';fala(AMOSTRA,function(){msg('vozm',VZ.erro&&VZ.pref.indexOf('dev:')<0?'A Sulafat não respondeu ('+esc(VZ.erro)+'). Tocou a voz do celular.':'',VZ.erro?'err':'')})});
 if(window.speechSynthesis&&speechSynthesis.addEventListener)speechSynthesis.addEventListener('voiceschanged',function(){if($('vozp').style.display!='none')pintaVoz()});
 
 // ---- reconhecimento de respostas curtas no próprio celular (sim/não, nome, número)
@@ -411,7 +420,7 @@ function paraOuvir(){var r=ouvindo;ouvindo=null;if(r){try{r.abort()}catch(e){}if
 // ---- link da rede: quem é você (o nome define a loja); o celular lembra
 function souEu(e){EU=e;F.vendedora=e.nome;ls('bbvoz_eu',JSON.stringify(e));$('nome').textContent=e.nome;$('loja').innerHTML='bb básico '+esc(e.loja)+' · <button class="link" type="button" id="trocaeu" style="padding:0;font-size:13px">não sou eu</button>';$('trocaeu').onclick=function(){var vis=visivel();if(vis=='s2')lerForm();if(vis=='s0')vis='s1';pedeEu(vis)}}
 function pedeEu(volta){paraFala();paraOuvir();$('eus').innerHTML=(Q.lojas||[]).map(function(l){return'<label>'+esc(l.loja)+'</label><div class="chips">'+l.vendedoras.map(function(v){return'<button class="chip" type="button" data-loja="'+esc(l.loja)+'" data-v="'+esc(v)+'">'+esc(v)+'</button>'}).join('')+'</div>'}).join('');$('obconf').innerHTML='';pedeEu.volta=volta||'s1';show('s0')}
-function entrou(e){souEu(e);var v=pedeEu.volta;if(v=='s2')conferir();else if(v=='s5')final();else show(v);fala('Pronto, '+e.nome+'! Quando terminar uma venda, toque no botão e me conta.')}
+function entrou(e){souEu(e);adianta.ok=0;setTimeout(adianta,3000);var v=pedeEu.volta;if(v=='s2')conferir();else if(v=='s5')final();else show(v);fala('Pronto, '+e.nome+'! Quando terminar uma venda, toque no botão e me conta.')}
 $('eus').addEventListener('click',function(e){var c=e.target.closest('.chip');if(!c)return;destrava();paraOuvir();entrou({nome:c.dataset.v,loja:c.dataset.loja})});
 $('obmic').onclick=function(){destrava();paraFala();paraOuvir();$('obconf').innerHTML='';fala(OB_FALA,function(){if(!ouve(ouveNome,'obouv',true))obConf('Toque no seu nome aqui embaixo.')})};
 function obConf(h,falado){$('obconf').innerHTML='<div class="dup">'+h+'</div>';if(falado)fala(falado)}
@@ -502,7 +511,7 @@ function proxima(){paraOuvir();fila=perguntasPendentes(F,FI,feitas);var abre=apr
  else if(atual.tipo=='basico')h=opBasico();
  else if(atual.op)h=atual.op.map(function(o){return'<button class="btn op" type="button" data-v="'+esc(o[0])+'">'+esc(o[1])+'</button>'}).join('');
  $('qop').innerHTML=h;$('qmic').style.display='';$('qtxtrow').style.display=atual.tipo=='boleta'?'none':'';
- var q=atual;apresentar=false;fala([anot,abre,pt,q.texto].filter(Boolean).join(' '),function(){if(atual===q&&curta(q)&&$('s4').style.display!='none')ouve(function(a){respCurta(q,a)},'ouv')})}
+ var q=atual;apresentar=false;fala([anot,abre,pt,q.texto],function(){if(atual===q&&curta(q)&&$('s4').style.display!='none')ouve(function(a){respCurta(q,a)},'ouv')})}
 // resposta curta falada: tenta entender no celular; se não der, manda o texto para a IA
 function respCurta(q,alts){if(atual!==q)return;for(var i=0;i<alts.length;i++)if(aplicaCurta(F,q,alts[i])){porVoz=true;feito();return}
  if(q.tipo=='boleta'){msg('m4','Entendi "'+esc(alts[0]||'')+'". Digite o número da boleta.','err');return}
@@ -526,7 +535,7 @@ $('qfim').onclick=function(){pulou=true;paraFala();paraOuvir();final('')};
 function final(abre){paraOuvir();if(!F.dica){var dc=dicaPara(S,F,perfilDe(F));if(dc)F.dica=dc}
  $('fim_l').innerHTML='<ul>'+entendiLinhas(F).map(function(x){return'<li>'+esc(x)+'</li>'}).join('')+'</ul>';$('fim_dica').style.display=F.dica?'':'none';$('fim_dica').innerHTML=F.dica?'💡 '+esc(F.dica.texto):'';
  if(Q.rede||!Q.porLoja)$('fvend').innerHTML=F.vendedora&&Q.porLoja?'Atendeu: <b>'+esc(F.vendedora)+'</b>'+(EU?' · '+esc(EU.loja):''):'';else $('fvend').innerHTML='Atendeu: '+(F.vendedora?'<b>'+esc(F.vendedora)+'</b>':'— (marque em Corrigir detalhes)');
- msg('m5','');show('s5');fala([abre,'Confere o resumo e toca em salvar.'].filter(Boolean).join(' '))}
+ msg('m5','');show('s5');fala([abre,'Confere o resumo e toca em salvar.'])}
 $('fsalvar').onclick=function(){paraFala();preenche();salvar(false)};
 $('fcorr').onclick=function(){paraFala();conferir()};
 
@@ -583,7 +592,7 @@ function salvar(subst){var alvo=$('s5').style.display!='none'?'m5':'m2',bt=alvo=
  $(bt).disabled=true;$(bt).innerHTML='<span class="spin"></span>Salvando…';var d=JSON.parse(JSON.stringify(F));d.boleta=b;d.cpf=dig(F.cpf);if(subst)d.substituir=true;
  api({voz:'gravar',d:d}).then(function(r){if(r.duplicada){$(alvo).innerHTML='<div class="dup"><b>A boleta '+esc(b)+' já foi registrada</b> em '+esc(r.quando)+' por '+esc(r.vendedora)+'. É a mesma venda?<button class="btn" type="button" id="subst">Sim, substituir pelo registro de agora</button><button class="btn sec" type="button" id="corr">Não, vou corrigir a boleta</button></div>';$('subst').onclick=function(){salvar(true)};$('corr').onclick=function(){if(alvo=='m5')conferir();msg('m2','');$('f_boleta').focus()};return}
   var dc=F.dica,nm=nomeEu()||(r.vendedora&&Q.porLoja?r.vendedora:'');salvo();contaDia();$('okmsg').textContent='Pronto'+(nm?', '+nm:'')+', anotado. Boleta '+b+'.';$('okdica').style.display=dc?'':'none';$('okdica').innerHTML=dc?'💡 '+esc(dc.texto):'';show('s3');
-  fala('Pronto'+(nm?', '+nm:'')+', anotado.'+(dc?' '+dc.texto:''))}).catch(function(e){msg(alvo,e.message,'err')}).then(function(){$(bt).disabled=false;$(bt).textContent='Salvar registro'})}
+  fala(['Pronto'+(nm?', '+nm:'')+', anotado.',dc?dc.texto:''])}).catch(function(e){msg(alvo,e.message,'err')}).then(function(){$(bt).disabled=false;$(bt).textContent='Salvar registro'})}
 $('salvar').onclick=function(){salvar(false)};
 $('voltaq').onclick=function(){lerForm();pulou=false;feitas=[];proxima()};
 // rascunho: se a página fechar antes de salvar, o que foi falado volta ao abrir de novo
