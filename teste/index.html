@@ -60,7 +60,7 @@ textarea{min-height:92px;resize:vertical}
 </style>
 </head>
 <body>
-<div id="demo">Demonstração — o que você gravar aqui fica numa área separada e não afeta as lojas.</div>
+<div id="demo" style="display:block">TESTE — o que você gravar aqui fica numa área separada e não afeta as lojas.</div>
 <header><div><small id="loja">bb básico</small><b id="nome">Registrar venda por voz</b></div><button class="som on" id="som" type="button">🔊 Voz ligada</button></header>
 <main>
 
@@ -249,7 +249,7 @@ function aplicaOpcao(F,id,v,fi){var p=id.split(':'),k=p[0],i=Number(p[1]);
 // @entrevista-fim
 var $=function(i){return document.getElementById(i)};
 var tok=(function(){var m=/[#?&]t=([0-9a-f]{20,40})/.exec(location.hash+location.search);var t=m?m[1]:null;try{if(t)localStorage.setItem('bbvoz_t_teste',t);else t=localStorage.getItem('bbvoz_t_teste')}catch(e){}return t})();
-function api(b){b.tok=tok;if(EU&&Q.porLoja)b.vend=EU.nome;return fetch(URL_SCRIPT,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(b)}).then(function(r){return r.json()}).then(function(j){if(!j.ok)throw new Error(j.erro||'erro');return j.r})}
+function api(b){b.tok=tok;b.teste=1;if(EU&&Q.porLoja)b.vend=EU.nome;return fetch(URL_SCRIPT,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(b)}).then(function(r){return r.json()}).then(function(j){if(!j.ok)throw new Error(j.erro||'erro');return j.r})}
 function msg(id,t,cls){var e=$(id);e.innerHTML=t?'<div class="msg '+(cls||'')+'">'+t+'</div>':''}
 function show(n){['s0','s1','s2','s3','s4'].forEach(function(s){$(s).style.display=s==n?'':'none'});window.scrollTo(0,0)}
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}
