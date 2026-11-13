@@ -100,6 +100,11 @@ textarea{min-height:92px;resize:vertical}
 </section>
 
 <section id="s1">
+ <div class="card" id="quemc" style="display:none">
+  <div class="q" id="quemq">Quem vai contar a venda?</div>
+  <div class="hint" id="quems" style="text-align:left;margin:0 0 10px">Toque no seu nome:</div>
+  <div class="chips" id="quemv"></div>
+ </div>
  <div class="card">
   <h2>Cliente</h2>
   <div class="row">
@@ -324,6 +329,8 @@ function entendiFala(F){var cs=(F.criancas||[]).filter(function(c){return!c.conh
 // ---- v35: falas do diálogo
 function saudacao(nome,primeira,hora){var n=nome?', '+nome:'';if(!primeira)return'Oi'+n+', pode contar.';return(hora<12?'Bom dia':hora<18?'Boa tarde':'Boa noite')+n+'! Me conta a venda: para quem era, o que você mostrou e o que ela levou.'}
 function ponte(n,primeira){if(!n)return'';if(primeira)return'Agora umas perguntas rápidas. Com elas eu te lembro do que importa sobre essa cliente e te aviso quando chamar de volta.';return n==1?'Falta uma coisa.':'Faltam '+n+' coisas.'}
+var OB_APRES='Eu sou a sua assistente de vendas da bb básico. Eu guardo o que você me contar de cada cliente e te aviso a hora certa de chamar cada uma: aniversário, troca de tamanho, a peça que ela queria e chegou. Assim você vende mais.';
+function apresenta(s,ap){if(!ap)return s;var i=s.indexOf('!')+1;return i>0?s.slice(0,i)+' '+OB_APRES+' '+s.slice(i).trim():OB_APRES+' '+s}
 var OB_FALA='Oi! Eu sou a sua assistente de vendas da bb básico. Eu guardo o que você me contar de cada cliente e te aviso a hora certa de chamar cada uma: aniversário, troca de tamanho, a peça que ela queria e chegou. Assim você vende mais. Como você se chama?';
 // ---- v35: respostas curtas entendidas no próprio celular (sem gastar IA)
 function normaliza(s){return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9\s]/g,' ').replace(/\s+/g,' ').trim()}
@@ -366,9 +373,10 @@ function visivel(){return SECS.filter(function(s){return $(s).style.display!='no
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}
 function dig(s){return String(s||'').replace(/\D/g,'')}
 var EU=null;try{EU=JSON.parse(ls('bbvoz_eu')||'null')}catch(e){}
+var LOJA=ls('bbvoz_loja')||(EU&&EU.loja)||'',obOuviu=false;
 var S=null,Q={porLoja:false,vendedoras:[],demo:false,tts:''},F=novoF(),FI=null,feitas=[],fila=[],atual=null,pulou=false,apresentar=false,primeira=true,porVoz=false;
 if(!tok){$('hint').textContent='Link inválido. Use o link de voz que a gerente mandou.';$('mic').disabled=true}
-else api({voz:'quem'}).then(function(q){Q=q;Q.vendedoras=q.vendedoras||[];if(q.rede){var ok=EU&&q.lojas.some(function(l){return l.loja==EU.loja&&l.vendedoras.indexOf(EU.nome)>=0});if(ok)souEu(EU);else{EU=null;pedeEu('s1')}}else if(q.porLoja){$('nome').textContent='Sua assistente de vendas';$('loja').textContent='bb básico '+q.loja+' · link da loja'}else{$('nome').textContent=q.nome;$('loja').textContent='bb básico '+q.loja}if(q.demo)$('demo').style.display='block';api({voz:'sugestoes'}).then(function(r){S=r;if(r&&r.cat&&r.cat.length)BASICO=r.cat.map(function(c){return c.nome})}).catch(function(){});setTimeout(adianta,1500)}).catch(function(e){$('hint').textContent='Não consegui identificar o link: '+e.message;$('mic').disabled=true});
+else api({voz:'quem'}).then(function(q){Q=q;Q.vendedoras=q.vendedoras||[];if(q.rede){var lj=(q.lojas||[]).filter(function(l){return l.loja==LOJA})[0];if(!lj){EU=null;pedeEu('s1')}else if(EU&&EU.loja==LOJA&&EU.dia==hojeL()&&lj.vendedoras.indexOf(EU.nome)>=0)souEu(EU);else{EU=null;semEu()}}else if(q.porLoja){$('nome').textContent='Sua assistente de vendas';$('loja').textContent='bb básico '+q.loja+' · link da loja'}else{$('nome').textContent=q.nome;$('loja').textContent='bb básico '+q.loja}if(q.demo)$('demo').style.display='block';api({voz:'sugestoes'}).then(function(r){S=r;if(r&&r.cat&&r.cat.length)BASICO=r.cat.map(function(c){return c.nome})}).catch(function(){});setTimeout(adianta,1500)}).catch(function(e){$('hint').textContent='Não consegui identificar o link: '+e.message;$('mic').disabled=true});
 function nomeEu(){return EU?EU.nome:(Q.porLoja?'':(Q.nome&&!Q.demo?Q.nome:''))}
 
 // ---- voz da assistente: Sulafat no servidor (cache das frases); se falhar, a melhor voz do celular
@@ -380,7 +388,7 @@ function motorSrv(){var p=VZ.pref;if(p.indexOf('dev:')==0)return'';if(p.indexOf(
 // divide a fala em frases (sempre do mesmo jeito, para a frase repetida vir do cache); frase muito curta junta com a seguinte
 function partes(x){var l=[];(Array.isArray(x)?x:[x]).forEach(function(t){t=String(t||'').replace(/\s+/g,' ').trim();if(!t)return;var cur='';(t.match(/[^.!?]+[.!?]*/g)||[t]).forEach(function(y){y=y.trim();if(!y)return;cur=cur?cur+' '+y:y;if(cur.length>=12){l.push(cur);cur=''}});if(cur)l.push(cur)});return l}
 function fala(x,fim){fim=fim||function(){};var ps=partes(x);if(!falar||!ps.length){fim();return}var m=motorSrv(),id=++fala.n;if(!m){falaDev(ps.join(' '),fim);return}
- var pr=ps.map(function(t){return pegaAudio(t,m)}),i=0;
+ var pr=ps.map(function(t){return pegaAudio(t,m)}),i=0;pr.forEach(function(p){p.catch(function(){})});// fala interrompida: pedaços não tocados não viram erro solto
  (function prox(){if(fala.n!==id)return;if(i>=ps.length){fim();return}var t=ps[i],p=pr[i],feito=false;i++;
   var to=setTimeout(function(){if(feito)return;feito=true;VZ.falhas++;falaDev(t,prox)},i==1?9000:12000);
   p.then(function(a){if(feito||fala.n!==id)return;feito=true;clearTimeout(to);tocaAudio(a,prox)}).catch(function(e){if(feito||fala.n!==id)return;feito=true;clearTimeout(to);VZ.falhas++;VZ.erro=e.message;falaDev(t,prox)})})()}
@@ -418,11 +426,21 @@ function ouve(cb,ind,forca){if(!SR||(!falar&&!forca))return false;paraOuvir();tr
 function paraOuvir(){var r=ouvindo;ouvindo=null;if(r){try{r.abort()}catch(e){}if(r._ind)$(r._ind).style.display='none'}}
 
 // ---- link da rede: quem é você (o nome define a loja); o celular lembra
-function souEu(e){EU=e;F.vendedora=e.nome;ls('bbvoz_eu',JSON.stringify(e));$('nome').textContent=e.nome;$('loja').innerHTML='bb básico '+esc(e.loja)+' · <button class="link" type="button" id="trocaeu" style="padding:0;font-size:13px">não sou eu</button>';$('trocaeu').onclick=function(){var vis=visivel();if(vis=='s2')lerForm();if(vis=='s0')vis='s1';pedeEu(vis)}}
+// celular da loja: guarda a loja; a vendedora vale só no dia e a cada venda a tela pergunta "Ainda é a X?"
+function cabLoja(){$('loja').innerHTML='bb básico '+esc(LOJA)+' · <button class="link" type="button" id="trocaeu" style="padding:0;font-size:13px">trocar loja</button>';$('trocaeu').onclick=function(){var vis=visivel();if(vis=='s2')lerForm();if(vis=='s0')vis='s1';pedeEu(vis)}}
+function souEu(e){EU={nome:e.nome,loja:e.loja,dia:hojeL()};LOJA=e.loja;F.vendedora=e.nome;ls('bbvoz_eu',JSON.stringify(EU));ls('bbvoz_loja',LOJA);$('nome').textContent=e.nome;cabLoja();pintaQuem()}
+function semEu(){EU=null;F.vendedora='';$('nome').textContent='Sua assistente de vendas';cabLoja();pintaQuem()}
+function vendLoja(){var l=(Q.lojas||[]).filter(function(x){return x.loja==LOJA})[0];return l?l.vendedoras:[]}
+function pintaQuem(){var c=$('quemc');if(!Q.rede||!LOJA){c.style.display='none';return}c.style.display='';var nm=EU&&EU.nome;
+ $('quemq').textContent=nm?'Ainda é a '+nm+'?':'Quem vai contar a venda?';$('quems').textContent=nm?'Se for, toque no microfone. Se não, toque no seu nome:':'Toque no seu nome para começar:';
+ $('quemv').innerHTML=vendLoja().filter(function(v){return v!=nm}).map(function(v){return'<button class="chip" type="button" data-qv="'+esc(v)+'">'+esc(v)+'</button>'}).join('')}
+$('quemv').addEventListener('click',function(e){var c=e.target.closest('.chip');if(!c)return;destrava();paraFala();souEu({nome:c.dataset.qv,loja:LOJA});F.vendedora=c.dataset.qv;comecaVenda()});
+function apresentadas(){try{return JSON.parse(ls('bbvoz_apres')||'[]')}catch(e){return[]}}
+function marcaApres(n){var a=apresentadas();if(n&&a.indexOf(n)<0){a.push(n);ls('bbvoz_apres',JSON.stringify(a))}}
 function pedeEu(volta){paraFala();paraOuvir();$('eus').innerHTML=(Q.lojas||[]).map(function(l){return'<label>'+esc(l.loja)+'</label><div class="chips">'+l.vendedoras.map(function(v){return'<button class="chip" type="button" data-loja="'+esc(l.loja)+'" data-v="'+esc(v)+'">'+esc(v)+'</button>'}).join('')+'</div>'}).join('');$('obconf').innerHTML='';pedeEu.volta=volta||'s1';show('s0')}
-function entrou(e){souEu(e);adianta.ok=0;setTimeout(adianta,3000);var v=pedeEu.volta;if(v=='s2')conferir();else if(v=='s5')final();else show(v);fala('Pronto, '+e.nome+'! Quando terminar uma venda, toque no botão e me conta.')}
+function entrou(e){souEu(e);if(obOuviu)marcaApres(e.nome);adianta.ok=0;setTimeout(adianta,3000);var v=pedeEu.volta;if(v=='s2')conferir();else if(v=='s5')final();else show(v);fala('Pronto, '+e.nome+'! Quando terminar uma venda, toque no botão e me conta.')}
 $('eus').addEventListener('click',function(e){var c=e.target.closest('.chip');if(!c)return;destrava();paraOuvir();entrou({nome:c.dataset.v,loja:c.dataset.loja})});
-$('obmic').onclick=function(){destrava();paraFala();paraOuvir();$('obconf').innerHTML='';fala(OB_FALA,function(){if(!ouve(ouveNome,'obouv',true))obConf('Toque no seu nome aqui embaixo.')})};
+$('obmic').onclick=function(){destrava();paraFala();paraOuvir();$('obconf').innerHTML='';obOuviu=true;fala(OB_FALA,function(){if(!ouve(ouveNome,'obouv',true))obConf('Toque no seu nome aqui embaixo.')})};
 function obConf(h,falado){$('obconf').innerHTML='<div class="dup">'+h+'</div>';if(falado)fala(falado)}
 function ouveNome(alts){var c=[];alts.some(function(a){c=achaNome(Q.lojas,a);return c.length});
  if(!c.length){obConf('Não achei o seu nome'+(alts[0]?' ("'+esc(alts[0])+'")':'')+'. Toque nele aqui embaixo.','Não achei o seu nome. Toque nele aqui embaixo.');return}
@@ -480,16 +498,17 @@ function b64(ab){var u=new Uint8Array(ab),s='',CH=0x8000;for(var i=0;i<u.length;
 
 // ---- dia: a primeira venda do dia tem a saudação completa e a explicação das perguntas
 function hojeL(){var x=new Date();return x.getFullYear()+'-'+(x.getMonth()+1)+'-'+x.getDate()}
-function diaInfo(){try{return JSON.parse(ls('bbvoz_dia')||'null')||{}}catch(e){return{}}}
-function primeiraDia(){var d=diaInfo();return!(d.d==hojeL()&&d.nome==nomeEu()&&d.n>0)}
-function contaDia(){var d=diaInfo(),h=hojeL(),nm=nomeEu();if(d.d!=h||d.nome!=nm)d={d:h,nome:nm,n:0};d.n++;ls('bbvoz_dia',JSON.stringify(d))}
+function diaInfo(){var d=null;try{d=JSON.parse(ls('bbvoz_dia')||'null')}catch(e){}if(!d||d.d!=hojeL()||typeof d.n!='object'||!d.n)d={d:hojeL(),n:{}};return d}
+function primeiraDia(){return!(diaInfo().n[nomeEu()]>0)}
+function contaDia(){var d=diaInfo(),nm=nomeEu();d.n[nm]=(d.n[nm]||0)+1;ls('bbvoz_dia',JSON.stringify(d))}
 
 // ---- relato inicial: saudação → bip → grava sozinho
 var REL={btn:'mic',lbl:'micl',lbl0:'Toque e fale',tm:'timer',m:'m1',max:180,envia:relato};
 var saudando=false;
 function comecaVenda(){destrava();paraOuvir();if(gravando()){parar();return}if(saudando){saudando=false;paraFala();gravar(REL);return}
- primeira=primeiraDia();if(!falar){gravar(REL);return}saudando=true;$('micl').textContent='Toque para falar já';
- fala(saudacao(nomeEu(),primeira,new Date().getHours()),function(){if(!saudando)return;saudando=false;bip();setTimeout(function(){gravar(Object.assign({auto:true},REL))},250)})}
+ if(Q.rede&&!EU){show('s1');pintaQuem();msg('m1','Toque no seu nome primeiro, lá em cima.','err');window.scrollTo(0,0);return}if(EU)F.vendedora=EU.nome;msg('m1','');
+ primeira=primeiraDia();var nm=nomeEu(),ap=!!(Q.rede&&nm&&apresentadas().indexOf(nm)<0);if(!falar){gravar(REL);return}if(ap)marcaApres(nm);saudando=true;$('micl').textContent='Toque para falar já';
+ fala(apresenta(saudacao(nm,primeira||ap,new Date().getHours()),ap),function(){if(!saudando)return;saudando=false;bip();setTimeout(function(){gravar(Object.assign({auto:true},REL))},250)})}
 function lerCliente(){var b=dig($('i_boleta').value),c=dig($('i_cpf').value);if(b)F.boleta=b;if(c)F.cpf=c}
 function relato(d){lerCliente();d.ctx=F;return api({voz:'interpretar',d:d}).then(function(r){apresentar=true;recebe(r)})}
 function recebe(r){var bt=F.boleta,cpf=F.cpf,vend=F.vendedora;['modelo','ms','uso'].forEach(function(k){delete r[k]});F=r;if(bt)F.boleta=bt;F.boleta=dig(F.boleta);F.cpf=cpf;F.vendedora=vend;F.respostas_ficha=F.respostas_ficha||{};msg('m1','');msg('m4','');guarda();proxima()}
@@ -604,7 +623,7 @@ document.addEventListener('visibilitychange',function(){if(document.visibilitySt
  $('rcont').onclick=function(){F=r.F;FI=r.FI;feitas=r.feitas||[];pulou=!!r.pulou;d.remove();if(pulou)final('');else proxima()};$('rdesc').onclick=function(){salvo();d.remove()}}catch(e){}})();
 function zera(){salvo();F=novoF();if(EU)F.vendedora=EU.nome;FI=null;feitas=[];pulou=false;atual=null;apresentar=false;porVoz=false;basOutros=false;$('txt').value='';$('i_boleta').value='';$('i_cpf').value='';$('ficha').style.display='none';msg('mf','');msg('m1','');show('s1')}
 $('denovo').onclick=function(){paraFala();paraOuvir();zera()};
-$('nova').onclick=function(){paraFala();zera();comecaVenda()};
+$('nova').onclick=function(){paraFala();zera();if(Q.rede){pintaQuem();return}comecaVenda()};
 </script>
 </body>
 </html>
