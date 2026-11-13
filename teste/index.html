@@ -24,6 +24,7 @@ h2{font-size:15px;margin:0 0 8px;color:var(--mute);font-weight:600;text-transfor
 @keyframes p{0%{box-shadow:0 0 0 0 rgba(185,28,28,.35)}100%{box-shadow:0 0 0 22px rgba(185,28,28,0)}}
 .micbtn:disabled{opacity:.5}
 .hint{color:var(--mute);font-size:14px;text-align:center}
+.snc{display:none}body.nc .sov{display:none}body.nc .snc{display:block}
 .timer{font-variant-numeric:tabular-nums;font-size:20px;font-weight:600;min-height:26px}
 label{display:block;font-size:13px;color:var(--mute);margin:12px 0 4px}
 input,textarea,select{width:100%;font:inherit;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--fg)}
@@ -124,7 +125,8 @@ textarea{min-height:92px;resize:vertical}
     <span id="micl">Toque e fale</span>
    </button>
    <div class="timer" id="timer"></div>
-   <div class="hint" id="hint">Toque, ouça a saudação e conte a venda: para quem era, o que você mostrou, o que ela levou e o que olhou e não levou. Depois eu pergunto só o que faltar.</div>
+   <button class="btn sec" type="button" id="micnc" style="margin-top:12px">🙋 Atendeu e não vendeu</button>
+   <div class="hint" id="hint">Toque, ouça a saudação e conte a venda: para quem era, o que você mostrou, o que ela levou e o que olhou e não levou. Depois eu pergunto só o que faltar.<br>Atendeu e não vendeu? Toque no botão de cima e conte quem era, o que ela procurava e por que não levou.</div>
   </div>
   <div id="m1"></div>
  </div>
@@ -177,14 +179,22 @@ textarea{min-height:92px;resize:vertical}
   <div class="dup" id="dica" style="display:none;margin-bottom:10px"></div>
   <div id="atend" style="display:none"><label>Quem atendeu?</label><div class="chips" id="vends"></div></div>
   <div class="row">
-   <div><label>Boleta (cupom)</label><input id="f_boleta" inputmode="numeric" maxlength="6" placeholder="ex.: 86806"></div>
+   <div class="sov"><label>Boleta (cupom)</label><input id="f_boleta" inputmode="numeric" maxlength="6" placeholder="ex.: 86806"></div>
    <div><label>CPF (opcional)</label><input id="f_cpf" inputmode="numeric" maxlength="14" placeholder="só números"></div>
   </div>
   <label>O que você disse</label>
   <textarea id="f_transcricao" maxlength="6000"></textarea>
+  <div class="snc">
+   <label>O que ela procurava</label>
+   <input id="f_procurava" maxlength="300" placeholder="ex.: body manga longa 06, conjunto para presente">
+   <label>Por que não levou</label>
+   <div class="chips" data-f="motivo_nc"><button class="chip" data-v="sem_tamanho_cor">Não tinha tamanho/cor</button><button class="chip" data-v="caro">Achou caro</button><button class="chip" data-v="so_olhando">Só olhando</button><button class="chip" data-v="vai_voltar">Vai voltar</button><button class="chip" data-v="decidir_com_alguem">Vai decidir com alguém</button><button class="chip" data-v="outro">Outro</button></div>
+   <label>Quando ela disse que volta</label>
+   <input id="f_volta" maxlength="120" placeholder="ex.: sábado, depois do dia 20 — ou deixe em branco">
+  </div>
   <label>Presente ou uso</label>
   <div class="chips" data-f="tipo"><button class="chip" data-v="presente">Presente</button><button class="chip" data-v="uso">Uso próprio</button><button class="chip" data-v="ambos">Os dois</button><button class="chip" data-v="nao_sei">Não sei</button></div>
-  <label>Quem comprou</label>
+  <label id="l_rel">Quem comprou</label>
   <div class="chips" data-f="relacao"><button class="chip" data-v="mae">Mãe</button><button class="chip" data-v="pai">Pai</button><button class="chip" data-v="avo">Avó/avô</button><button class="chip" data-v="tia">Tia/tio</button><button class="chip" data-v="madrinha">Madrinha</button><button class="chip" data-v="amiga">Amiga</button><button class="chip" data-v="outra">Outra</button></div>
   <input id="f_relacao_outra" placeholder="qual?" style="display:none;margin-top:8px">
   <input id="f_cliente_nome" placeholder="nome de quem comprou (se souber)" style="margin-top:8px">
@@ -193,10 +203,12 @@ textarea{min-height:92px;resize:vertical}
   <label>Criança(s) — todas que ela citou, inclusive bebê a caminho</label>
   <div id="cris"></div>
   <button class="link" type="button" id="addcri">+ adicionar criança</button>
+  <div class="sov">
   <label>Peças do básico que você mostrou</label>
   <div class="chips" id="basico"></div>
   <label>Quantos modelos diferentes você mostrou?</label>
   <input id="f_modelos" type="number" inputmode="numeric" min="0" max="99" placeholder="mínimo 4">
+  </div>
   <label>Olhou e não levou</label>
   <div id="nls"></div>
   <button class="link" type="button" id="addnl">+ adicionar peça</button>
@@ -262,10 +274,22 @@ function dicaPara(S,F,pf){if(!S)return null;var mos=(F.basico_mostrado||[]).map(
  if(best)return{id:'rec:'+best.g,g:best.g,texto:'Você sabia? '+best.r.voltou+'% das clientes que levam '+nomeG(S,best.g).toLowerCase()+' voltam em até 12 meses, e '+best.r.mesmo+'% levam '+nomeG(S,best.g).toLowerCase()+' de novo. Peça o WhatsApp e avise quando chegar o próximo tamanho.'};
  return null}
 var MOTIVOS=[['caro','Achou caro'],['sem_tamanho_cor','Não tinha tamanho/cor'],['duvida','Ficou na dúvida'],['vai_voltar','Vai voltar'],['outro','Outro']];
-function novoF(){return{transcricao:'',resumo:'',boleta:'',cpf:'',tipo:'',relacao:'',relacao_outra:'',cliente_nome:'',ocasiao:'',criancas:[],faltou:'',pode_avisar:'',celular:'',proximo_evento:'',evento_tipo:'',evento_data:'',modelos_mostrados:-1,basico_mostrado:[],nao_levou:[],preferencias:[],avisar_sobre:[],respostas_ficha:{},vendedora:''}}
+function novoF(){return{transcricao:'',resumo:'',boleta:'',cpf:'',tipo:'',relacao:'',relacao_outra:'',cliente_nome:'',ocasiao:'',criancas:[],faltou:'',pode_avisar:'',celular:'',proximo_evento:'',evento_tipo:'',evento_data:'',modelos_mostrados:-1,basico_mostrado:[],nao_levou:[],preferencias:[],avisar_sobre:[],respostas_ficha:{},vendedora:'',procurava:'',volta:'',motivo_nc:''}}
 function nomeCri(c,i){return c.apelido?c.apelido:'a criança '+(i+1)}
 // Lista do que ainda falta perguntar, na ordem. Pergunta já feita (respondida ou pulada) não volta.
-function perguntasPendentes(F,fi,feitas){var q=[];feitas=feitas||[];function add(id,texto,op,tipo){if(feitas.indexOf(id)<0)q.push({id:id,texto:texto,op:op||null,tipo:tipo||'voz'})}
+// v36: atendimento SEM venda — entrevista curta: por que não levou, quando volta, aviso e celular
+var MOT_NC=[['sem_tamanho_cor','Não tinha tamanho/cor'],['caro','Achou caro'],['so_olhando','Só olhando'],['vai_voltar','Vai voltar'],['decidir_com_alguem','Vai decidir com alguém'],['outro','Outro']],MOT_NC_F={sem_tamanho_cor:'não tinha o tamanho ou a cor',caro:'achou caro',so_olhando:'só estava olhando',vai_voltar:'vai voltar',decidir_com_alguem:'vai decidir com alguém',outro:'outro motivo'};
+function perguntasNc(F,feitas){var q=[];function add(id,texto,op,tipo){if(feitas.indexOf(id)<0)q.push({id:id,texto:texto,op:op||null,tipo:tipo||'voz'})}
+ if(!F.relacao)add('relacao','Quem era a cliente?',[['mae','Mãe'],['pai','Pai'],['avo','Avó/avô'],['tia','Tia/tio'],['madrinha','Madrinha'],['amiga','Amiga'],['outra','Outra']]);
+ if(!F.procurava&&!(F.nao_levou||[]).length&&!(F.faltou&&F.faltou!='nada'))add('procurava','O que ela procurava?');
+ if(!F.motivo_nc)add('motivo_nc','Por que ela não levou?',MOT_NC);
+ if((F.motivo_nc=='vai_voltar'||F.motivo_nc=='decidir_com_alguem')&&!F.volta)add('volta','Ela disse quando volta?',[['nao','Não disse']]);
+ if(!F.pode_avisar)add('pode_avisar','Ela aceita receber aviso no WhatsApp?',[['sim','Sim'],['nao','Não'],['nao_perguntei','Não perguntei']]);
+ if(F.pode_avisar=='sim'&&!F.cpf&&!F.celular&&!F.celular_nao)add('celular','Qual o celular dela?',[['nao','Não deu']]);
+ if(F.pode_avisar=='sim'&&!(F.avisar_sobre||[]).length)add('avisos','Ela quer ser avisada de algo específico? Chegada de uma peça ou tamanho, promoção, coleção nova…',AVISOS);
+ (F.avisar_sobre||[]).forEach(function(a,i){if(a.tipo=='chegada'&&!a.detalhe)add('avisodet:'+i,'Avisar quando chegar o quê? Fale a peça, o tamanho ou a cor.')});
+ return q}
+function perguntasPendentes(F,fi,feitas){var q=[];feitas=feitas||[];if(F.nao_compra)return perguntasNc(F,feitas);function add(id,texto,op,tipo){if(feitas.indexOf(id)<0)q.push({id:id,texto:texto,op:op||null,tipo:tipo||'voz'})}
  if(!F.boleta)add('boleta','Qual o número da boleta?',null,'boleta');
  if(F.boleta&&F.boleta_falada&&F.boleta_falada!=F.boleta)add('boleta_conf','Você digitou a boleta '+F.boleta+' e falou '+F.boleta_falada+'. Qual é a certa?',[[F.boleta,F.boleta],[F.boleta_falada,F.boleta_falada]]);
  if(!F.tipo)add('tipo','Foi presente ou para uso da própria família?',[['presente','Presente'],['uso','Uso próprio'],['ambos','Os dois']]);
@@ -290,7 +314,9 @@ function perguntasPendentes(F,fi,feitas){var q=[];feitas=feitas||[];function add
  return q}
 // Resposta por botão: aplica direto, sem gastar IA.
 function aplicaOpcao(F,id,v,fi){var p=id.split(':'),k=p[0],i=Number(p[1]);
- if(k=='tipo'||k=='relacao'||k=='pode_avisar')F[k]=v;
+ if(k=='tipo'||k=='relacao'||k=='pode_avisar'||k=='motivo_nc')F[k]=v;
+ else if(k=='volta'&&v=='nao')F.volta='não disse';
+ else if(k=='celular'&&v=='nao')F.celular_nao=true;
  else if(k=='boleta_conf'){F.boleta=String(v);delete F.boleta_falada}
  else if(k=='sexo'&&F.criancas[i])F.criancas[i].sexo=v;
  else if(k=='modelos')F.modelos_mostrados=Number(v);
@@ -317,10 +343,12 @@ function listaF(l){return l.length<2?l.join(''):l.slice(0,-1).join(', ')+' e '+l
 function basF(F){return(F.basico_mostrado||[]).filter(function(x){return x&&x!='nenhuma'}).map(function(x){return rotuloBas(x,F).toLowerCase()})}
 function entendiLinhas(F){var l=[],cs=(F.criancas||[]).filter(function(c){return!c.conhecida}),T={presente:'Presente',uso:'Uso próprio',ambos:'Presente e uso'};
  var tp=T[F.tipo]?T[F.tipo]+(F.ocasiao?' — '+F.ocasiao:''):(F.ocasiao?'Ocasião: '+F.ocasiao:'');if(tp)l.push(tp);if(cs.length)l.push('Para '+listaF(cs.map(criF)));
- if(F.relacao)l.push('Quem comprou: '+(F.relacao=='outra'&&F.relacao_outra?F.relacao_outra:(REL_F[F.relacao]||F.relacao)));
+ if(F.nao_compra)l.unshift('Atendimento sem venda');
+ if(F.relacao)l.push((F.nao_compra?'Quem era: ':'Quem comprou: ')+(F.relacao=='outra'&&F.relacao_outra?F.relacao_outra:(REL_F[F.relacao]||F.relacao)));
  var b=basF(F),nb=(F.basico_mostrado||[]).indexOf('nenhuma')>=0;if(b.length||nb||F.modelos_mostrados>=0)l.push('Você mostrou: '+(b.length?listaF(b):nb?'nenhuma peça do básico':'—')+(F.modelos_mostrados>=0?' ('+F.modelos_mostrados+' modelo'+(F.modelos_mostrados==1?'':'s')+' no total)':''));
  (F.nao_levou||[]).forEach(function(n){if(n&&n.peca)l.push('Olhou e não levou: '+n.peca+(n.tamanho?' '+n.tamanho:'')+(MOT_F[n.motivo]?' — '+MOT_F[n.motivo]:''))});
  if(F.faltou&&F.faltou!='nada')l.push('Procurou e a loja não tem: '+F.faltou);
+ if(F.nao_compra){if(F.procurava)l.push('Procurava: '+F.procurava);if(F.motivo_nc)l.push('Não levou porque '+(MOT_NC_F[F.motivo_nc]||F.motivo_nc));if(F.volta)l.push('Volta: '+F.volta)}
  if(F.proximo_evento||F.evento_data)l.push('Data ou evento: '+[F.proximo_evento,F.evento_data].filter(Boolean).join(' · '));
  if(F.pode_avisar)l.push('Novidades no WhatsApp: '+({sim:'aceita',nao:'não quer',nao_perguntei:'não perguntei'})[F.pode_avisar]);
  var av=(F.avisar_sobre||[]).filter(function(a){return a.tipo!='nada'});if(av.length)l.push('Quer ser avisada de: '+av.map(function(a){return(AVI_F[a.tipo]||a.tipo)+(a.detalhe?' ('+a.detalhe+')':'')}).join(', '));
@@ -332,6 +360,7 @@ function entendiFala(F){var cs=(F.criancas||[]).filter(function(c){return!c.conh
  var nl=(F.nao_levou||[]).filter(function(n){return n&&n.peca})[0];if(nl)f.push('Ela olhou '+nl.peca+' e não levou'+(MOT_F[nl.motivo]?': '+MOT_F[nl.motivo]:'')+'.');
  return f.length?'Entendi assim: '+f.join(' '):'Não peguei os detalhes da venda. Vou te perguntar.'}
 // ---- v35: falas do diálogo
+function saudacaoNc(nome,hora){var n=nome?', '+nome:'';return(hora<12?'Bom dia':hora<18?'Boa tarde':'Boa noite')+n+'! Me conta o atendimento: quem era, o que ela procurava e por que não levou.'}
 function saudacao(nome,primeira,hora){var n=nome?', '+nome:'';if(!primeira)return'Oi'+n+', pode contar.';return(hora<12?'Bom dia':hora<18?'Boa tarde':'Boa noite')+n+'! Me conta a venda: para quem era, o que você mostrou e o que ela levou.'}
 function ponte(n,primeira){if(!n)return'';if(primeira)return'Agora umas perguntas rápidas. Com elas eu te lembro do que importa sobre essa cliente e te aviso quando chamar de volta.';return n==1?'Falta uma coisa.':'Faltam '+n+' coisas.'}
 var OB_APRES='Eu sou a sua assistente de vendas da bb básico. Eu guardo o que você me contar de cada cliente e te aviso a hora certa de chamar cada uma: aniversário, troca de tamanho, a peça que ela queria e chegou. Assim você vende mais.';
@@ -356,6 +385,9 @@ function aplicaCurta(F,q,texto){var t=normaliza(texto),k=q.id.split(':')[0],w=t?
  if(k=='boleta'){var d=String(texto).replace(/\D/g,'');if(d.length>=3&&d.length<=6){F.boleta=d;return true}return false}
  if(k=='idade'){var c=(F.criancas||[])[Number(q.id.split(':')[1])],r=parseIdade(texto);if(!r||!c||w>6)return false;if(r.tamanho)c.tamanho=r.tamanho;else c.idade_meses=r.idade_meses;return true}
  if(k=='modelos'){var n=numeroDe(texto);if(n==null||w>4)return false;F.modelos_mostrados=Math.min(n,99);return true}
+ if(k=='procurava'){if(w>15)return false;F.procurava=String(texto).trim();return true}
+ if(k=='volta'){if(simNao(texto)=='nao'||/nao disse|nao falou|nao sei/.test(t)){F.volta='não disse';return true}if(w>8)return false;F.volta=String(texto).trim();return true}
+ if(k=='celular'){var dc=String(texto).replace(/\D/g,'');if(dc.length>=10&&dc.length<=11){F.celular=dc;return true}if(simNao(texto)=='nao'||/nao deu/.test(t)){F.celular_nao=true;return true}return false}
  if(!q.op||!q.op.length||(q.op.length==1?w>3:w>6))return false;
  var best=null,bl=0,emp=false;q.op.forEach(function(o){(SIN[o[0]]||[]).concat([normaliza(o[1]),normaliza(o[0]).replace(/_/g,' ')]).forEach(function(x){if(!x||!new RegExp('(^| )'+x+'( |$)').test(t))return;if(x.length>bl){best=o;bl=x.length;emp=false}else if(x.length==bl&&best&&best[0]!=o[0])emp=true})});
  if(!best||emp)return false;aplicaOpcao(F,q.id,best[0]);return true}
@@ -521,20 +553,23 @@ function contaDia(){var d=diaInfo(),nm=nomeEu();d.n[nm]=(d.n[nm]||0)+1;ls('bbvoz
 // ---- relato inicial: saudação → bip → grava sozinho
 var REL={btn:'mic',lbl:'micl',lbl0:'Toque e fale',tm:'timer',m:'m1',max:180,envia:relato};
 var saudando=false;
-function comecaVenda(){destrava();paraOuvir();if(gravando()){parar();return}if(saudando){saudando=false;paraFala();gravar(REL);return}
+function comecaNc(){destrava();paraOuvir();if(gravando()||saudando){comecaVenda();return}
+ F=novoF();F.nao_compra=true;F.vendedora=EU?EU.nome:'';FI=FI||null;feitas=[];pulou=false;atual=null;apresentar=false;porVoz=false;comecaVenda(true)}
+$('micnc').onclick=comecaNc;
+function comecaVenda(nc){destrava();paraOuvir();if(gravando()){parar();return}if(saudando){saudando=false;paraFala();gravar(REL);return}if(nc!==true&&F.nao_compra&&!F.transcricao)F.nao_compra=false;
  if(Q.rede&&!EU){show('s1');pintaQuem();msg('m1','Toque no seu nome primeiro, lá em cima.','err');window.scrollTo(0,0);return}if(EU)F.vendedora=EU.nome;msg('m1','');
  primeira=primeiraDia();var nm=nomeEu(),ap=!!(Q.rede&&nm&&apresentadas().indexOf(nm)<0);if(!falar){gravar(REL);return}if(ap)marcaApres(nm);saudando=true;$('micl').textContent='Toque para falar já';
- fala(apresenta(saudacao(nm,primeira||ap,new Date().getHours()),ap),function(){if(!saudando)return;saudando=false;bip();setTimeout(function(){gravar(Object.assign({auto:true},REL))},250)})}
+ fala(apresenta(F.nao_compra?saudacaoNc(nm,new Date().getHours()):saudacao(nm,primeira||ap,new Date().getHours()),ap),function(){if(!saudando)return;saudando=false;bip();setTimeout(function(){gravar(Object.assign({auto:true},REL))},250)})}
 function lerCliente(){var b=dig($('i_boleta').value),c=dig($('i_cpf').value);if(b)F.boleta=b;if(c)F.cpf=c}
-function relato(d){lerCliente();d.ctx=F;return api({voz:'interpretar',d:d}).then(function(r){apresentar=true;recebe(r)})}
-function recebe(r){var bt=F.boleta,bf=F.boleta_falada,cpf=F.cpf,vend=F.vendedora;['modelo','ms','uso','travados'].forEach(function(k){delete r[k]});var fal=dig(r.boleta);F=r;if(bt){F.boleta=bt;if(fal&&fal!=dig(bt))F.boleta_falada=fal;else if(bf)F.boleta_falada=bf}F.boleta=dig(F.boleta);F.cpf=cpf;F.vendedora=vend;F.respostas_ficha=F.respostas_ficha||{};msg('m1','');msg('m4','');guarda();proxima()}
+function relato(d){lerCliente();d.ctx=F;if(F.nao_compra)d.modo='nc';return api({voz:'interpretar',d:d}).then(function(r){apresentar=true;recebe(r)})}
+function recebe(r){var nc=!!F.nao_compra,celn=F.celular_nao,bt=F.boleta,bf=F.boleta_falada,cpf=F.cpf,vend=F.vendedora;['modelo','ms','uso','travados'].forEach(function(k){delete r[k]});var fal=dig(r.boleta);F=r;if(bt){F.boleta=bt;if(fal&&fal!=dig(bt))F.boleta_falada=fal;else if(bf)F.boleta_falada=bf}F.boleta=dig(F.boleta);F.cpf=cpf;F.vendedora=vend;if(nc){F.nao_compra=true;F.boleta='';delete F.boleta_falada;if(celn)F.celular_nao=true}F.respostas_ficha=F.respostas_ficha||{};msg('m1','');msg('m4','');guarda();proxima()}
 $('mic').onclick=comecaVenda;
 $('togtxt').onclick=function(){var b=$('txtbox');b.style.display=b.style.display=='none'?'':'none'};
 $('txtgo').onclick=function(){destrava();primeira=primeiraDia();var t=$('txt').value.trim();if(t.length<10){msg('m1','Escreva um pouco mais.','err');return}$('txtgo').disabled=true;$('txtgo').innerHTML='<span class="spin"></span>Interpretando…';
  relato({texto:t}).catch(function(e){msg('m1','Não deu: '+e.message,'err')}).then(function(){$('txtgo').disabled=false;$('txtgo').textContent='Interpretar o texto'})};
 
 // ---- entrevista: "entendi assim" + uma pergunta por vez, só o que falta
-function curta(q){return!!q&&q.tipo!='basico'&&(!!(q.op&&q.op.length)||['boleta','idade','modelos'].indexOf(q.id.split(':')[0])>=0)}
+function curta(q){return!!q&&q.tipo!='basico'&&(!!(q.op&&q.op.length)||['boleta','idade','modelos','procurava','volta','celular'].indexOf(q.id.split(':')[0])>=0)}
 function pintaEnt(){var l=entendiLinhas(F);$('ent').style.display=l.length?'':'none';$('ent').innerHTML='<h2>'+(apresentar?'Entendi assim':'Até agora')+'</h2><ul>'+l.map(function(x){return'<li>'+esc(x)+'</li>'}).join('')+'</ul><button class="link" type="button" id="entc">Corrigir</button>';$('entc').onclick=function(){paraFala();paraOuvir();conferir()}}
 function opBasico(){var pf=perfilDe(F),rk=rankPara(S,pf).slice(0,4),bl=basicoListas(S,F,BASICO),top=rk.map(function(x){return x.nome}),ord=top.filter(function(n){return bl.lista.indexOf(n)>=0}).concat(bl.lista.filter(function(n){return top.indexOf(n)<0})),out=opBasico.outros?bl.outros:[];F.sugeridos=rk.map(function(x){return x.g});
  return(rk.length?'<div class="dup" style="margin:6px 0 10px">Para '+esc(descPerfil(pf))+', os que mais vendem: <b>'+rk.map(function(x){return esc(rotuloBas(x.nome,F))+' '+x.pct+'%'}).join(' · ')+'</b></div>':'')+'<div class="chips" id="qbas">'+ord.concat(out).map(function(b){return'<button class="chip" data-b="'+esc(b)+'">'+(top.indexOf(b)>=0?'★ ':'')+esc(rotuloBas(b,F))+'</button>'}).join('')+(bl.outros.length&&!opBasico.outros?'<button class="chip" data-bo="1">Outros tipos…</button>':'')+'<button class="chip" data-b="nenhuma">Não mostrei</button></div><label>Modelos diferentes no total (mínimo 4)</label><div class="chips" id="qmod">'+['1','2','3','4','5','6','7','8+'].map(function(n){return'<button class="chip" data-m="'+n+'">'+n+'</button>'}).join('')+'</div><button class="btn" type="button" data-ok="basico">Confirmar</button>'}
@@ -559,7 +594,7 @@ $('qop').addEventListener('click',function(e){var b=e.target.closest('button');i
  if(b.dataset.ok=='boleta'){var v=dig($('qbol').value);if(!v||v.length>6){msg('m4','Digite o número da boleta (até 6 números).','err');return}F.boleta=v;feito();return}
  if(b.dataset.ok=='basico'){var sel2=[].map.call($('qbas').querySelectorAll('.chip.on'),function(x){return x.dataset.b});var mo=$('qmod').querySelector('.chip.on');if(!sel2.length||!mo){msg('m4','Marque as peças (ou "Não mostrei") e quantos modelos — ou responda falando.','err');return}F.basico_mostrado=sel2;F.modelos_mostrados=parseInt(mo.dataset.m,10);feito();return}
  if(b.dataset.v!=null){aplicaOpcao(F,atual.id,b.dataset.v,FI);feito()}});
-function resposta(d){d.ctx=F;d.pergunta=atual.texto;var id=atual.id;return api({voz:'interpretar',d:d}).then(function(r){if(feitas.indexOf(id)<0)feitas.push(id);recebe(r)})}
+function resposta(d){d.ctx=F;d.pergunta=atual.texto;if(F.nao_compra)d.modo='nc';var id=atual.id;return api({voz:'interpretar',d:d}).then(function(r){if(feitas.indexOf(id)<0)feitas.push(id);recebe(r)})}
 $('mic2').onclick=function(){paraOuvir();porVoz=true;gravar({btn:'mic2',lbl:'micl2',lbl0:'Responder',tm:'timer2',m:'m4',max:60,envia:resposta})};
 $('qenv').onclick=function(){var t=$('qtxt').value.trim();if(!t)return;paraOuvir();if(aplicaCurta(F,atual,t)){feito();return}$('qenv').disabled=true;msg('m4','<span class="spin"></span>Entendendo…');resposta({texto:t}).catch(function(e){msg('m4','Não deu: '+e.message,'err')}).then(function(){$('qenv').disabled=false})};
 $('qtxt').addEventListener('keydown',function(e){if(e.key=='Enter')$('qenv').click()});
@@ -567,7 +602,7 @@ $('qpula').onclick=function(){paraOuvir();feito()};
 $('qfim').onclick=function(){pulou=true;paraFala();paraOuvir();final('')};
 
 // ---- fim da entrevista: resumo + dica → salvar (ou corrigir tudo)
-function final(abre){paraOuvir();if(!F.dica){var dc=dicaPara(S,F,perfilDe(F));if(dc)F.dica=dc}
+function final(abre){paraOuvir();modoNc();if(!F.dica&&!F.nao_compra){var dc=dicaPara(S,F,perfilDe(F));if(dc)F.dica=dc}
  $('fim_l').innerHTML='<ul>'+entendiLinhas(F).map(function(x){return'<li>'+esc(x)+'</li>'}).join('')+'</ul>';$('fim_dica').style.display=F.dica?'':'none';$('fim_dica').innerHTML=F.dica?'💡 '+esc(F.dica.texto):'';
  if(Q.rede||!Q.porLoja)$('fvend').innerHTML=F.vendedora&&Q.porLoja?'Atendeu: <b>'+esc(F.vendedora)+'</b>'+(EU?' · '+esc(EU.loja):''):'';else $('fvend').innerHTML='Atendeu: '+(F.vendedora?'<b>'+esc(F.vendedora)+'</b>':'— (marque em Corrigir detalhes)');
  msg('m5','');show('s5');fala([abre,'Confere o resumo e toca em salvar.'])}
@@ -575,7 +610,8 @@ $('fsalvar').onclick=function(){paraFala();preenche();salvar(false)};
 $('fcorr').onclick=function(){paraFala();conferir()};
 
 // ---- conferência (todos os campos)
-var F_TXT=['transcricao','boleta','cpf','relacao_outra','cliente_nome','ocasiao','faltou','celular','proximo_evento'];
+var F_TXT=['transcricao','boleta','cpf','relacao_outra','cliente_nome','ocasiao','faltou','celular','proximo_evento','procurava','volta'];
+function modoNc(){document.body.classList.toggle('nc',!!F.nao_compra);$('l_rel').textContent=F.nao_compra?'Quem era':'Quem comprou';$('fsalvar').textContent=$('salvar').textContent=F.nao_compra?'Salvar atendimento':'Salvar registro';$('f_cliente_nome').placeholder=F.nao_compra?'nome dela (se souber)':'nome de quem comprou (se souber)'}
 function chips(el,v){el.querySelectorAll('.chip').forEach(function(c){c.classList.toggle('on',c.dataset.v===v)})}
 document.querySelectorAll('.chips[data-f]').forEach(function(g){g.addEventListener('click',function(e){var c=e.target.closest('.chip');if(!c)return;e.preventDefault();var f=g.dataset.f,v=c.classList.contains('on')?'':c.dataset.v;F[f]=v;chips(g,v);if(f=='relacao')$('f_relacao_outra').style.display=v=='outra'?'':'none'})});
 var TAM=['RN','P','M','G','GG','01','02','03','04','06','08','10','12'];
@@ -606,7 +642,7 @@ $('nls').addEventListener('input',function(e){var box=e.target.closest('.nl');if
 $('addnl').onclick=function(){F.nao_levou=F.nao_levou||[];F.nao_levou.push({peca:'',tamanho:'',motivo:'',detalhe:''});renderNl()};
 function renderVends(){if(!Q.porLoja){$('atend').style.display='none';return}if(Q.rede){$('atend').style.display='';$('vends').innerHTML='<div style="font-size:18px"><b>'+esc(F.vendedora||'—')+'</b> · '+esc(EU?EU.loja:'')+'</div>';return}$('atend').style.display='';$('vends').innerHTML=Q.vendedoras.map(function(v){return'<button class="chip'+(F.vendedora==v?' on':'')+'" data-v="'+esc(v)+'">'+esc(v)+'</button>'}).join('')}
 $('vends').addEventListener('click',function(e){var c=e.target.closest('.chip');if(!c)return;e.preventDefault();F.vendedora=c.dataset.v;renderVends()});
-function preenche(){if(!F.dica){var dc=dicaPara(S,F,perfilDe(F));if(dc)F.dica=dc}$('dica').style.display=F.dica?'':'none';$('dica').innerHTML=F.dica?'💡 '+esc(F.dica.texto):'';renderAvisos();
+function preenche(){modoNc();if(!F.dica){var dc=dicaPara(S,F,perfilDe(F));if(dc)F.dica=dc}$('dica').style.display=F.dica?'':'none';$('dica').innerHTML=F.dica?'💡 '+esc(F.dica.texto):'';renderAvisos();
  F_TXT.forEach(function(k){$('f_'+k).value=F[k]||''});$('f_modelos').value=F.modelos_mostrados>=0?F.modelos_mostrados:'';$('f_preferencias').value=(F.preferencias||[]).join('\n');
  var ed=F.evento_data||'';$('f_evento_data').value=/^\d{4}-\d{2}-\d{2}$/.test(ed)?ed:'';$('f_evmes').textContent=/^\d{4}-\d{2}$/.test(ed)?'Ela disse o mês: '+ed.slice(5,7)+'/'+ed.slice(0,4)+' (escolha o dia se souber)':'';
  document.querySelectorAll('.chips[data-f]').forEach(function(g){chips(g,F[g.dataset.f]||'')});$('f_relacao_outra').style.display=F.relacao=='outra'?'':'none';
@@ -616,7 +652,7 @@ function renderAvisos(){var on=(F.avisar_sobre||[]).map(function(a){return a.tip
 $('avisos').addEventListener('click',function(e){var c=e.target.closest('.chip');if(!c)return;e.preventDefault();var v=c.dataset.v,l=(F.avisar_sobre||[]).slice(),ix=l.map(function(a){return a.tipo}).indexOf(v);if(ix>=0)l.splice(ix,1);else{if(v=='nada')l=[];else l=l.filter(function(a){return a.tipo!='nada'});l.push({tipo:v,detalhe:''})}F.avisar_sobre=l;renderAvisos()});
 function lerForm(){F_TXT.forEach(function(k){F[k]=$('f_'+k).value.trim()});var ad=$('f_avisodet').value.trim();if(ad){F.avisar_sobre=F.avisar_sobre||[];var alvo=F.avisar_sobre.filter(function(a){return a.tipo!='nada'})[0];if(alvo){F.avisar_sobre.forEach(function(a){if(a!==alvo)a.detalhe=''});alvo.detalhe=ad}else F.avisar_sobre=[{tipo:'outro',detalhe:ad}]}var mo=$('f_modelos').value;F.modelos_mostrados=mo===''?-1:+mo;F.preferencias=$('f_preferencias').value.split('\n').map(function(s){return s.trim()}).filter(Boolean);
  var ed=$('f_evento_data').value;F.evento_data=ed||(/^\d{4}-\d{2}$/.test(F.evento_data||'')?F.evento_data:'');F.nao_levou=(F.nao_levou||[]).filter(function(n){return String(n.peca||'').trim()});F.perguntadas=feitas.slice();F.pulou=pulou}
-function salvar(subst){var alvo=$('s5').style.display!='none'?'m5':'m2',bt=alvo=='m5'?'fsalvar':'salvar';lerForm();var b=dig(F.boleta);
+function salvar(subst){var alvo=$('s5').style.display!='none'?'m5':'m2',bt=alvo=='m5'?'fsalvar':'salvar';lerForm();if(F.nao_compra){salvarNc(alvo,bt);return}var b=dig(F.boleta);
  if(Q.porLoja&&!F.vendedora){if(alvo=='m5')conferir();msg('m2','Marque quem atendeu.','err');window.scrollTo(0,0);return}
  if(!b||b.length>6){msg(alvo,'Informe o número da boleta (até 6 números).','err');if(alvo=='m2')$('f_boleta').focus();else{conferir();msg('m2','Informe o número da boleta (até 6 números).','err');$('f_boleta').focus()}return}
  if(F.cpf&&dig(F.cpf).length!=11){msg(alvo,'O CPF tem 11 números (ou deixe em branco).','err');return}
@@ -628,6 +664,14 @@ function salvar(subst){var alvo=$('s5').style.display!='none'?'m5':'m2',bt=alvo=
  api({voz:'gravar',d:d}).then(function(r){if(r.duplicada){$(alvo).innerHTML='<div class="dup"><b>A boleta '+esc(b)+' já foi registrada</b> em '+esc(r.quando)+' por '+esc(r.vendedora)+'. É a mesma venda?<button class="btn" type="button" id="subst">Sim, substituir pelo registro de agora</button><button class="btn sec" type="button" id="corr">Não, vou corrigir a boleta</button></div>';$('subst').onclick=function(){salvar(true)};$('corr').onclick=function(){if(alvo=='m5')conferir();msg('m2','');$('f_boleta').focus()};return}
   var dc=F.dica,nm=nomeEu()||(r.vendedora&&Q.porLoja?r.vendedora:'');salvo();contaDia();var av=F.pode_avisar!='nao'?'Quando for a hora de chamar essa cliente, eu te aviso.':'';$('okmsg').textContent='Pronto'+(nm?', '+nm:'')+', anotado. Boleta '+b+'.'+(av?' '+av:'');$('okdica').style.display=dc?'':'none';$('okdica').innerHTML=dc?'💡 '+esc(dc.texto):'';show('s3');
   fala(['Pronto'+(nm?', '+nm:'')+', anotado.',av,dc?dc.texto:''])}).catch(function(e){msg(alvo,e.message,'err')}).then(function(){$(bt).disabled=false;$(bt).textContent='Salvar registro'})}
+function salvarNc(alvo,bt){
+ if(Q.porLoja&&!F.vendedora){if(alvo=='m5')conferir();msg('m2','Marque quem atendeu.','err');window.scrollTo(0,0);return}
+ if(F.cpf&&dig(F.cpf).length!=11){msg(alvo,'O CPF tem 11 números (ou deixe em branco).','err');return}
+ if(!F.motivo_nc&&!pulou){if(alvo=='m5')conferir();msg('m2','Falta: por que ela não levou.','err');return}
+ var cel=dig(F.celular);if(F.pode_avisar=='sim'&&cel&&(cel.length<10||cel.length>11)){msg(alvo,'Celular com DDD: 10 ou 11 números.','err');return}
+ $(bt).disabled=true;$(bt).innerHTML='<span class="spin"></span>Salvando…';var d=JSON.parse(JSON.stringify(F));d.cpf=dig(F.cpf);d.celular=F.pode_avisar=='sim'?cel:'';
+ api({voz:'gravar_nc',d:d}).then(function(r){var nm=nomeEu()||(r&&r.vendedora&&Q.porLoja?r.vendedora:'');salvo();$('okmsg').textContent='Pronto'+(nm?', '+nm:'')+', anotado o atendimento.';$('okdica').style.display='none';show('s3');fala(['Pronto'+(nm?', '+nm:'')+', anotado o atendimento.'])})
+  .catch(function(e){msg(alvo,e.message,'err')}).then(function(){$(bt).disabled=false;$(bt).textContent='Salvar atendimento'})}
 $('salvar').onclick=function(){salvar(false)};
 $('voltaq').onclick=function(){lerForm();pulou=false;feitas=[];proxima()};
 // rascunho: se a página fechar antes de salvar, o que foi falado volta ao abrir de novo
@@ -637,7 +681,7 @@ window.addEventListener('beforeunload',function(e){if((F.transcricao||F.boleta)&
 document.addEventListener('visibilitychange',function(){if(document.visibilityState=='hidden'&&$('s3').style.display=='none')guarda()});
 (function(){try{var r=JSON.parse(ls('bbvoz_rasc')||'null');if(!r||Date.now()-r.t>12*3600e3)return;var d=document.createElement('div');d.className='card dup';d.innerHTML='<b>Tem um registro não salvo'+(r.F.boleta?' (boleta '+esc(r.F.boleta)+')':'')+'.</b><button class="btn" type="button" id="rcont">Continuar de onde parei</button><button class="btn sec" type="button" id="rdesc">Descartar</button>';$('s1').insertBefore(d,$('s1').firstChild);
  $('rcont').onclick=function(){F=r.F;FI=r.FI;feitas=r.feitas||[];pulou=!!r.pulou;d.remove();if(pulou)final('');else proxima()};$('rdesc').onclick=function(){salvo();d.remove()}}catch(e){}})();
-function zera(){salvo();F=novoF();if(EU)F.vendedora=EU.nome;FI=null;feitas=[];pulou=false;atual=null;apresentar=false;porVoz=false;basOutros=false;$('txt').value='';$('i_boleta').value='';$('i_cpf').value='';$('ficha').style.display='none';msg('mf','');msg('m1','');show('s1')}
+function zera(){salvo();F=novoF();if(EU)F.vendedora=EU.nome;FI=null;feitas=[];pulou=false;atual=null;apresentar=false;porVoz=false;basOutros=false;$('txt').value='';$('i_boleta').value='';$('i_cpf').value='';$('ficha').style.display='none';msg('mf','');msg('m1','');modoNc();show('s1')}
 $('denovo').onclick=function(){paraFala();paraOuvir();zera()};
 $('nova').onclick=function(){paraFala();zera();if(Q.rede){pintaQuem();return}comecaVenda()};
 </script>
