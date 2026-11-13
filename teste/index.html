@@ -64,6 +64,14 @@ textarea{min-height:92px;resize:vertical}
 <header><div><small id="loja">bb básico</small><b id="nome">Registrar venda por voz</b></div><button class="som on" id="som" type="button">🔊 Voz ligada</button></header>
 <main>
 
+<section id="s0" style="display:none">
+ <div class="card">
+  <h2>Quem é você?</h2>
+  <div class="hint" style="text-align:left;margin-bottom:6px">Toque no seu nome. Este celular vai lembrar; se outra pessoa usar, é só tocar em "não sou eu".</div>
+  <div id="eus"></div>
+ </div>
+</section>
+
 <section id="s1">
  <div class="card">
   <h2>Cliente</h2>
@@ -241,15 +249,20 @@ function aplicaOpcao(F,id,v,fi){var p=id.split(':'),k=p[0],i=Number(p[1]);
 // @entrevista-fim
 var $=function(i){return document.getElementById(i)};
 var tok=(function(){var m=/[#?&]t=([0-9a-f]{20,40})/.exec(location.hash+location.search);var t=m?m[1]:null;try{if(t)localStorage.setItem('bbvoz_t_teste',t);else t=localStorage.getItem('bbvoz_t_teste')}catch(e){}return t})();
-function api(b){b.tok=tok;return fetch(URL_SCRIPT,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(b)}).then(function(r){return r.json()}).then(function(j){if(!j.ok)throw new Error(j.erro||'erro');return j.r})}
+function api(b){b.tok=tok;if(EU&&Q.porLoja)b.vend=EU.nome;return fetch(URL_SCRIPT,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(b)}).then(function(r){return r.json()}).then(function(j){if(!j.ok)throw new Error(j.erro||'erro');return j.r})}
 function msg(id,t,cls){var e=$(id);e.innerHTML=t?'<div class="msg '+(cls||'')+'">'+t+'</div>':''}
-function show(n){['s1','s2','s3','s4'].forEach(function(s){$(s).style.display=s==n?'':'none'});window.scrollTo(0,0)}
+function show(n){['s0','s1','s2','s3','s4'].forEach(function(s){$(s).style.display=s==n?'':'none'});window.scrollTo(0,0)}
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}
 function dig(s){return String(s||'').replace(/\D/g,'')}
+var EU=null;try{EU=JSON.parse(localStorage.getItem('bbvoz_eu_teste')||'null')}catch(e){}
 var S=null,Q={porLoja:false,vendedoras:[],demo:false},F=novoF(),FI=null,feitas=[],fila=[],atual=null,pulou=false;
 if(!tok){$('hint').textContent='Link inválido. Use o link de voz que a gerente mandou.';$('mic').disabled=true}
-else api({voz:'quem'}).then(function(q){Q=q;Q.vendedoras=q.vendedoras||[];if(q.porLoja){$('nome').textContent='Registrar venda por voz';$('loja').textContent='bb básico '+q.loja+' · link da loja'}else{$('nome').textContent=q.nome;$('loja').textContent='bb básico '+q.loja}if(q.demo)$('demo').style.display='block';api({voz:'sugestoes'}).then(function(r){S=r;if(r&&r.cat&&r.cat.length)BASICO=r.cat.map(function(c){return c.nome})}).catch(function(){})}).catch(function(e){$('hint').textContent='Não consegui identificar o link: '+e.message;$('mic').disabled=true});
+else api({voz:'quem'}).then(function(q){Q=q;Q.vendedoras=q.vendedoras||[];if(q.rede){var ok=EU&&q.lojas.some(function(l){return l.loja==EU.loja&&l.vendedoras.indexOf(EU.nome)>=0});if(ok)souEu(EU);else{EU=null;pedeEu('s1')}}else if(q.porLoja){$('nome').textContent='Registrar venda por voz';$('loja').textContent='bb básico '+q.loja+' · link da loja'}else{$('nome').textContent=q.nome;$('loja').textContent='bb básico '+q.loja}if(q.demo)$('demo').style.display='block';api({voz:'sugestoes'}).then(function(r){S=r;if(r&&r.cat&&r.cat.length)BASICO=r.cat.map(function(c){return c.nome})}).catch(function(){})}).catch(function(e){$('hint').textContent='Não consegui identificar o link: '+e.message;$('mic').disabled=true});
 
+// ---- link da rede: quem é você (o nome define a loja); o celular lembra
+function souEu(e){EU=e;F.vendedora=e.nome;try{localStorage.setItem('bbvoz_eu_teste',JSON.stringify(e))}catch(x){}$('nome').textContent=e.nome;$('loja').innerHTML='bb básico '+esc(e.loja)+' · <button class="link" type="button" id="trocaeu" style="padding:0;font-size:13px">não sou eu</button>';$('trocaeu').onclick=function(){var vis=['s1','s2','s4'].filter(function(s){return $(s).style.display!='none'})[0]||'s1';if(vis=='s2')lerForm();pedeEu(vis)}}
+function pedeEu(volta){$('eus').innerHTML=(Q.lojas||[]).map(function(l){return'<label>'+esc(l.loja)+'</label><div class="chips">'+l.vendedoras.map(function(v){return'<button class="chip" type="button" data-loja="'+esc(l.loja)+'" data-v="'+esc(v)+'">'+esc(v)+'</button>'}).join('')+'</div>'}).join('');pedeEu.volta=volta||'s1';show('s0')}
+$('eus').addEventListener('click',function(e){var c=e.target.closest('.chip');if(!c)return;souEu({nome:c.dataset.v,loja:c.dataset.loja});if(pedeEu.volta=='s2')conferir();else show(pedeEu.volta)});
 // ---- voz do celular (lê as perguntas)
 var falar=true;try{falar=localStorage.getItem('bbvoz_som')!=='0'}catch(e){}
 function somBtn(){$('som').classList.toggle('on',falar);$('som').textContent=falar?'🔊 Voz ligada':'🔈 Sem voz'}somBtn();
@@ -361,7 +374,7 @@ function renderNl(){$('nls').innerHTML=(F.nao_levou||[]).map(nlHtml).join('')}
 $('nls').addEventListener('click',function(e){var box=e.target.closest('.nl');if(!box)return;var i=+box.dataset.i,n=F.nao_levou[i];if(e.target.classList.contains('x')){F.nao_levou.splice(i,1);renderNl();return}var ch=e.target.closest('.chip');if(!ch)return;e.preventDefault();n.motivo=n.motivo==ch.dataset.v?'':ch.dataset.v;box.querySelectorAll('.chip').forEach(function(x){x.classList.toggle('on',x.dataset.v===n.motivo)})});
 $('nls').addEventListener('input',function(e){var box=e.target.closest('.nl');if(!box)return;F.nao_levou[+box.dataset.i][e.target.dataset.k]=e.target.value});
 $('addnl').onclick=function(){F.nao_levou=F.nao_levou||[];F.nao_levou.push({peca:'',tamanho:'',motivo:'',detalhe:''});renderNl()};
-function renderVends(){if(!Q.porLoja){$('atend').style.display='none';return}$('atend').style.display='';$('vends').innerHTML=Q.vendedoras.map(function(v){return'<button class="chip'+(F.vendedora==v?' on':'')+'" data-v="'+esc(v)+'">'+esc(v)+'</button>'}).join('')}
+function renderVends(){if(!Q.porLoja){$('atend').style.display='none';return}if(Q.rede){$('atend').style.display='';$('vends').innerHTML='<div style="font-size:18px"><b>'+esc(F.vendedora||'—')+'</b> · '+esc(EU?EU.loja:'')+'</div>';return}$('atend').style.display='';$('vends').innerHTML=Q.vendedoras.map(function(v){return'<button class="chip'+(F.vendedora==v?' on':'')+'" data-v="'+esc(v)+'">'+esc(v)+'</button>'}).join('')}
 $('vends').addEventListener('click',function(e){var c=e.target.closest('.chip');if(!c)return;e.preventDefault();F.vendedora=c.dataset.v;renderVends()});
 function conferir(){if(!F.dica){var dc=dicaPara(S,F,perfilDe(F));if(dc)F.dica=dc}$('dica').style.display=F.dica?'':'none';$('dica').innerHTML=F.dica?'💡 '+esc(F.dica.texto):'';renderAvisos();
  F_TXT.forEach(function(k){$('f_'+k).value=F[k]||''});$('f_modelos').value=F.modelos_mostrados>=0?F.modelos_mostrados:'';$('f_preferencias').value=(F.preferencias||[]).join('\n');
@@ -392,7 +405,7 @@ window.addEventListener('beforeunload',function(e){if((F.transcricao||F.boleta)&
 document.addEventListener('visibilitychange',function(){if(document.visibilityState=='hidden'&&$('s3').style.display=='none')guarda()});
 (function(){try{var r=JSON.parse(localStorage.getItem('bbvoz_rasc_teste')||'null');if(!r||Date.now()-r.t>12*3600e3)return;var d=document.createElement('div');d.className='card dup';d.innerHTML='<b>Tem um registro não salvo'+(r.F.boleta?' (boleta '+esc(r.F.boleta)+')':'')+'.</b><button class="btn" type="button" id="rcont">Continuar de onde parei</button><button class="btn sec" type="button" id="rdesc">Descartar</button>';$('s1').insertBefore(d,$('s1').firstChild);
  $('rcont').onclick=function(){F=r.F;FI=r.FI;feitas=r.feitas||[];pulou=!!r.pulou;d.remove();if(pulou)conferir();else proxima()};$('rdesc').onclick=function(){salvo();d.remove()}}catch(e){}})();
-function zera(){salvo();F=novoF();FI=null;feitas=[];pulou=false;atual=null;$('txt').value='';$('i_boleta').value='';$('i_cpf').value='';$('ficha').style.display='none';msg('mf','');msg('m1','');show('s1')}
+function zera(){salvo();F=novoF();if(EU)F.vendedora=EU.nome;FI=null;feitas=[];pulou=false;atual=null;$('txt').value='';$('i_boleta').value='';$('i_cpf').value='';$('ficha').style.display='none';msg('mf','');msg('m1','');show('s1')}
 $('denovo').onclick=zera;$('nova').onclick=zera;
 </script>
 </body>
