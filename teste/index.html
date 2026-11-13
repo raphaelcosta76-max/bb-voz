@@ -402,7 +402,7 @@ function destrava(){if(destrava.ok)return;destrava.ok=1;try{AUD.src=SILENCIO;var
 function bip(){try{var AC=window.AudioContext||window.webkitAudioContext,ac=bip.ac||(bip.ac=new AC()),o=ac.createOscillator(),g=ac.createGain();o.frequency.value=880;g.gain.value=0.15;o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+0.12)}catch(e){}}
 // escolha da voz (fica neste celular)
 var AMOSTRA='Oi! Me conta a venda: para quem era, o que você mostrou e o que ela levou.';
-function vozLista(){var l=[['','Sulafat — voz da bb básico (recomendada)']];if(!Q.tts)l.push(['srv:gemini','Sulafat (forçar)']);vozesDev().forEach(function(v){l.push(['dev:'+v.name,v.name+' (do celular)'])});return l}
+function vozLista(){var l=[['','Sulafat — voz da bb básico (recomendada)'],['srv:chirp','Sulafat HD (Google Cloud)'],['srv:gemini','Sulafat (AI Studio)']];vozesDev().forEach(function(v){l.push(['dev:'+v.name,v.name+' (do celular)'])});return l}
 function pintaVoz(){$('vozl').innerHTML=vozLista().map(function(x){return'<button class="vi'+(VZ.pref==x[0]?' on':'')+'" type="button" data-vz="'+esc(x[0])+'">'+esc(x[1])+'</button>'}).join('')}
 $('vozb').onclick=function(){destrava();var p=$('vozp');if(p.style.display=='none'){pintaVoz();msg('vozm','');p.style.display='';window.scrollTo(0,0)}else p.style.display='none'};
 $('vozf').onclick=function(){$('vozp').style.display='none'};
