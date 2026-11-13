@@ -29,6 +29,7 @@ label{display:block;font-size:13px;color:var(--mute);margin:12px 0 4px}
 input,textarea,select{width:100%;font:inherit;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--fg)}
 textarea{min-height:92px;resize:vertical}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
+.cbk{background:#eaf9e1;border:1px solid #bfe6a8;border-radius:12px;padding:10px 12px;margin:6px 0 10px;font-size:17px}
 .chip{border:1px solid var(--line);background:var(--chip);border-radius:999px;padding:9px 14px;font:inherit;font-size:15px;color:var(--fg)}
 .chip.on{background:var(--chipon);color:#fff;border-color:var(--chipon)}
 .row{display:flex;gap:8px}
@@ -108,10 +109,10 @@ textarea{min-height:92px;resize:vertical}
  <div class="card">
   <h2>Cliente</h2>
   <div class="row">
+   <div><label>CPF da cliente</label><input id="i_cpf" inputmode="numeric" maxlength="14" placeholder="cashback e histórico"></div>
    <div><label>Boleta (cupom)</label><input id="i_boleta" inputmode="numeric" maxlength="6" placeholder="ex.: 86806"></div>
-   <div><label>CPF (opcional)</label><input id="i_cpf" inputmode="numeric" maxlength="14" placeholder="para ver a ficha"></div>
   </div>
-  <button class="link" type="button" id="verficha">Ver o que já sabemos desta cliente</button>
+  <button class="link" type="button" id="verficha">Ver cashback e o que já sabemos</button>
   <div id="mf"></div>
  </div>
  <div class="card ficha" id="ficha" style="display:none"></div>
@@ -455,10 +456,12 @@ $('obconf').addEventListener('click',function(e){var b=e.target.closest('button'
 if(!SR)$('obbox').style.display='none';
 
 // ---- ficha da cliente
-function fichaHtml(f){var h='<h2>O que já sabemos</h2>',M=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];function dm(s){s=String(s||'');return s.length>=10?s.slice(8,10)+'/'+s.slice(5,7)+'/'+s.slice(2,4):s.length==7?M[+s.slice(5,7)-1]+'/'+s.slice(0,4):s}
+function fichaHtml(f){var h='<h2>O que já sabemos</h2>',R$=function(v){return'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})},M=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];function dm(s){s=String(s||'');return s.length>=10?s.slice(8,10)+'/'+s.slice(5,7)+'/'+s.slice(2,4):s.length==7?M[+s.slice(5,7)-1]+'/'+s.slice(0,4):s}
  function idade(m){if(m===''||m==null)return'';m=+m;return m<24?m+(m==1?' mês':' meses'):Math.floor(m/12)+' anos'+(m%12?' e '+m%12+(m%12==1?' mês':' meses'):'')}
+ // cashback calculado pelas compras nas lojas próprias (10%, vale do dia seguinte até 61 dias) — só na tela
+ if(f.cashback&&!f.cashback.erro){var cb=f.cashback;h+='<div class="cbk">'+(cb.saldo>0?'💰 <b>Cashback: '+R$(cb.saldo)+'</b>'+(cb.vencimentos||[]).slice(0,3).map(function(x){return'<div>'+R$(x.v)+' vence em '+dm(x.ate)+'</div>'}).join(''):'💰 Sem cashback válido agora')+'<div class="sofar">Vale se ela tem cadastro no cashback.</div></div>'}
  if(f.venda)h+='<div>Venda de hoje: '+f.venda.pecas+' peça(s), R$ '+Number(f.venda.valor||0).toFixed(2).replace('.',',')+'</div>';
- if(f.compras)h+='<div>'+(f.compras.inclui_hoje?'Compras (com hoje): ':'Comprou antes: ')+'<b>'+f.compras.n+(f.compras.n==1?' vez':' vezes')+'</b>'+(f.compras.desde?' desde '+dm(f.compras.desde):'')+(f.compras.ult?' · última em '+dm(f.compras.ult)+(f.compras.loja?' ('+esc(f.compras.loja)+')':''):'')+'</div>'+(f.compras.itens_ult?'<div class="sofar">Última compra: '+esc(f.compras.itens_ult)+'</div>':'');
+ if(f.compras)h+='<div>'+(f.compras.inclui_hoje?'Compras (com hoje): ':'Comprou antes: ')+'<b>'+f.compras.n+(f.compras.n==1?' vez':' vezes')+'</b>'+(f.compras.desde?' desde '+dm(f.compras.desde):'')+(f.compras.total?' · total '+R$(f.compras.total):'')+'</div>'+(f.compras.ult?'<div>Última compra: '+dm(f.compras.ult)+(f.compras.loja?' · '+esc(f.compras.loja):'')+(f.compras.valor_ult?' · '+R$(f.compras.valor_ult):'')+'</div>':'')+(f.compras.itens_ult?'<div class="sofar">'+esc(f.compras.itens_ult)+'</div>':'')+(f.compras.tams?'<div>Tamanhos mais comprados (12 meses): '+esc(f.compras.tams)+'</div>':'');
  if(f.criancas.length)h+='<div class="t">Crianças</div><ul>'+f.criancas.map(function(c){return'<li>'+(c.nascido=='nao'?'Bebê a caminho'+(c.previsao?' (previsão '+dm(c.previsao)+')':''):esc(c.apelido||(c.sexo=='menina'?'Menina':c.sexo=='menino'?'Menino':'Criança'))+(c.idade_meses!==''?', '+idade(c.idade_meses):'')+(c.tamanho?' · último tamanho '+esc(c.tamanho):''))+(c.dito_em?' <span class="sofar">(dito em '+dm(c.dito_em)+')</span>':'')+'</li>'}).join('')+'</ul>';
  if(f.preferencias.length)h+='<div class="t">Recados</div><ul>'+f.preferencias.map(function(p){return'<li>'+esc(p)+'</li>'}).join('')+'</ul>';
  if((f.avisos||[]).length)h+='<div class="t">Quer ser avisada de</div><ul>'+f.avisos.map(function(p){return'<li>'+esc(p)+'</li>'}).join('')+'</ul>';
