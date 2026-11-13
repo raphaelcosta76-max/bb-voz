@@ -117,6 +117,7 @@ textarea{min-height:92px;resize:vertical}
 <section id="s2" style="display:none">
  <div class="card">
   <h2>Confira e corrija</h2>
+  <div class="dup" id="dica" style="display:none;margin-bottom:10px"></div>
   <div id="atend" style="display:none"><label>Quem atendeu?</label><div class="chips" id="vends"></div></div>
   <div class="row">
    <div><label>Boleta (cupom)</label><input id="f_boleta" inputmode="numeric" maxlength="6" placeholder="ex.: 86806"></div>
@@ -151,6 +152,9 @@ textarea{min-height:92px;resize:vertical}
   <div class="chips" data-f="pode_avisar"><button class="chip" data-v="sim">Sim</button><button class="chip" data-v="nao">Não</button><button class="chip" data-v="nao_perguntei">Não perguntei</button></div>
   <label>Celular da cliente (se ditou)</label>
   <input id="f_celular" inputmode="tel" placeholder="DDD + número">
+  <label>Quer ser avisada de algo específico?</label>
+  <div class="chips" id="avisos"></div>
+  <input id="f_avisodet" placeholder="o quê (ex.: macacão 06, coleção de inverno)" style="margin-top:8px">
   <label>Recados para o próximo contato (um por linha)</label>
   <textarea id="f_preferencias" style="min-height:64px" placeholder="ex.: veste as irmãs iguais — avisar nos 2 tamanhos"></textarea>
   <div id="m2"></div>
@@ -172,9 +176,34 @@ textarea{min-height:92px;resize:vertical}
 <script>
 var URL_SCRIPT='https://script.google.com/macros/s/AKfycbxwK-cgdO6bnqp6GXJ4C_3Kygcd6-8TvIw5rBFlRPiKSVN6appLRWen5NS3ZIJAtM_J6w/exec';// TESTE v31
 // @entrevista-inicio — motor da entrevista (testado em test/run.js)
-var BASICO=['Body','Mijão','Culote','Calça','Macacão','Conjunto','Camiseta','Regata','Short','Pijama','Meia','Babador','Touca'];
+// tipos do básico: vêm do servidor (cadastro do ERP); esta lista só vale se o servidor não responder
+var BASICO=['Camiseta','Calça','Body','Bermuda','Babador','Casaco','Pimpão','Short','Regata','Macacão','Vestido body','Tapa-fralda','Acessórios (toalha, gorro, sapatinho)','Macaquinho','Saia com calcinha','Vestido','Bata','Calcinha/cueca','Pijama','Meia'];
+var AVISOS=[['promocao','Promoções'],['chegada','Chegada de peça ou tamanho'],['colecao','Coleção nova'],['evento','Data ou evento'],['nada','Nada específico']];
+// idade × tamanho (premissa até o CRM ter dados): RN/PP 0-2m, P 2-4m, M 4-7m, G 7-10m, GG 10-14m, 02 1-2a, 04 3-4a, 06 5-6a, 08 7-8a, 10 9-10a
+var BANDA_N={RN:'recém-nascido',P:'bebê de 2 a 4 meses',M:'bebê de 4 a 7 meses',G:'bebê de 7 a 10 meses',GG:'bebê de 10 a 14 meses','02':'1 a 2 anos','04':'3 a 4 anos','06':'5 a 6 anos','08':'7 a 8 anos','10':'9 a 10 anos'};
+function bandaIdade(m){m=Number(m);return m<2?'RN':m<4?'P':m<7?'M':m<10?'G':m<14?'GG':m<30?'02':m<54?'04':m<78?'06':m<102?'08':'10'}
+function bandaTam(t){t=String(t||'').toUpperCase().replace(/\s/g,'');if(/^RN\d?$|^PP$/.test(t))return'RN';if(t=='6G')return'08';if(['P','M','G','GG'].indexOf(t)>=0)return t;var n=parseInt(t,10);if(isNaN(n))return'';return n<=2?'02':n<=4?'04':n<=6?'06':n<=8?'08':'10'}
+// perfil da venda: primeira criança da venda com idade ou tamanho; bebê a caminho = recém-nascido
+function perfilDe(F){var b='',sx='',ok=false,cs=(F.criancas||[]).filter(function(c){return!c.conhecida});
+ cs.forEach(function(c){if(ok)return;var t=c.nascido=='nao'?'RN':(bandaTam(c.tamanho)||((c.idade_meses===''||c.idade_meses==null)?'':bandaIdade(c.idade_meses)));if(t){b=t;sx=c.sexo||'';ok=true}});
+ return b?{banda:b,sexo:sx,tipo:F.tipo||''}:null}
+function descPerfil(pf){var s=pf.sexo=='menina'?'menina':pf.sexo=='menino'?'menino':'criança';return pf.banda=='RN'?s+' recém-nascid'+(pf.sexo=='menino'?'o':'a'):s+' de '+BANDA_N[pf.banda].replace('bebê de ','')}
+function nomeG(S,g){var c=((S&&S.cat)||[]).filter(function(x){return x.g==g})[0];return c?c.nome:String(g||'').charAt(0)+String(g||'').slice(1).toLowerCase()}
+function gDeNome(S,n){n=String(n||'').toLowerCase();var c=((S&&S.cat)||[]).filter(function(x){return x.nome.toLowerCase()==n||x.g.toLowerCase()==n})[0];return c?c.g:''}
+// ranking do perfil: aprendido no CRM (presente/uso) quando já há amostra; senão o histórico de vendas por tamanho e gênero
+function rankPara(S,pf){if(!S||!pf)return[];var l=null,k=(pf.tipo||'')+'|'+pf.banda;if(S.crm&&(pf.tipo=='presente'||pf.tipo=='uso')&&S.crm['tipo|'+k])l=S.crm['tipo|'+k].l;
+ if(!l){var r=(S.rank||{})[pf.banda+'|'+(pf.sexo||'todos')]||(S.rank||{})[pf.banda+'|todos'];l=r?r.l:[]}
+ return l.map(function(x){return{g:x[0],nome:nomeG(S,x[0]),pct:x[1]}})}
+// uma dica por atendimento, sempre com o número: levar junto > o que mais vende no perfil > recompra
+function dicaPara(S,F,pf){if(!S)return null;var mos=(F.basico_mostrado||[]).map(function(n){return gDeNome(S,n)}).filter(Boolean),j=S.junto||{},d=null;
+ mos.forEach(function(a){if(d)return;(j[a]||[]).forEach(function(x){if(!d&&x[2]>=2&&x[1]>=15&&mos.indexOf(x[0])<0)d={id:'junto:'+a+'>'+x[0],g:x[0],texto:'Você sabia? Quem leva '+nomeG(S,a).toLowerCase()+' leva '+nomeG(S,x[0]).toLowerCase()+' junto em '+x[1]+'% das vendas ('+String(x[2]).replace('.',',')+' vezes mais que o normal). Vale mostrar '+nomeG(S,x[0]).toLowerCase()+' na próxima.'}})});
+ if(d)return d;var rk=rankPara(S,pf),top=rk.filter(function(x){return mos.indexOf(x.g)<0&&x.pct>=15})[0];
+ if(top&&pf)return{id:'perfil:'+pf.banda+'|'+(pf.sexo||'todos')+':'+top.g,g:top.g,texto:'Você sabia? Para '+descPerfil(pf)+', '+top.nome.toLowerCase()+' aparece em '+top.pct+'% das vendas — e não entrou no que você mostrou.'};
+ var rc=S.rec||{},best=null;(mos.length?mos:rk.map(function(x){return x.g})).forEach(function(g){var r=rc[g];if(r&&r.n>=60&&(!best||r.mesmo>best.r.mesmo))best={g:g,r:r}});
+ if(best)return{id:'rec:'+best.g,g:best.g,texto:'Você sabia? '+best.r.voltou+'% das clientes que levam '+nomeG(S,best.g).toLowerCase()+' voltam em até 12 meses, e '+best.r.mesmo+'% levam '+nomeG(S,best.g).toLowerCase()+' de novo. Peça o WhatsApp e avise quando chegar o próximo tamanho.'};
+ return null}
 var MOTIVOS=[['caro','Achou caro'],['sem_tamanho_cor','Não tinha tamanho/cor'],['duvida','Ficou na dúvida'],['vai_voltar','Vai voltar'],['outro','Outro']];
-function novoF(){return{transcricao:'',resumo:'',boleta:'',cpf:'',tipo:'',relacao:'',relacao_outra:'',cliente_nome:'',ocasiao:'',criancas:[],faltou:'',pode_avisar:'',celular:'',proximo_evento:'',evento_tipo:'',evento_data:'',modelos_mostrados:-1,basico_mostrado:[],nao_levou:[],preferencias:[],respostas_ficha:{},vendedora:''}}
+function novoF(){return{transcricao:'',resumo:'',boleta:'',cpf:'',tipo:'',relacao:'',relacao_outra:'',cliente_nome:'',ocasiao:'',criancas:[],faltou:'',pode_avisar:'',celular:'',proximo_evento:'',evento_tipo:'',evento_data:'',modelos_mostrados:-1,basico_mostrado:[],nao_levou:[],preferencias:[],avisar_sobre:[],respostas_ficha:{},vendedora:''}}
 function nomeCri(c,i){return c.apelido?c.apelido:'a criança '+(i+1)}
 // Lista do que ainda falta perguntar, na ordem. Pergunta já feita (respondida ou pulada) não volta.
 function perguntasPendentes(F,fi,feitas){var q=[];feitas=feitas||[];function add(id,texto,op,tipo){if(feitas.indexOf(id)<0)q.push({id:id,texto:texto,op:op||null,tipo:tipo||'voz'})}
@@ -195,6 +224,8 @@ function perguntasPendentes(F,fi,feitas){var q=[];feitas=feitas||[];function add
  if(!F.faltou)add('faltou','Ela procurou alguma coisa que a loja não tem?',[['nada','Não procurou']]);
  if(!F.evento_data&&!F.proximo_evento)add('evento','Ela comentou alguma data ou evento? Aniversário, nascimento, viagem, batizado…',[['nao','Não comentou']]);
  if(!F.pode_avisar)add('pode_avisar','Ela aceita receber novidades no WhatsApp?',[['sim','Sim'],['nao','Não'],['nao_perguntei','Não perguntei']]);
+ if(F.pode_avisar=='sim'&&!(F.avisar_sobre||[]).length)add('avisos','Ela quer ser avisada de algo específico? Promoção, chegada de uma peça ou tamanho, coleção nova…',AVISOS);
+ (F.avisar_sobre||[]).forEach(function(a,i){if(a.tipo=='chegada'&&!a.detalhe)add('avisodet:'+i,'Avisar quando chegar o quê? Fale a peça, o tamanho ou a cor.')});
  return q}
 // Resposta por botão: aplica direto, sem gastar IA.
 function aplicaOpcao(F,id,v,fi){var p=id.split(':'),k=p[0],i=Number(p[1]);
@@ -203,6 +234,7 @@ function aplicaOpcao(F,id,v,fi){var p=id.split(':'),k=p[0],i=Number(p[1]);
  else if(k=='modelos')F.modelos_mostrados=Number(v);
  else if(k=='motivo'&&F.nao_levou[i])F.nao_levou[i].motivo=v;
  else if(k=='faltou'&&v=='nada')F.faltou='nada';
+ else if(k=='avisos'){F.avisar_sobre=F.avisar_sobre||[];if(!F.avisar_sobre.some(function(a){return a.tipo==v}))F.avisar_sobre.push({tipo:v,detalhe:''})}
  else if(k=='fi'){var pid=id.slice(3);F.respostas_ficha=F.respostas_ficha||{};F.respostas_ficha[pid]=v;
   if(pid.indexOf('nasc:')==0&&v=='ja_nasceu'){var cid=pid.slice(5);(F.criancas||[]).forEach(function(c){if(c.id==cid){c.conhecida=false;c.nascido='sim';var pv=/^\d{4}-\d{2}$/.test(c.previsao||'')?c.previsao:'';c.previsao='';if(pv){var h=new Date(),m=(h.getFullYear()-Number(pv.slice(0,4)))*12+(h.getMonth()+1-Number(pv.slice(5,7)));c.idade_meses=Math.max(0,m)}else c.idade_meses=0}})}}
  return F}
@@ -214,9 +246,9 @@ function msg(id,t,cls){var e=$(id);e.innerHTML=t?'<div class="msg '+(cls||'')+'"
 function show(n){['s1','s2','s3','s4'].forEach(function(s){$(s).style.display=s==n?'':'none'});window.scrollTo(0,0)}
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}
 function dig(s){return String(s||'').replace(/\D/g,'')}
-var Q={porLoja:false,vendedoras:[],demo:false},F=novoF(),FI=null,feitas=[],fila=[],atual=null,pulou=false;
+var S=null,Q={porLoja:false,vendedoras:[],demo:false},F=novoF(),FI=null,feitas=[],fila=[],atual=null,pulou=false;
 if(!tok){$('hint').textContent='Link inválido. Use o link de voz que a gerente mandou.';$('mic').disabled=true}
-else api({voz:'quem'}).then(function(q){Q=q;Q.vendedoras=q.vendedoras||[];if(q.porLoja){$('nome').textContent='Registrar venda por voz';$('loja').textContent='bb básico '+q.loja+' · link da loja'}else{$('nome').textContent=q.nome;$('loja').textContent='bb básico '+q.loja}if(q.demo)$('demo').style.display='block'}).catch(function(e){$('hint').textContent='Não consegui identificar o link: '+e.message;$('mic').disabled=true});
+else api({voz:'quem'}).then(function(q){Q=q;Q.vendedoras=q.vendedoras||[];if(q.porLoja){$('nome').textContent='Registrar venda por voz';$('loja').textContent='bb básico '+q.loja+' · link da loja'}else{$('nome').textContent=q.nome;$('loja').textContent='bb básico '+q.loja}if(q.demo)$('demo').style.display='block';api({voz:'sugestoes'}).then(function(r){S=r;if(r&&r.cat&&r.cat.length)BASICO=r.cat.map(function(c){return c.nome})}).catch(function(){})}).catch(function(e){$('hint').textContent='Não consegui identificar o link: '+e.message;$('mic').disabled=true});
 
 // ---- voz do celular (lê as perguntas)
 var falar=true;try{falar=localStorage.getItem('bbvoz_som')!=='0'}catch(e){}
@@ -232,6 +264,9 @@ function fichaHtml(f){var h='<h2>O que já sabemos</h2>',M=['jan','fev','mar','a
  if(f.compras)h+='<div>'+(f.compras.inclui_hoje?'Compras (com hoje): ':'Comprou antes: ')+'<b>'+f.compras.n+(f.compras.n==1?' vez':' vezes')+'</b>'+(f.compras.desde?' desde '+dm(f.compras.desde):'')+(f.compras.ult?' · última em '+dm(f.compras.ult)+(f.compras.loja?' ('+esc(f.compras.loja)+')':''):'')+'</div>'+(f.compras.itens_ult?'<div class="sofar">Última compra: '+esc(f.compras.itens_ult)+'</div>':'');
  if(f.criancas.length)h+='<div class="t">Crianças</div><ul>'+f.criancas.map(function(c){return'<li>'+(c.nascido=='nao'?'Bebê a caminho'+(c.previsao?' (previsão '+dm(c.previsao)+')':''):esc(c.apelido||(c.sexo=='menina'?'Menina':c.sexo=='menino'?'Menino':'Criança'))+(c.idade_meses!==''?', '+idade(c.idade_meses):'')+(c.tamanho?' · último tamanho '+esc(c.tamanho):''))+(c.dito_em?' <span class="sofar">(dito em '+dm(c.dito_em)+')</span>':'')+'</li>'}).join('')+'</ul>';
  if(f.preferencias.length)h+='<div class="t">Recados</div><ul>'+f.preferencias.map(function(p){return'<li>'+esc(p)+'</li>'}).join('')+'</ul>';
+ if((f.avisos||[]).length)h+='<div class="t">Quer ser avisada de</div><ul>'+f.avisos.map(function(p){return'<li>'+esc(p)+'</li>'}).join('')+'</ul>';
+ var sg=[];f.criancas.forEach(function(c){var pf=perfilDe({criancas:[{nascido:c.nascido,tamanho:'',idade_meses:c.idade_meses,sexo:c.sexo}],tipo:''});var rk=rankPara(S,pf).slice(0,3);if(rk.length)sg.push((c.apelido?esc(c.apelido)+' ('+esc(descPerfil(pf))+')':esc(descPerfil(pf)))+': '+rk.map(function(x){return esc(x.nome)+' '+x.pct+'%'}).join(', '))});
+ if(sg.length)h+='<div class="t">Para mostrar (o que mais vende nessa idade)</div><ul>'+sg.map(function(x){return'<li>'+x+'</li>'}).join('')+'</ul>';
  var ol=[];f.historico.forEach(function(x){(x.nao_levou||[]).forEach(function(n){ol.push(dm(x.data)+': '+n.peca+(n.tamanho?' '+n.tamanho:'')+(n.motivo?' — '+({caro:'achou caro',sem_tamanho_cor:'não tinha tamanho/cor',duvida:'ficou na dúvida',vai_voltar:'disse que voltaria',outro:'outro motivo'})[n.motivo]:''))});if(x.faltou&&x.faltou!='nada')ol.push(dm(x.data)+': procurou '+x.faltou+' (não tinha)')});
  if(ol.length)h+='<div class="t">Oportunidades anteriores</div><ul>'+ol.map(function(x){return'<li>'+esc(x)+'</li>'}).join('')+'</ul>';
  if(f.historico.length)h+='<div class="t">Atendimentos anteriores</div><ul>'+f.historico.map(function(x){return'<li>'+dm(x.data)+' · '+esc(x.vendedora)+': '+esc(x.resumo)+'</li>'}).join('')+'</ul>';
@@ -279,7 +314,8 @@ $('txtgo').onclick=function(){destrava();var t=$('txt').value.trim();if(t.length
 function proxima(){fila=perguntasPendentes(F,FI,feitas);if(!fila.length){conferir();return}atual=fila[0];show('s4');
  $('qn').textContent='Falta'+(fila.length>1?'m '+fila.length+' perguntas':' 1 pergunta');$('qt').textContent=atual.texto;$('qtxt').value='';msg('m4','');
  var h='';if(atual.tipo=='boleta')h='<input id="qbol" inputmode="numeric" maxlength="6" placeholder="número da boleta" style="font-size:22px"><button class="btn" type="button" data-ok="boleta">Confirmar boleta</button>';
- else if(atual.tipo=='basico')h='<div class="chips" id="qbas">'+BASICO.map(function(b){return'<button class="chip" data-b="'+b+'">'+b+'</button>'}).join('')+'<button class="chip" data-b="nenhuma">Não mostrei</button></div><label>Modelos diferentes no total (mínimo 4)</label><div class="chips" id="qmod">'+['1','2','3','4','5','6','7','8+'].map(function(n){return'<button class="chip" data-m="'+n+'">'+n+'</button>'}).join('')+'</div><button class="btn" type="button" data-ok="basico">Confirmar</button>';
+ else if(atual.tipo=='basico'){var pf=perfilDe(F),rk=rankPara(S,pf).slice(0,4),ord=rk.map(function(x){return x.nome}).concat(BASICO.filter(function(b){return!rk.some(function(x){return x.nome==b})}));F.sugeridos=rk.map(function(x){return x.g});
+  h=(rk.length?'<div class="dup" style="margin:6px 0 10px">Para '+esc(descPerfil(pf))+', os que mais vendem: <b>'+rk.map(function(x){return esc(x.nome)+' '+x.pct+'%'}).join(' · ')+'</b></div>':'')+'<div class="chips" id="qbas">'+ord.map(function(b,i){return'<button class="chip" data-b="'+esc(b)+'">'+(i<rk.length?'★ ':'')+esc(b)+'</button>'}).join('')+'<button class="chip" data-b="nenhuma">Não mostrei</button></div><label>Modelos diferentes no total (mínimo 4)</label><div class="chips" id="qmod">'+['1','2','3','4','5','6','7','8+'].map(function(n){return'<button class="chip" data-m="'+n+'">'+n+'</button>'}).join('')+'</div><button class="btn" type="button" data-ok="basico">Confirmar</button>'}
  else if(atual.op)h=atual.op.map(function(o){return'<button class="btn op" type="button" data-v="'+esc(o[0])+'">'+esc(o[1])+'</button>'}).join('');
  $('qop').innerHTML=h;$('qmic').style.display=$('qtxtrow').style.display=atual.tipo=='boleta'?'none':'';
  $('sofar').innerHTML=resumoF();diz(atual.texto);if(atual.tipo=='boleta')setTimeout(function(){$('qbol').focus()},50)}
@@ -327,11 +363,14 @@ $('nls').addEventListener('input',function(e){var box=e.target.closest('.nl');if
 $('addnl').onclick=function(){F.nao_levou=F.nao_levou||[];F.nao_levou.push({peca:'',tamanho:'',motivo:'',detalhe:''});renderNl()};
 function renderVends(){if(!Q.porLoja){$('atend').style.display='none';return}$('atend').style.display='';$('vends').innerHTML=Q.vendedoras.map(function(v){return'<button class="chip'+(F.vendedora==v?' on':'')+'" data-v="'+esc(v)+'">'+esc(v)+'</button>'}).join('')}
 $('vends').addEventListener('click',function(e){var c=e.target.closest('.chip');if(!c)return;e.preventDefault();F.vendedora=c.dataset.v;renderVends()});
-function conferir(){F_TXT.forEach(function(k){$('f_'+k).value=F[k]||''});$('f_modelos').value=F.modelos_mostrados>=0?F.modelos_mostrados:'';$('f_preferencias').value=(F.preferencias||[]).join('\n');
+function conferir(){if(!F.dica){var dc=dicaPara(S,F,perfilDe(F));if(dc)F.dica=dc}$('dica').style.display=F.dica?'':'none';$('dica').innerHTML=F.dica?'💡 '+esc(F.dica.texto):'';renderAvisos();
+ F_TXT.forEach(function(k){$('f_'+k).value=F[k]||''});$('f_modelos').value=F.modelos_mostrados>=0?F.modelos_mostrados:'';$('f_preferencias').value=(F.preferencias||[]).join('\n');
  var ed=F.evento_data||'';$('f_evento_data').value=/^\d{4}-\d{2}-\d{2}$/.test(ed)?ed:'';$('f_evmes').textContent=/^\d{4}-\d{2}$/.test(ed)?'Ela disse o mês: '+ed.slice(5,7)+'/'+ed.slice(0,4)+' (escolha o dia se souber)':'';
  document.querySelectorAll('.chips[data-f]').forEach(function(g){chips(g,F[g.dataset.f]||'')});$('f_relacao_outra').style.display=F.relacao=='outra'?'':'none';
  renderCris();renderBasico();renderNl();renderVends();msg('m2','');show('s2')}
-function lerForm(){F_TXT.forEach(function(k){F[k]=$('f_'+k).value.trim()});var mo=$('f_modelos').value;F.modelos_mostrados=mo===''?-1:+mo;F.preferencias=$('f_preferencias').value.split('\n').map(function(s){return s.trim()}).filter(Boolean);
+function renderAvisos(){var on=(F.avisar_sobre||[]).map(function(a){return a.tipo});$('avisos').innerHTML=AVISOS.map(function(a){return'<button class="chip'+(on.indexOf(a[0])>=0?' on':'')+'" data-v="'+a[0]+'">'+a[1]+'</button>'}).join('');var d=(F.avisar_sobre||[]).filter(function(a){return a.detalhe}).map(function(a){return a.detalhe});$('f_avisodet').value=d.join('; ')}
+$('avisos').addEventListener('click',function(e){var c=e.target.closest('.chip');if(!c)return;e.preventDefault();var v=c.dataset.v,l=(F.avisar_sobre||[]).slice(),ix=l.map(function(a){return a.tipo}).indexOf(v);if(ix>=0)l.splice(ix,1);else{if(v=='nada')l=[];else l=l.filter(function(a){return a.tipo!='nada'});l.push({tipo:v,detalhe:''})}F.avisar_sobre=l;renderAvisos()});
+function lerForm(){F_TXT.forEach(function(k){F[k]=$('f_'+k).value.trim()});var ad=$('f_avisodet').value.trim();if(ad){F.avisar_sobre=F.avisar_sobre||[];var alvo=F.avisar_sobre.filter(function(a){return a.tipo!='nada'})[0];if(alvo){F.avisar_sobre.forEach(function(a){if(a!==alvo)a.detalhe=''});alvo.detalhe=ad}else F.avisar_sobre=[{tipo:'outro',detalhe:ad}]}var mo=$('f_modelos').value;F.modelos_mostrados=mo===''?-1:+mo;F.preferencias=$('f_preferencias').value.split('\n').map(function(s){return s.trim()}).filter(Boolean);
  var ed=$('f_evento_data').value;F.evento_data=ed||(/^\d{4}-\d{2}$/.test(F.evento_data||'')?F.evento_data:'');F.nao_levou=(F.nao_levou||[]).filter(function(n){return String(n.peca||'').trim()});F.perguntadas=feitas.slice();F.pulou=pulou}
 function salvar(subst){lerForm();var b=dig(F.boleta);
  if(Q.porLoja&&!F.vendedora){msg('m2','Marque quem atendeu.','err');window.scrollTo(0,0);return}
