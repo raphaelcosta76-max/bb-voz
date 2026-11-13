@@ -369,7 +369,7 @@ function achaNome(lojas,texto){var tk=normaliza(texto).split(' ').filter(functio
 // v35: pergunta para abrir a conversa a partir da última compra (não pergunta de troca; presente vira "quem ganhou gostou?")
 function perguntaUltima(c,hist){if(!c||!c.ult||c.troca_ult)return'';var d=String(c.ult).slice(8,10)+'/'+String(c.ult).slice(5,7);
  if((hist||[]).some(function(x){return x&&String(x.data||'').slice(0,10)==String(c.ult).slice(0,10)&&x.tipo=='presente'}))return'Quem ganhou o presente que você levou em '+d+' gostou?';
- var ps=String(c.itens_ult||'').split(/,\s*/).map(function(x){return x.trim().toLowerCase().replace(/\s+(rn|pp|p|m|g|gg|xg|\d{1,2}(\/\d{1,2})?|\d+[am])$/,'').trim()}).filter(function(x,i,a){return x&&a.indexOf(x)==i}).slice(0,2);
+ var ps=String(c.itens_ult||'').split(/,\s*/).map(function(x){return x.trim().toLowerCase().replace(/\s+(rn|pp|p|m|g|gg|xg|\d{1,2}(\/\d{1,2})?|\d+[am])$/,'').split(/\s+/).filter(function(w){return['inf','infantil','bebe','bebê','mc','ml','m/c','m/l','silk','lisa','liso'].indexOf(w)<0}).slice(0,3).join(' ').trim()}).filter(function(x,i,a){return x&&a.indexOf(x)==i}).slice(0,2);
  return ps.length?'Ficaram legais as peças que você levou em '+d+': '+ps.join(' e ')+'?':'Ficou tudo certo com o que você levou em '+d+'?'}
 // @entrevista-fim
 var $=function(i){return document.getElementById(i)};
