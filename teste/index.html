@@ -265,6 +265,7 @@ function nomeCri(c,i){return c.apelido?c.apelido:'a criança '+(i+1)}
 // Lista do que ainda falta perguntar, na ordem. Pergunta já feita (respondida ou pulada) não volta.
 function perguntasPendentes(F,fi,feitas){var q=[];feitas=feitas||[];function add(id,texto,op,tipo){if(feitas.indexOf(id)<0)q.push({id:id,texto:texto,op:op||null,tipo:tipo||'voz'})}
  if(!F.boleta)add('boleta','Qual o número da boleta?',null,'boleta');
+ if(F.boleta&&F.boleta_falada&&F.boleta_falada!=F.boleta)add('boleta_conf','Você digitou a boleta '+F.boleta+' e falou '+F.boleta_falada+'. Qual é a certa?',[[F.boleta,F.boleta],[F.boleta_falada,F.boleta_falada]]);
  if(!F.tipo)add('tipo','Foi presente ou para uso da própria família?',[['presente','Presente'],['uso','Uso próprio'],['ambos','Os dois']]);
  if(!F.relacao)add('relacao','Quem comprou?',[['mae','Mãe'],['pai','Pai'],['avo','Avó/avô'],['tia','Tia/tio'],['madrinha','Madrinha'],['amiga','Amiga'],['outra','Outra']]);
  var cs=[];(F.criancas||[]).forEach(function(c,i){if(!c.conhecida)cs.push({c:c,i:i})});
@@ -272,6 +273,7 @@ function perguntasPendentes(F,fi,feitas){var q=[];feitas=feitas||[];function add
  cs.forEach(function(x,k){var c=x.c,n=nomeCri(c,k);
   if(c.nascido=='nao'){if(!c.previsao)add('prev:'+x.i,'Para quando é o bebê?');return}
   if((c.idade_meses===''||c.idade_meses==null)&&!c.tamanho)add('idade:'+x.i,'Qual a idade ou o tamanho de '+n+'?');
+  else if(c.idade_meses===''||c.idade_meses==null)add('idade:'+x.i,'Quantos anos tem '+(c.apelido?c.apelido:(c.sexo=='menino'?'o menino':c.sexo=='menina'?'a menina':'a criança')+(cs.length>1?' '+(k+1):''))+'?',[['nao_sei','Não sei']]);
   if(!c.sexo)add('sexo:'+x.i,(c.apelido?c.apelido:'A criança'+(cs.length>1?' '+(k+1):''))+' é menina ou menino?',[['menina','Menina'],['menino','Menino']])});
  ((fi&&fi.pendentes)||[]).forEach(function(p){add('fi:'+p.id,p.texto,p.opcoes)});
  if(!(F.basico_mostrado||[]).length)add('basico','Quais peças do básico você mostrou? E quantos modelos diferentes no total?',null,'basico');
@@ -287,6 +289,7 @@ function perguntasPendentes(F,fi,feitas){var q=[];feitas=feitas||[];function add
 // Resposta por botão: aplica direto, sem gastar IA.
 function aplicaOpcao(F,id,v,fi){var p=id.split(':'),k=p[0],i=Number(p[1]);
  if(k=='tipo'||k=='relacao'||k=='pode_avisar')F[k]=v;
+ else if(k=='boleta_conf'){F.boleta=String(v);delete F.boleta_falada}
  else if(k=='sexo'&&F.criancas[i])F.criancas[i].sexo=v;
  else if(k=='modelos')F.modelos_mostrados=Number(v);
  else if(k=='motivo'&&F.nao_levou[i])F.nao_levou[i].motivo=v;
@@ -511,7 +514,7 @@ function comecaVenda(){destrava();paraOuvir();if(gravando()){parar();return}if(s
  fala(apresenta(saudacao(nm,primeira||ap,new Date().getHours()),ap),function(){if(!saudando)return;saudando=false;bip();setTimeout(function(){gravar(Object.assign({auto:true},REL))},250)})}
 function lerCliente(){var b=dig($('i_boleta').value),c=dig($('i_cpf').value);if(b)F.boleta=b;if(c)F.cpf=c}
 function relato(d){lerCliente();d.ctx=F;return api({voz:'interpretar',d:d}).then(function(r){apresentar=true;recebe(r)})}
-function recebe(r){var bt=F.boleta,cpf=F.cpf,vend=F.vendedora;['modelo','ms','uso'].forEach(function(k){delete r[k]});F=r;if(bt)F.boleta=bt;F.boleta=dig(F.boleta);F.cpf=cpf;F.vendedora=vend;F.respostas_ficha=F.respostas_ficha||{};msg('m1','');msg('m4','');guarda();proxima()}
+function recebe(r){var bt=F.boleta,bf=F.boleta_falada,cpf=F.cpf,vend=F.vendedora;['modelo','ms','uso','travados'].forEach(function(k){delete r[k]});var fal=dig(r.boleta);F=r;if(bt){F.boleta=bt;if(fal&&fal!=dig(bt))F.boleta_falada=fal;else if(bf)F.boleta_falada=bf}F.boleta=dig(F.boleta);F.cpf=cpf;F.vendedora=vend;F.respostas_ficha=F.respostas_ficha||{};msg('m1','');msg('m4','');guarda();proxima()}
 $('mic').onclick=comecaVenda;
 $('togtxt').onclick=function(){var b=$('txtbox');b.style.display=b.style.display=='none'?'':'none'};
 $('txtgo').onclick=function(){destrava();primeira=primeiraDia();var t=$('txt').value.trim();if(t.length<10){msg('m1','Escreva um pouco mais.','err');return}$('txtgo').disabled=true;$('txtgo').innerHTML='<span class="spin"></span>Interpretando…';
