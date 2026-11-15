@@ -71,6 +71,7 @@ textarea{min-height:92px;resize:vertical}
 #vozp .vi.on{border-color:var(--fg);background:var(--chip);font-weight:600}
 .big2{font-size:19px;line-height:1.35}
 .wa{display:block;text-align:center;text-decoration:none;background:#1f7a3a}
+.wab{margin-top:12px}.watx{font-size:13px;color:var(--mute);background:#f6f6f2;border-radius:8px;padding:8px 10px;margin-top:6px;white-space:pre-wrap;text-align:left}
 .wa.ok{background:#fff;color:var(--fg);border:1px solid var(--line)}
 </style>
 </head>
@@ -106,6 +107,7 @@ textarea{min-height:92px;resize:vertical}
 
 <section id="s1">
  <div class="card" id="pend" style="display:none"></div>
+ <div class="card" id="cons" style="display:none"></div>
  <div class="card" id="quemc" style="display:none">
   <div class="q" id="quemq">Quem vai contar a venda?</div>
   <div class="hint" id="quems" style="text-align:left;margin:0 0 10px">Toque no seu nome:</div>
@@ -358,11 +360,13 @@ function perguntasFalta(F,add){itensFalta(F).forEach(function(x){var n=x.n,k=x.k
   if(!n.qtd&&(n.ref_ok||n.ref_skip||n.fmod||n.ftc_ok))add('fqtd:'+k,sobreF(nm,falta)+'quantas peças ela queria?',[['1','1'],['2','2'],['3','3'],['4','4 ou mais']]);
   if(n.ref_ok&&n.estq){var et=estoqueTxt(n);if(et)n.estoque=et}
   if(!n.avisar&&(falta||n.motivo=='sem_tamanho_cor')){var ou=outrasLojas(n);
-   if(ou.length&&n.estoque)add('fav:'+k,sobreF(nm,falta)+n.estoque.charAt(0).toLowerCase()+n.estoque.slice(1)+' Ela prefere buscar '+(ou.length==1?'no '+ou[0].loja:'em uma delas')+', que venha para cá, ou só ser avisada quando chegar?',ou.map(function(y){return['busca:'+y.loja,'Busca no '+y.loja]}).concat([['vem','Vem para cá'],['sim','Só avisar'],['nao','Não quer']]));
+   var bq=lojasBusca(n);if(ou.length&&n.estoque)add('fav:'+k,sobreF(nm,falta)+n.estoque.charAt(0).toLowerCase()+n.estoque.slice(1)+(bq.length?' Ela prefere buscar '+(bq.length==1?'no '+bq[0].loja:'em uma delas')+', que venha para cá, ou só ser avisada quando chegar?':' Ela quer que venha para cá, ou só ser avisada quando chegar?'),bq.map(function(y){return['busca:'+y.loja,'Busca no '+y.loja]}).concat([['vem','Vem para cá'],['sim','Só avisar'],['nao','Não quer']]));
    else add('fav:'+k,sobreF(nm,falta)+(n.estoque?n.estoque.charAt(0).toLowerCase()+n.estoque.slice(1)+' Ela quer ser avisada quando chegar?':'ela quer ser avisada quando chegar?'),[['sim','Sim'],['nao','Não']])}})}
 // v37h: outras lojas próprias com saldo da peça (na cor e tamanho), maior saldo primeiro
+// v37i: buscar na outra loja só quando é da mesma cidade (de Brasília para Goiânia só "vem para cá")
+function lojasBusca(n){var s=estoqueLojas(n);if(!s)return[];var lj=(n.estq&&n.estq.lojas)||[],um=function(x){return lj.filter(function(z){return z.loja==x})[0]},ca=(um(s.aq)||{}).cidade||'';return outrasLojas(n).filter(function(y){var o=um(y.loja);return!ca||(o&&o.cidade==ca)})}
 function outrasLojas(n){var s=estoqueLojas(n);return s?s.l.filter(function(y){return y.loja!=s.aq}).sort(function(a,b){return b.saldo-a.saldo}).slice(0,2):[]}
-function retTxt(n){var r=n.retirada||'';if(/^busca:/.test(r))return' · vai buscar no '+r.slice(6);if(r=='vem')return' · quer que venha para cá';return n.avisar=='sim'?' · avisar quando chegar':''}
+function retTxt(n){var r=n.retirada||'';if(/^busca:/.test(r))return' · vai buscar no '+r.slice(6)+(n.reserva_ate?' até '+ddmm(n.reserva_ate):'');if(r=='vem')return' · quer que venha para cá';return n.avisar=='sim'?' · avisar quando chegar':''}
 // cor, tamanho e quantidade ditos na fala, conferidos com a grade da referência escolhida
 function stemW(w){return w.length>3?w.replace(/(as|os|es|a|o|e|s)$/,''):w}
 function corDe(txt,cores){var ws=normaliza(txt).split(' ').map(stemW),best='',bn=0;(cores||[]).forEach(function(c){var cw=normaliza(c).split(' ').filter(Boolean).map(stemW);if(cw.length&&cw.every(function(x){return ws.indexOf(x)>=0})&&cw.length>bn){best=c;bn=cw.length}});return best}
@@ -428,7 +432,7 @@ function aplicaOpcao(F,id,v,fi){var p=id.split(':'),k=p[0],i=Number(p[1]);
  if(k=='tipo'||k=='relacao'||k=='pode_avisar'||k=='motivo_nc'||k=='novidades'||k=='promocoes')F[k]=v;
  else if(k=='nome'&&v=='nao_sei')F.nome_ns=true;
  else if((k=='celular'||k=='celular2')&&v=='nao')F.celular_nao=true;
- else if(k=='fav'){var nf=itemFalta(F,p[1]);if(nf){if(/^busca:/.test(v)||v=='vem'){nf.retirada=v;nf.avisar='sim'}else{nf.avisar=v;nf.retirada=v=='sim'?'aviso':'nao'}}}
+ else if(k=='fav'){var nf=itemFalta(F,p[1]);if(nf){if(/^busca:/.test(v)||v=='vem'){nf.retirada=v;nf.avisar='sim';if(/^busca:/.test(v))reserva(nf,2)}else{nf.avisar=v;nf.retirada=v=='sim'?'aviso':'nao'}}}
  else if(k=='fref'){var nr=itemFalta(F,p[1]);if(nr){if(v=='sim'){nr.ref_ok=true;if(nr.grade)escolheProd(nr,{r:nr.ref,d:nr.ref_desc,cores:nr.grade.cores,tams:nr.grade.tams})}else{nr.ref='';nr.ref_desc='';nr.ref_skip=false;nr.cands=undefined}}}
  else if(k=='frefx'&&v=='tirar'){var nx=itemFalta(F,p[1]);if(nx){nx.ref='';nx.ref_nao=false;nx.ref_skip=true}}
  else if(k=='fprod'){var np=itemFalta(F,p[1]);if(np){if(v=='nenhum'){np.cands=[];np.nenhum=true}else if(v=='nao_sei')np.ref_skip=true;else{var cp=(np.cands||[]).filter(function(c){return c.r==v})[0];if(cp)escolheProd(np,cp)}}}
@@ -475,12 +479,47 @@ function waLista(F){var r=[];itensFalta(F).forEach(function(x){var n=x.n;if(x.k.
   s.l.filter(function(y){return y.loja!=s.aq}).map(function(y){var o=um(y.loja);return o&&o.whats?{n:n,s:s,loja:y.loja,saldo:y.saldo,whats:o.whats,filial:o.filial,mesma:!!ca&&o.cidade==ca}:null}).filter(Boolean)
    .sort(function(a,b){return((b.loja==bl)-(a.loja==bl))||(b.mesma-a.mesma)||(b.saldo-a.saldo)}).slice(0,2).forEach(function(y){r.push(y)})});return r.slice(0,4)}
 function waPeca(n){return(n.ref_ok&&n.ref_desc?n.ref_desc:limpaPeca(n.peca))+(n.cor?' '+capW(n.cor):'')+(n.tamanho?' '+n.tamanho:'')+(n.ref?' (ref. '+n.ref+')':'')}
-function waTexto(y){var n=y.n,nm=(typeof nomeEu=='function'?nomeEu():'')||(typeof EU!='undefined'&&EU&&EU.nome)||(typeof F!='undefined'&&F.vendedora)||'',lj=lojaAtual();
- return((typeof Q!='undefined'&&Q.demo)||(typeof TESTE!='undefined'&&TESTE)?'[TESTE — pode ignorar] ':'')+'Oi, aqui é '+(nm?'a '+nm+', da loja '+lj:'a loja '+lj)+'. Vocês têm '+waPeca(n)+'? '+y.s.qd+' o sistema mostrava '+y.saldo+' aí. Tenho uma cliente querendo. Se tiver, separa '+(n.qtd>1?n.qtd+' ':'')+'para ela, por favor'+(function(){var r=n.retirada||'';if(/^busca:/.test(r)&&r.slice(6)==y.loja)return'. Ela passa aí para buscar.';if(r=='vem'||!y.mesma)return', e me diz se dá para mandar para cá.';return', e me responde aqui.'})()}
+function pecaCli(n){return(n.ref_ok&&n.ref_desc?n.ref_desc:limpaPeca(n.peca))+(n.cor?' '+capW(n.cor):'')+(n.tamanho?' '+n.tamanho:'')}
+// v37i: reserva na outra loja (decisão do Raphael, 15/11: 2 dias, a vendedora confere com a cliente) — "até" = hoje + dias
+function dataMais(d){var x=new Date();x.setDate(x.getDate()+d);return x.getFullYear()+'-'+('0'+(x.getMonth()+1)).slice(-2)+'-'+('0'+x.getDate()).slice(-2)}
+function ddmm(iso){return/^\d{4}-\d{2}-\d{2}$/.test(String(iso||''))?iso.slice(8,10)+'/'+iso.slice(5,7):''}
+function reserva(n,dias){dias=Math.max(1,Math.min(30,Math.round(Number(dias))||2));n.reserva_dias=dias;n.reserva_ate=dataMais(dias)}
+function primNome(s){return String(s||'').trim().split(/\s+/)[0]||''}
+// v37i: mensagem no formato do Raphael (15/11): quem é, a peça, o que o sistema mostra e o pedido; reserva leva o primeiro nome e o final do celular
+function waTexto(y){var n=y.n,f=y.f||(typeof F!='undefined'?F:{}),nm=(typeof nomeEu=='function'?nomeEu():'')||(typeof EU!='undefined'&&EU&&EU.nome)||f.vendedora||'',lj=lojaAtual(),r=n.retirada||'',
+  un=y.saldo+(y.saldo==1?' unidade':' unidades'),pos='posição de '+(y.s.qd=='Ontem'?'ontem':y.s.qd.slice(3)),q=n.qtd>1?n.qtd+' ':'',
+  ini=((typeof Q!='undefined'&&Q.demo)||(typeof TESTE!='undefined'&&TESTE)?'[TESTE — pode ignorar] ':'')+'Oi, aqui é '+(nm?'a '+nm+', do '+lj:'a loja '+lj)+'.',
+  pede=' Vocês podem verificar se tem aí em estoque: '+waPeca(n)+'? No sistema constam '+un+' ('+pos+').';
+ if(/^busca:/.test(r)&&r.slice(6)==y.loja){var pn=primNome(f.cliente_nome),c4=String(f.celular||'').replace(/\D/g,'').slice(-4);
+  return ini+' RESERVA para cliente: '+(pn?pn+(c4.length==4?' (cel. final '+c4+')':''):'uma cliente')+'.'+pede+' Se tiver, separa '+q+'no nome dela'+(n.reserva_ate?' até '+ddmm(n.reserva_ate):'')+', ela passa aí para buscar. Me confirma por aqui?'}
+ return ini+pede+' Tenho uma cliente querendo. Se tiver, '+(r=='vem'||!y.mesma?'separa '+q+'para ela e me diz se dá para mandar para cá?':'me responde aqui?')}
+// mensagem para a cliente depois que a outra loja confirmou
+function clienteTexto(c){var pn=primNome(c.nome),ini='Oi'+(pn?', '+pn:'')+'! Aqui é '+(c.vend?'a '+c.vend+', da bb básico '+c.lj:'a bb básico '+c.lj)+'.';
+ if(/^busca:/.test(c.retirada||'')&&c.retirada.slice(6)==c.loja)return ini+' A peça que você procurou ('+c.pecaCli+') está separada no seu nome no '+c.loja+(c.ate?' até '+ddmm(c.ate):'')+'. É só passar lá e falar o seu nome.';
+ if(c.retirada=='vem')return ini+' Achamos a peça que você procurou ('+c.pecaCli+') no '+c.loja+' e ela vem para cá. Te aviso assim que chegar.';
+ return ini+' Achamos a peça que você procurou ('+c.pecaCli+'): tem no '+c.loja+'. Quer que eu separe para você?'}
+function consDe(y,F,chave){var n=y.n;return{id:(chave||'')+'|'+(n.ref||limpaPeca(n.peca))+'|'+y.filial,chave:chave||'',ref:n.ref||'',filial:y.filial,loja:y.loja,peca:waPeca(n),pecaCli:pecaCli(n),nome:F.cliente_nome||'',cel:String(F.celular||'').replace(/\D/g,''),retirada:n.retirada||'',ate:n.reserva_ate||'',t:Date.now(),vend:F.vendedora||'',lj:lojaAtual()}}
+function respHtml(){return'<div class="sofar" style="margin-top:6px">Quando eles responderem, toque:</div><div class="chips"><button class="chip" type="button" data-resp="separado">Tem / separou</button><button class="chip" type="button" data-resp="nao_tinha">Não tinha</button></div>'}
+function copia(t,el){copia2(t);try{if(navigator.clipboard)navigator.clipboard.writeText(t).catch(function(){})}catch(e){}if(el)el.textContent='✓ Copiada — cole no WhatsApp'}
+function copia2(t){try{var a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();document.execCommand('copy');a.remove()}catch(e){}}
+function abriu(c,w){if(!w._ab){w._ab=1;poeCons(c);if(c.chave)api({voz:'consulta',chave:c.chave,ref:c.ref,filial:c.filial,vend:c.vend}).catch(function(){})}var r=w.querySelector('.wares');if(r&&!r._ok)r.innerHTML=respHtml()}
+function responde(c,r,el){api({voz:'retorno',chave:c.chave,ref:c.ref,filial:c.filial,r:r,vend:c.vend}).catch(function(){});tiraCons(c.id);el._ok=1;
+ if(r=='separado'){var tx=clienteTexto(c);el.innerHTML='<div class="msg ok">Anotado: o '+esc(c.loja)+' tem.</div>'+(c.cel.length>=10?'<a class="btn wa" target="_blank" rel="noopener" href="https://wa.me/55'+c.cel+'?text='+encodeURIComponent(tx)+'">Avisar a cliente no WhatsApp</a><div class="watx">'+esc(tx)+'</div><button class="link" type="button" data-cli="1">Copiar mensagem</button>':'<div class="hint" style="text-align:left">Ela não deixou celular: avise quando ela voltar.</div>');
+  var bc=el.querySelector('[data-cli]');if(bc)bc.onclick=function(ev){ev.stopPropagation();copia(tx,bc)}}
+ else el.innerHTML='<div class="msg">Anotado: o '+esc(c.loja)+' não tinha. Fica na lista para avisar quando chegar'+(c.retirada=='vem'?'; se tiver em outra loja, pergunte a ela.':'.')+'</div>'}
 function pintaWa(F,chave){var l=waLista(F),b=$('okwa');b.onclick=null;if(!l.length){b.style.display='none';b.innerHTML='';return''}
- b.innerHTML='<p style="margin:16px 0 0">Tem em outra loja. Pergunte direto a eles:</p>'+l.map(function(y,i){return'<a class="btn wa" target="_blank" rel="noopener" data-i="'+i+'" href="https://wa.me/'+y.whats+'?text='+encodeURIComponent(waTexto(y))+'">Perguntar ao '+esc(y.loja)+' · '+esc(waPeca(y.n))+'</a>'}).join('');b.style.display='';
- b.onclick=function(e){var a=e.target.closest('a.wa');if(!a)return;var y=l[Number(a.getAttribute('data-i'))];a.classList.add('ok');a.textContent='✓ WhatsApp aberto para o '+y.loja;if(chave)api({voz:'consulta',chave:chave,ref:y.n.ref||'',filial:y.filial,vend:F.vendedora||''}).catch(function(){})};
+ l.forEach(function(y){y.f=F});
+ b.innerHTML='<p style="margin:16px 0 0">Tem em outra loja. Pergunte direto a eles:</p>'+l.map(function(y,i){var tx=waTexto(y);return'<div class="wab" data-i="'+i+'"><a class="btn wa" target="_blank" rel="noopener" href="https://wa.me/'+y.whats+'?text='+encodeURIComponent(tx)+'">Perguntar ao '+esc(y.loja)+' · '+esc(waPeca(y.n))+'</a><div class="watx">'+esc(tx)+'</div><button class="link" type="button" data-cp="1">Copiar mensagem</button><div class="wares"></div></div>'}).join('');b.style.display='';
+ b.onclick=function(e){var a=e.target.closest('a.wa,[data-cp],[data-resp]');if(!a)return;var w=a.closest('.wab');if(!w)return;var res=a.closest('.wares');if(res&&!a.dataset.resp)return;var y=l[Number(w.getAttribute('data-i'))];if(!w._c)w._c=consDe(y,F,chave);var c=w._c;
+  if(a.dataset.resp){responde(c,a.dataset.resp,res);return}if(a.dataset.cp){copia(waTexto(y),a);abriu(c,w);return}a.classList.add('ok');a.textContent='✓ WhatsApp aberto para o '+y.loja;abriu(c,w)};
  return l.length==1?'Essa peça constava no '+l[0].loja+'. Toque no botão verde para perguntar a eles pelo WhatsApp.':'Essas peças constavam em outra loja. Toque nos botões verdes para perguntar pelo WhatsApp.'}
+// consultas esperando resposta (neste aparelho, até 3 dias) — aparecem na tela inicial
+function conss(){try{return(JSON.parse(ls('bbvoz_cons')||'[]')||[]).filter(function(c){return c&&Date.now()-c.t<3*864e5})}catch(e){return[]}}
+function poeCons(c){var l=conss().filter(function(x){return x.id!=c.id});l.push(c);ls('bbvoz_cons',JSON.stringify(l.slice(-20)))}
+function tiraCons(id){ls('bbvoz_cons',JSON.stringify(conss().filter(function(x){return x.id!=id})))}
+function pintaCons(){var el=$('cons');if(!el)return;var nm=(EU&&EU.nome)||nomeEu()||'',l=conss().filter(function(c){return!nm||!c.vend||c.vend==nm});if(!l.length){el.style.display='none';el.innerHTML='';return}
+ el.style.display='';el.innerHTML='<h2>Esperando resposta das lojas</h2>'+l.map(function(c,i){return'<div class="wab" data-ci="'+i+'"><div class="sofar"><b>'+esc(c.loja)+'</b> · '+esc(c.peca)+(c.nome?' · '+esc(primNome(c.nome)):'')+(c.ate&&c.retirada=='busca:'+c.loja?' · reserva até '+ddmm(c.ate):'')+'</div><div class="wares">'+respHtml()+'</div></div>'}).join('');
+ el.onclick=function(e){var a=e.target.closest('[data-resp]');if(!a)return;var w=a.closest('.wab');responde(l[Number(w.getAttribute('data-ci'))],a.dataset.resp,w.querySelector('.wares'))}}
 function listaF(l){return l.length<2?l.join(''):l.slice(0,-1).join(', ')+' e '+l[l.length-1]}
 function basF(F){return(F.basico_mostrado||[]).filter(function(x){return x&&x!='nenhuma'}).map(function(x){return rotuloBas(x,F).toLowerCase()})}
 function entendiLinhas(F){var l=[],cs=(F.criancas||[]).filter(function(c){return!c.conhecida}),T={presente:'Presente',uso:'Uso próprio',ambos:'Presente e uso'};
@@ -574,7 +613,7 @@ var tok=(function(){var m=/[#?&]t=([0-9a-f]{20,40})/.exec(location.hash+location
 function api(b){b.tok=tok;if(TESTE)b.teste=1;if(EU&&Q.porLoja)b.vend=EU.nome;return fetch(URL_SCRIPT,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(b)}).then(function(r){return r.json()}).then(function(j){if(!j.ok)throw new Error(j.erro||'erro');return j.r})}
 function msg(id,t,cls){var e=$(id);e.innerHTML=t?'<div class="msg '+(cls||'')+'">'+t+'</div>':''}
 var SECS=['s0','s1','s2','s3','s4','s5','s6'];
-function show(n){SECS.forEach(function(s){$(s).style.display=s==n?'':'none'});$('vozp').style.display='none';window.scrollTo(0,0);if(n=='s1'&&typeof pintaPend=='function')pintaPend()}
+function show(n){SECS.forEach(function(s){$(s).style.display=s==n?'':'none'});$('vozp').style.display='none';window.scrollTo(0,0);if(n=='s1'&&typeof pintaPend=='function'){pintaPend();pintaCons()}}
 function visivel(){return SECS.filter(function(s){return $(s).style.display!='none'})[0]||'s1'}
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}
 function dig(s){return String(s||'').replace(/\D/g,'')}
@@ -892,7 +931,7 @@ function celFmt(c){c=dig(c);return c.length==11?'('+c.slice(0,2)+') '+c.slice(2,
 function prAbre(){destrava();paraFala();paraOuvir();if(Q.rede&&!EU){show('s1');pintaQuem();msg('m1','Toque no seu nome primeiro, lá em cima.','err');window.scrollTo(0,0);return}
  PR={l:[],c:null,semcel:false,vend:EU?EU.nome:''};$('pr_t').value='';$('pr_nome').value='';$('pr_cel').value='';$('pr_semcel').classList.remove('on');msg('pr_m','');msg('pr_m2','');$('pr_mic').style.display=SR?'':'none';prPinta();show('s6')}
 function prPeca(n){return(n.ref_ok&&n.ref_desc?n.ref_desc:limpaPeca(n.peca))+(n.cor?' '+capW(n.cor):'')+(n.tamanho?' '+n.tamanho:'')+(n.ref&&n.ref_ok?' (ref. '+n.ref+')':'')}
-function prOpcoes(c){var ou=outrasLojas(c);return ou.length?ou.map(function(y){return['busca:'+y.loja,'Buscar no '+y.loja]}).concat([['vem','Que venha para cá'],['aviso','Só ser avisada quando chegar'],['nao','Não quer']]):[['aviso','Sim, avisar quando chegar'],['nao','Não quer aviso']]}
+function prOpcoes(c){var ou=outrasLojas(c);return ou.length?lojasBusca(c).map(function(y){return['busca:'+y.loja,'Buscar no '+y.loja]}).concat([['vem','Que venha para cá'],['aviso','Só ser avisada quando chegar'],['nao','Não quer']]):[['aviso','Sim, avisar quando chegar'],['nao','Não quer aviso']]}
 function prPinta(){var c=PR.c,h='';
  $('pr_lista').innerHTML=PR.l.length?'<label>Peças anotadas</label>'+PR.l.map(function(n,i){return'<div class="sofar"><b>'+esc(prPeca(n))+'</b>'+esc(retTxt(n))+' <button class="link" type="button" data-px="'+i+'">tirar</button></div>'}).join(''):'';
  if(c){var bt=function(o){return'<button class="btn op" type="button" data-pr="'+esc(o[0])+'">'+esc(o[1])+'</button>'};
@@ -906,8 +945,11 @@ function prPinta(){var c=PR.c,h='';
    if(g.tams.length>1)h+='<label>Tamanho</label><div class="chips">'+g.tams.map(function(x){return'<button class="chip'+(c.tamanho==x?' on':'')+'" type="button" data-ptam="'+esc(x)+'">'+esc(x)+'</button>'}).join('')+'</div>';
    if((c.cor||g.cores.length<2)&&(c.tamanho||g.tams.length<2)){if(!c.cor&&g.cores.length==1)c.cor=g.cores[0];if(!c.tamanho&&g.tams.length==1)c.tamanho=g.tams[0];
     if(c.estq===undefined)h+='<div class="hint" style="margin-top:10px"><span class="spin"></span> Conferindo o estoque das lojas…</div>';
-    else{var ou=outrasLojas(c);h+='<div class="dup">'+esc(estoqueTxt(c)||'Não consegui ver o estoque agora.')+'</div><label>'+(ou.length?'Ela prefere:':'Ela quer ser avisada quando chegar?')+'</label>'+prOpcoes(c).map(bt).join('')}}}}
+    else{var ou=outrasLojas(c);h+='<div class="dup">'+esc(estoqueTxt(c)||'Não consegui ver o estoque agora.')+'</div>'+(c._prazo?prPrazo(c):'<label>'+(ou.length?'Ela prefere:':'Ela quer ser avisada quando chegar?')+'</label>'+prOpcoes(c).map(bt).join(''))}}}}
  $('pr_res').innerHTML=h;$('pr_cli').style.display=PR.l.length?'':'none';$('pr_busca').textContent=PR.l.length?'Procurar mais uma peça':'Procurar no cadastro';prVend()}
+function prPrazo(c){var o=[1,2,3].indexOf(c.reserva_dias)<0;return'<label>Reserva no '+esc(c.retirada.slice(6))+' por quantos dias? Confira com ela:</label><div class="chips">'+[1,2,3].map(function(d){return'<button class="chip'+(c.reserva_dias==d&&!c._outro?' on':'')+'" type="button" data-pz="'+d+'">'+d+(d==1?' dia':' dias')+'</button>'}).join('')+'<button class="chip'+(c._outro?' on':'')+'" type="button" data-pz="outro">outro</button></div>'+
+ (c._outro?'<input id="pr_pz" inputmode="numeric" maxlength="2" placeholder="dias" style="width:110px;margin-top:8px" value="'+(o?c.reserva_dias:'')+'">':'')+'<div class="sofar" id="pr_ate">Separado no nome dela até <b>'+ddmm(c.reserva_ate)+'</b></div><button class="btn" type="button" data-pa="pz">Confirmar a reserva</button><button class="link" type="button" data-pa="opc">voltar</button>'}
+function prAdd(c){if(c.ref_ok&&c.estq){var et=estoqueTxt(c);if(et)c.estoque=et}delete c.cands;delete c.semCad;delete c._prazo;delete c._outro;PR.l.push(c);PR.c=null;$('pr_t').value='';prPinta();if(!$('pr_nome').value)setTimeout(function(){try{$('pr_nome').focus()}catch(x){}},50)}
 function prBusca(t){t=String(t||'').trim();if(t.length<3){msg('pr_m','Escreva a peça: modelo, cor, tamanho.','err');return}msg('pr_m','');var c={peca:t,busca:t,qtd:1,cands:null};PR.c=c;prPinta();
  api({voz:'produto',t:t}).then(function(o){if(PR.c!==c)return;c.cands=(o&&o.l)||[];if(c.cands.length==1)prEscolhe(c,c.cands[0]);prPinta()}).catch(function(e){if(PR.c!==c)return;c.cands=[];msg('pr_m','Não deu para procurar: '+esc(e.message),'err');prPinta()})}
 function prEscolhe(c,x){escolheProd(c,x);if(!c.tamanho&&c.grade&&c.grade.tams.length>1){var nums=normaliza(c.peca).match(/(^| )\d{1,2}(?= |$)/g)||[],hit=c.grade.tams.filter(function(g){return nums.some(function(z){return z.trim().replace(/^0+/,'')===String(g).replace(/^0+/,'')})});if(hit.length==1)c.tamanho=hit[0]}prEstoque(c)}
@@ -925,7 +967,10 @@ $('pr_res').addEventListener('click',function(e){var b=e.target.closest('button'
  if(b.dataset.pa=='sem'){c.semCad=true;c.ref_skip=true;prPinta();return}
  if(b.dataset.pcor!=null){c.cor=b.dataset.pcor;prEstoque(c);prPinta();return}
  if(b.dataset.ptam!=null){c.tamanho=b.dataset.ptam;prEstoque(c);prPinta();return}
- if(b.dataset.pr!=null){var r=b.dataset.pr;c.retirada=r;c.avisar=r=='nao'?'nao':'sim';if(c.ref_ok&&c.estq){var et=estoqueTxt(c);if(et)c.estoque=et}delete c.cands;delete c.semCad;PR.l.push(c);PR.c=null;$('pr_t').value='';prPinta();if(!$('pr_nome').value)setTimeout(function(){try{$('pr_nome').focus()}catch(x){}},50)}});
+ if(b.dataset.pr!=null){var r=b.dataset.pr;c.retirada=r;c.avisar=r=='nao'?'nao':'sim';if(/^busca:/.test(r)){reserva(c,2);c._prazo=true;prPinta();return}delete c.reserva_ate;delete c.reserva_dias;prAdd(c);return}
+ if(b.dataset.pz!=null){if(b.dataset.pz=='outro'){c._outro=true;prPinta();setTimeout(function(){try{$('pr_pz').focus()}catch(x){}},50);return}c._outro=false;reserva(c,Number(b.dataset.pz));prPinta();return}
+ if(b.dataset.pa=='pz'){prAdd(c);return}if(b.dataset.pa=='opc'){c._prazo=false;c._outro=false;c.retirada='';delete c.reserva_ate;delete c.reserva_dias;prPinta();return}});
+$('pr_res').addEventListener('input',function(e){if(e.target.id!='pr_pz'||!PR.c)return;var d=parseInt(dig(e.target.value),10);if(d>0){reserva(PR.c,d);var a=$('pr_ate');if(a)a.innerHTML='Separado no nome dela até <b>'+ddmm(PR.c.reserva_ate)+'</b>'}});
 function prSalva(){var nm=$('pr_nome').value.trim(),cel=dig($('pr_cel').value);
  if(!PR.l.length){msg('pr_m2','Anote ao menos uma peça (escolha o que ela prefere).','err');return}
  if(!nm){msg('pr_m2','Falta o nome dela.','err');$('pr_nome').focus();return}
