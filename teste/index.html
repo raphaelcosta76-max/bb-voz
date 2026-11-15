@@ -282,21 +282,28 @@ var MOT_NC=[['sem_tamanho_cor','Não tinha tamanho/cor'],['caro','Achou caro'],[
 // v37: avisos separados (novidades e promoções) e peça que faltou com cor, tamanho, referência e "avisar quando chegar"
 var AVS=[['sim','Sim'],['nao','Não'],['nao_perguntei','Não perguntei']];
 function querAviso(F){return F.novidades=='sim'||F.promocoes=='sim'||(F.faltou_itens||[]).concat(F.nao_levou||[]).some(function(n){return n&&n.avisar=='sim'})}
-function itensFalta(F){var l=[];(F.faltou_itens||[]).forEach(function(n,i){if(n&&String(n.peca||'').trim())l.push({k:'f'+i,n:n})});(F.nao_levou||[]).forEach(function(n,i){if(n&&String(n.peca||'').trim())l.push({k:'n'+i,n:n})});return l}
+function itensFalta(F){var l=[],nls=(F.nao_levou||[]).map(function(n){return n?normaliza(n.peca):''});(F.faltou_itens||[]).forEach(function(n,i){if(n&&String(n.peca||'').trim()&&nls.indexOf(normaliza(n.peca))<0)l.push({k:'f'+i,n:n})});(F.nao_levou||[]).forEach(function(n,i){if(n&&String(n.peca||'').trim())l.push({k:'n'+i,n:n})});return l}
 function itemFalta(F,k){var a=String(k||'').charAt(0)=='f'?F.faltou_itens:F.nao_levou;return(a||[])[Number(String(k||'').slice(1))]}
 // v37b: cada peça que faltou ou que ela olhou e não levou vira a peça exata do cadastro: busca pelo que foi dito ({voz:'produto'}),
 // a vendedora escolhe o modelo, depois a cor e o tamanho entre os que existem, e a quantidade. Sem achar no cadastro, fica o texto (cor e tamanho livres).
 function capW(s){return String(s||'').toLowerCase().replace(/(^|\s)\S/g,function(c){return c.toUpperCase()})}
-function perguntasFalta(F,add){itensFalta(F).forEach(function(x){var n=x.n,k=x.k,p=n.peca,nm=n.ref_ok&&n.ref_desc?n.ref_desc:p,falta=k.charAt(0)=='f';
-  if(n.ref&&n.ref_desc&&!n.ref_ok&&!n.ref_skip)add('fref:'+k,'A referência '+n.ref+' é '+n.ref_desc+'?',[['sim','É essa'],['nao','Não é']]);
-  if(n.ref&&n.ref_nao&&!n.ref_ok&&!n.ref_skip)add('frefx:'+k,'Não achei a referência '+n.ref+' no cadastro. Qual é o número certo?',[['tirar','Deixa sem referência']]);
-  if(!n.ref_ok&&!n.ref_skip&&!n.ref){if(n.cands&&n.cands.length)add('fprod:'+k,'Qual destes é '+p+'?',n.cands.map(function(c){return[c.r,capW(c.d)+' · ref. '+c.r]}).concat([['nenhum','Nenhum destes'],['nao_sei','Não sei']]));
-   else if(n.cands&&!n.cands.length&&!n.fmod)add('fmod:'+k,'Não achei '+p+' no cadastro. Como está escrito na etiqueta? Se souber, fale a referência.',[['nao_sei','Não sei']])}
-  if(n.ref_ok&&n.grade){if(!n.cor&&!n.cor_ns&&n.grade.cores.length>1)add('fcor:'+k,'Qual cor de '+nm+' ela queria?',n.grade.cores.map(function(c){return[c,capW(c)]}).concat([['nao_sei','Não sei']]));
-   if(!n.tamanho&&!n.tam_ns&&n.grade.tams.length>1)add('ftam:'+k,'Qual tamanho de '+nm+'?',n.grade.tams.map(function(t){return[t,t]}).concat([['nao_sei','Não sei']]))}
-  else if((n.ref_skip||n.fmod&&n.cands&&!n.cands.length)&&(!n.tamanho||!n.cor)&&!n.ftc_ok)add('ftc:'+k,'De '+p+', qual '+(!n.tamanho&&!n.cor?'tamanho e cor':!n.tamanho?'tamanho':'cor')+' ela queria?',[['nao_sei','Não sei']]);
-  if(!n.qtd&&(n.ref_ok||n.ref_skip||n.fmod||n.ftc_ok))add('fqtd:'+k,'Quantas '+(n.ref_ok&&n.ref_desc?'peças':p)+' ela queria?',[['1','1'],['2','2'],['3','3'],['4','4 ou mais']]);
-  if(!n.avisar&&(falta||n.motivo=='sem_tamanho_cor'))add('fav:'+k,'Quer que eu avise quando '+nm+' chegar?',[['sim','Sim'],['nao','Não']])})}
+// v37c: toda pergunta diz de qual peça se trata (o que ela contou); peça dita só pelo tipo ("outra camiseta") pede o detalhe antes de mostrar os modelos
+var MOT_CTX={sem_tamanho_cor:'porque não tinha o tamanho ou a cor',caro:'porque achou caro',duvida:'porque ficou em dúvida',vai_voltar:'e vai voltar',so_olhando:'porque só estava olhando',decidir_com_alguem:'porque vai decidir com alguém'};
+var PALV_VAZ=['um','uma','uns','umas','outra','outro','outras','outros','de','da','do','das','dos','a','o','as','os','peca','pecas','mais','tambem','e','pra','para','que','ela'];
+function generico(n){if(n.busca||n.ref)return false;var w=normaliza(n.peca).split(' ').filter(function(x){return x&&PALV_VAZ.indexOf(x)<0&&!/^\d+$/.test(x)});return w.length<=1}
+function ctxFalta(n,falta){var p=String(n.peca||'').trim();if(/^[A-ZÁÉÍÓÚÂÊÔÃÕÇ]([a-záéíóúâêôãõç]|\s)/.test(p))p=p.charAt(0).toLowerCase()+p.slice(1);return falta?'Você contou que ela procurou '+p+' e não tinha.':'Você contou que ela olhou '+p+' e não levou'+(MOT_CTX[n.motivo]?' '+MOT_CTX[n.motivo]:'')+'.'}
+function sobreF(nm,falta){return'Sobre '+nm+(falta?' que faltou':' que ela não levou')+': '}
+function perguntasFalta(F,add){itensFalta(F).forEach(function(x){var n=x.n,k=x.k,p=n.peca,nm=n.ref_ok&&n.ref_desc?n.ref_desc:p,falta=k.charAt(0)=='f',cx=ctxFalta(n,falta);
+  if(n.ref&&n.ref_desc&&!n.ref_ok&&!n.ref_skip)add('fref:'+k,sobreF(p,falta)+'a referência '+n.ref+' é '+n.ref_desc+'?',[['sim','É essa'],['nao','Não é']]);
+  if(n.ref&&n.ref_nao&&!n.ref_ok&&!n.ref_skip)add('frefx:'+k,sobreF(p,falta)+'não achei a referência '+n.ref+' no cadastro. Qual é o número certo?',[['tirar','Deixa sem referência']]);
+  if(!n.ref_ok&&!n.ref_skip&&!n.ref){if(n.cands&&n.cands.length>3&&!n.fdet&&generico(n))add('fdet:'+k,cx+' Qual '+(String(p).trim().split(/\s+/).filter(function(w){return PALV_VAZ.indexOf(normaliza(w))<0}).join(' ')||p).toLowerCase()+'? Fale o modelo, a cor ou a referência da etiqueta.',[['nao_sei','Não sei']]);
+   else if(n.cands&&n.cands.length)add('fprod:'+k,cx+' Qual destes modelos é? Escolha na tela.',n.cands.map(function(c){return[c.r,capW(c.d)+' · ref. '+c.r]}).concat([['nenhum','Nenhum destes'],['nao_sei','Não sei']]));
+   else if(n.cands&&!n.cands.length&&!n.fmod)add('fmod:'+k,cx+' Não achei no cadastro. Como está escrito na etiqueta? Se souber, fale a referência.',[['nao_sei','Não sei']])}
+  if(n.ref_ok&&n.grade){if(!n.cor&&!n.cor_ns&&n.grade.cores.length>1)add('fcor:'+k,sobreF(nm,falta)+'qual cor ela queria?',n.grade.cores.map(function(c){return[c,capW(c)]}).concat([['nao_sei','Não sei']]));
+   if(!n.tamanho&&!n.tam_ns&&n.grade.tams.length>1)add('ftam:'+k,sobreF(nm,falta)+'qual tamanho ela queria?',n.grade.tams.map(function(t){return[t,t]}).concat([['nao_sei','Não sei']]))}
+  else if((n.ref_skip||n.fmod&&n.cands&&!n.cands.length)&&(!n.tamanho||!n.cor)&&!n.ftc_ok)add('ftc:'+k,sobreF(p,falta)+'qual '+(!n.tamanho&&!n.cor?'tamanho e cor':!n.tamanho?'tamanho':'cor')+' ela queria?',[['nao_sei','Não sei']]);
+  if(!n.qtd&&(n.ref_ok||n.ref_skip||n.fmod||n.ftc_ok))add('fqtd:'+k,sobreF(nm,falta)+'quantas peças ela queria?',[['1','1'],['2','2'],['3','3'],['4','4 ou mais']]);
+  if(!n.avisar&&(falta||n.motivo=='sem_tamanho_cor'))add('fav:'+k,sobreF(nm,falta)+'ela quer ser avisada quando chegar?',[['sim','Sim'],['nao','Não']])})}
 // cor, tamanho e quantidade ditos na fala, conferidos com a grade da referência escolhida
 function stemW(w){return w.length>3?w.replace(/(as|os|es|a|o|e|s)$/,''):w}
 function corDe(txt,cores){var ws=normaliza(txt).split(' ').map(stemW),best='',bn=0;(cores||[]).forEach(function(c){var cw=normaliza(c).split(' ').filter(Boolean).map(stemW);if(cw.length&&cw.every(function(x){return ws.indexOf(x)>=0})&&cw.length>bn){best=c;bn=cw.length}});return best}
@@ -306,6 +313,8 @@ function tamDe(txt,tams){var t=' '+normaliza(txt).replace(/(\d+) a (\d+)/g,'$1a$
   else if(new RegExp('(tamanho|tam) '+gn+' ').test(t)||(gn.length>=2&&t.indexOf(' '+gn+' ')>=0))hit.push(g)});return hit.length==1?hit[0]:''}
 var NUMQ={um:1,uma:1,dois:2,duas:2,tres:3,quatro:4,cinco:5,seis:6};
 function qtdDe(txt){var t=normaliza(txt),m=t.match(/(^| )(\d{1,2}|um|uma|dois|duas|tres|quatro|cinco|seis) (pares?|pecas?|unidades?|[a-z]{4,})/);if(!m||/^(anos?|meses|mes|dias?|modelos?)$/.test(m[3]))return 0;var q=NUMQ[m[2]]||parseInt(m[2],10);return q>0&&q<20?q:0}
+// v37c: o detalhe dito ("a de meia malha multi brilho") vira a busca no cadastro, junto com o tipo da peça
+function detalhaPeca(n,texto){var t=normaliza(texto);n.fdet=true;if(!t||/^(nao sei|nao lembro|nao disse)/.test(t)){n.ref_skip=true;return}var tp=normaliza(n.peca).split(' ').filter(function(w){return PALV_VAZ.indexOf(w)<0});n.busca=(String(texto).trim()+(tp.length&&t.split(' ').indexOf(tp[0])<0?' '+tp.join(' '):'')).slice(0,120);n.cands=undefined;if(!n.qtd){var q=qtdDe(texto);if(q)n.qtd=q}}
 function escolheProd(n,c){n.ref=c.r;n.ref_desc=capW(c.d);n.ref_ok=true;n.ref_chk=c.r;n.grade={cores:c.cores||[],tams:c.tams||[]};var txt=[n.peca,n.busca,n.detalhe,n.cor,n.tamanho].filter(Boolean).join(' ');
  var cr=corDe(txt,n.grade.cores);n.cor=cr||(n.grade.cores.length==1?n.grade.cores[0]:(n.grade.cores.indexOf(n.cor)>=0?n.cor:''));
  var tm=tamDe(txt,n.grade.tams);n.tamanho=tm||(n.grade.tams.length==1?n.grade.tams[0]:(n.grade.tams.indexOf(n.tamanho)>=0?n.tamanho:''));
@@ -350,6 +359,7 @@ function aplicaOpcao(F,id,v,fi){var p=id.split(':'),k=p[0],i=Number(p[1]);
  else if(k=='fref'){var nr=itemFalta(F,p[1]);if(nr){if(v=='sim'){nr.ref_ok=true;if(nr.grade)escolheProd(nr,{r:nr.ref,d:nr.ref_desc,cores:nr.grade.cores,tams:nr.grade.tams})}else{nr.ref='';nr.ref_desc='';nr.ref_skip=false;nr.cands=undefined}}}
  else if(k=='frefx'&&v=='tirar'){var nx=itemFalta(F,p[1]);if(nx){nx.ref='';nx.ref_nao=false;nx.ref_skip=true}}
  else if(k=='fprod'){var np=itemFalta(F,p[1]);if(np){if(v=='nenhum'){np.cands=[];np.nenhum=true}else if(v=='nao_sei')np.ref_skip=true;else{var cp=(np.cands||[]).filter(function(c){return c.r==v})[0];if(cp)escolheProd(np,cp)}}}
+ else if(k=='fdet'&&v=='nao_sei'){var nd=itemFalta(F,p[1]);if(nd){nd.fdet=true;nd.ref_skip=true}}
  else if(k=='fmod'&&v=='nao_sei'){var nm2=itemFalta(F,p[1]);if(nm2){nm2.fmod=true;nm2.ref_skip=true}}
  else if(k=='fcor'||k=='ftam'){var ng=itemFalta(F,p[1]);if(ng){if(v=='nao_sei')ng[k=='fcor'?'cor_ns':'tam_ns']=true;else ng[k=='fcor'?'cor':'tamanho']=v}}
  else if(k=='fqtd'){var nq=itemFalta(F,p[1]);if(nq)nq.qtd=Number(v)||1}
@@ -425,7 +435,8 @@ var SIN={sim:['sim','aceita','aceitou','pode','claro','quer','levou'],nao:['nao'
 function tiraCrianca(F,i){if(!F.criancas||!F.criancas[i])return;F.criancas.splice(i,1);if(typeof feitas!='undefined')feitas=feitas.filter(function(id){var m=/^(idade|sexo|prev):(\d+)$/.exec(id);return!m||Number(m[2])<i})}
 function aplicaCurta(F,q,texto){var t=normaliza(texto),k=q.id.split(':')[0],w=t?t.split(' ').length:0;if(!t)return false;
  if((k=='idade'||k=='sexo'||k=='prev')&&(F.criancas||[]).filter(function(c){return!c.conhecida}).length>1&&/nao (tinha|existe|tem essa|tem outra|e outra)|so (tinha |tem )?uma crianca|nao entend|e uma so|so uma/.test(t)){tiraCrianca(F,Number(q.id.split(':')[1]));return true}
- var nf=/^f(prod|mod|cor|tam|qtd|tc)$/.test(k)?itemFalta(F,q.id.split(':')[1]):null;
+ var nf=/^f(prod|mod|cor|tam|qtd|tc|det)$/.test(k)?itemFalta(F,q.id.split(':')[1]):null;
+ if(nf&&k=='fdet'){detalhaPeca(nf,texto);return true}
  if(nf&&k=='fmod'){if(/^nao sei/.test(t)){nf.fmod=true;nf.ref_skip=true;return true}nf.busca=String(texto).trim();nf.fmod=true;nf.cands=undefined;if(!nf.qtd){var qm=qtdDe(texto);if(qm)nf.qtd=qm}return true}
  if(nf&&k=='ftc'&&/^nao sei/.test(t)){nf.ftc_ok=true;return true}
  if(nf&&k=='fprod'){if(/^nenhum|nao e nenhum|nao esta/.test(t)){nf.cands=[];nf.nenhum=true;return true}if(/^nao sei/.test(t)){nf.ref_skip=true;return true}var dg=String(texto).replace(/\D/g,''),bc=null,bs=0;(nf.cands||[]).forEach(function(c){var sc=dg&&dg==c.r?99:normaliza(c.d).split(' ').filter(function(x){return x.length>2&&t.split(' ').indexOf(x)>=0}).length;if(sc>bs){bs=sc;bc=c}else if(sc==bs)bc=sc?null:bc});if(bc&&bs){escolheProd(nf,bc);return true}return false}
@@ -479,7 +490,9 @@ $('som').onclick=function(){falar=!falar;ls('bbvoz_som',falar?'1':'0');somBtn();
 var AUD=new Audio(),VZ={pref:ls('bbvoz_voz')||'',falhas:0,cache:{},erro:''};
 function motorSrv(){var p=VZ.pref;if(p.indexOf('dev:')==0)return'';if(p.indexOf('srv:')==0)return p.slice(4);return VZ.falhas>=3?'':(Q.tts||'')}
 // divide a fala em frases (sempre do mesmo jeito, para a frase repetida vir do cache); frase muito curta junta com a seguinte
-function partes(x){var l=[];(Array.isArray(x)?x:[x]).forEach(function(t){t=String(t||'').replace(/\s+/g,' ').trim();if(!t)return;var cur='';(t.match(/[^.!?]+[.!?]*/g)||[t]).forEach(function(y){y=y.trim();if(!y)return;cur=cur?cur+' '+y:y;if(cur.length>=12){l.push(cur);cur=''}});if(cur)l.push(cur)});return l}
+// v37c: cada parte (pergunta, ponte, resumo) vira um áudio só — dividir a pergunta em frases deixava pausa no meio ("áudio descontinuado"); só texto longo é dividido
+function partes(x){var l=[];(Array.isArray(x)?x:[x]).forEach(function(t){t=String(t||'').replace(/\s+/g,' ').trim();if(!t)return;if(t.length<=160){l.push(t);return}var cur='';(t.match(/[^.!?]+[.!?]*/g)||[t]).forEach(function(y){y=y.trim();if(!y)return;cur=cur?cur+' '+y:y;if(cur.length>=12){l.push(cur);cur=''}});if(cur)l.push(cur)});
+ var o=[];l.forEach(function(y){if(o.length&&o[o.length-1].length<12)o[o.length-1]+=' '+y;else o.push(y)});return o}
 function fala(x,fim){fim=fim||function(){};var ps=partes(x);if(!falar||!ps.length){fim();return}var m=motorSrv(),id=++fala.n;if(!m){falaDev(ps.join(' '),fim);return}
  var pr=ps.map(function(t){return pegaAudio(t,m)}),i=0;pr.forEach(function(p){p.catch(function(){})});// fala interrompida: pedaços não tocados não viram erro solto
  (function prox(){if(fala.n!==id)return;if(i>=ps.length){fim();return}var t=ps[i],p=pr[i],feito=false;i++;
@@ -653,7 +666,10 @@ $('qop').addEventListener('click',function(e){var b=e.target.closest('button');i
  if(b.dataset.ok=='basico'){var sel2=[].map.call($('qbas').querySelectorAll('.chip.on'),function(x){return x.dataset.b});var mo=$('qmod').querySelector('.chip.on');if(!sel2.length||!mo){msg('m4','Marque as peças (ou "Não mostrei") e quantos modelos — ou responda falando.','err');return}F.basico_mostrado=sel2;F.modelos_mostrados=parseInt(mo.dataset.m,10);feito();return}
  if(b.dataset.v!=null){aplicaOpcao(F,atual.id,b.dataset.v,FI);feito()}});
 function ultimaResp(r){var t=String(r.transcricao||''),i=t.lastIndexOf('R: ');return i>=0?t.slice(i+3).trim():''}
-function posResposta(id,r){var k=id.split(':')[0],tx=ultimaResp(r),neg=/^(nao|nada|nenhum|nenhuma)\b/.test(normaliza(tx));if(!tx||neg)return;
+function posResposta(id,r){var k=id.split(':')[0],tx=ultimaResp(r),neg=/^(nao|nada|nenhum|nenhuma)\b/.test(normaliza(tx));
+ if(k=='fdet'||k=='fmod'){var key=id.split(':')[1],a=key.charAt(0)=='f'?'faltou_itens':'nao_levou',nF=(F.faltou_itens||[]).length,nN=(F.nao_levou||[]).length;r.faltou_itens=(r.faltou_itens||[]).slice(0,nF);r.nao_levou=(r.nao_levou||[]).slice(0,nN);var it=(r[a]||[])[Number(key.slice(1))];
+  if(it){if(k=='fdet')detalhaPeca(it,tx);else if(!tx||/^nao sei/.test(normaliza(tx))){it.fmod=true;it.ref_skip=true}else{it.busca=tx.slice(0,120);it.fmod=true;it.cands=undefined}}return}
+ if(!tx||neg)return;
  if((k=='faltou'||k=='ncfalta')&&!(r.faltou_itens||[]).length&&(!r.faltou||r.faltou=='nada'))r.faltou_itens=[{peca:tx.slice(0,120),cor:'',tamanho:'',ref:'',avisar:''}];
  if(k=='nao_levou'&&!(r.nao_levou||[]).length)r.nao_levou=[{peca:tx.slice(0,120),cor:'',tamanho:'',ref:'',avisar:'',motivo:'',detalhe:''}]}
 function resposta(d){d.ctx=F;d.pergunta=atual.texto;if(F.nao_compra)d.modo='nc';var id=atual.id;return api({voz:'interpretar',d:d}).then(function(r){if(feitas.indexOf(id)<0)feitas.push(id);posResposta(id,r);recebe(r)})}
