@@ -282,7 +282,7 @@ var MOT_NC=[['sem_tamanho_cor','Não tinha tamanho/cor'],['caro','Achou caro'],[
 // v37: avisos separados (novidades e promoções) e peça que faltou com cor, tamanho, referência e "avisar quando chegar"
 var AVS=[['sim','Sim'],['nao','Não'],['nao_perguntei','Não perguntei']];
 function querAviso(F){return F.novidades=='sim'||F.promocoes=='sim'||(F.faltou_itens||[]).concat(F.nao_levou||[]).some(function(n){return n&&n.avisar=='sim'})}
-function itensFalta(F){var l=[],nls=(F.nao_levou||[]).filter(Boolean);(F.faltou_itens||[]).forEach(function(n,i){if(n&&String(n.peca||'').trim()&&!nls.some(function(x){return mesmaPeca(x.peca,n.peca)}))l.push({k:'f'+i,n:n})});(F.nao_levou||[]).forEach(function(n,i){if(n&&String(n.peca||'').trim())l.push({k:'n'+i,n:n})});return l}
+function itensFalta(F){juntaCopias(F);var l=[];(F.faltou_itens||[]).forEach(function(n,i){if(n&&!n._dup&&String(n.peca||'').trim())l.push({k:'f'+i,n:n})});(F.nao_levou||[]).forEach(function(n,i){if(n&&!n._dup&&String(n.peca||'').trim())l.push({k:'n'+i,n:n})});return l}
 function itemFalta(F,k){var a=String(k||'').charAt(0)=='f'?F.faltou_itens:F.nao_levou;return(a||[])[Number(String(k||'').slice(1))]}
 // v37b: cada peça que faltou ou que ela olhou e não levou vira a peça exata do cadastro: busca pelo que foi dito ({voz:'produto'}),
 // a vendedora escolhe o modelo, depois a cor e o tamanho entre os que existem, e a quantidade. Sem achar no cadastro, fica o texto (cor e tamanho livres).
@@ -295,7 +295,12 @@ function limpaPeca(t){var s=String(t||'').replace(/\s+/g,' ').trim();s=s.replace
  s=s.replace(/[,;]?\s*(que|mas|e|porque|pois)?\s*(a gente |a loja |nos )?(nao|não) (tinha|tem|tinhamos|tínhamos|levou)\b.*$/i,'').replace(/[\s,.;:!?]+$/,'');return s||String(t||'').trim()}
 function motivoDe(t){t=normaliza(t);if(!t)return'';if(/nao (tinha|tem|tinhamos|achou|encontrou)|acabou|esgot|faltou|sem (o |a )?(tamanho|cor|numero)|nao serviu/.test(t))return'sem_tamanho_cor';if(/caro|preco|valor/.test(t))return'caro';if(/duvida|indecis|pensar/.test(t))return'duvida';if(/vai voltar|volta (depois|outro|amanha|semana)|depois ela/.test(t))return'vai_voltar';return''}
 function palavrasPeca(t){return normaliza(t).split(' ').filter(function(w){return w&&w.length>2&&PALV_VAZ.indexOf(w)<0&&!/^\d+$/.test(w)&&['nao','tinha','loja','tamanho','anos','meses','levou','porque','com','sem','cor'].indexOf(w)<0}).map(stemW)}
-function mesmaPeca(a,b){var x=palavrasPeca(a),y=palavrasPeca(b);if(!x.length||!y.length)return false;var p=x.length<=y.length?x:y,g=p===x?y:x,c=p.filter(function(w){return g.indexOf(w)>=0}).length;return c==p.length||c>=2}
+function mesmaPeca(a,b){var x=palavrasPeca(a),y=palavrasPeca(b);if(!x.length||!y.length)return false;var p=x.length<=y.length?x:y,g=p===x?y:x;return p.every(function(w){return g.indexOf(w)>=0})}
+// v37e: cópias da mesma peça (a IA devolve a peça de novo, com outro nome) viram uma só, ficando com o que já foi respondido
+function resolvida(n){return(n.ref_ok?8:0)+(n.cor?1:0)+(n.tamanho?1:0)+(n.qtd?1:0)+(n.avisar?1:0)+(n.ref_skip||n.fdet?1:0)}
+function copiaPeca(src,dst){var forte=src.ref_ok&&!dst.ref_ok;Object.keys(src).forEach(function(k){if(k=='peca'||k=='motivo'||k=='detalhe'||k=='_dup')return;var v=dst[k];if(forte||v===undefined||v===null||v===''||(Array.isArray(v)&&!v.length))dst[k]=src[k]})}
+function juntaCopias(F){var l=(F.nao_levou||[]).map(function(n){return n}).concat(F.faltou_itens||[]).filter(function(n){return n&&String(n.peca||'').trim()});l.forEach(function(n){delete n._dup});
+ for(var i=0;i<l.length;i++){if(l[i]._dup)continue;for(var j=i+1;j<l.length;j++){if(l[j]._dup||!mesmaPeca(l[i].peca,l[j].peca))continue;var a=l[i],b=l[j];if(resolvida(b)>resolvida(a))copiaPeca(b,a);else copiaPeca(b,a);if(!a.motivo&&b.motivo)a.motivo=b.motivo;b._dup=true}}}
 function ctxFalta(n,falta){var p=limpaPeca(n.peca);if(/^[A-ZÁÉÍÓÚÂÊÔÃÕÇ]([a-záéíóúâêôãõç]|\s)/.test(p))p=p.charAt(0).toLowerCase()+p.slice(1);return falta?'Você contou que ela procurou '+p+' e não tinha.':'Você contou que ela olhou '+p+' e não levou'+(MOT_CTX[n.motivo]?' '+MOT_CTX[n.motivo]:'')+'.'}
 function sobreF(nm,falta){return'Sobre '+nm+(falta?' que faltou':' que ela não levou')+': '}
 function perguntasFalta(F,add){itensFalta(F).forEach(function(x){var n=x.n,k=x.k,p=n.peca,nm=n.ref_ok&&n.ref_desc?n.ref_desc:p,falta=k.charAt(0)=='f',cx=ctxFalta(n,falta);
@@ -654,7 +659,7 @@ function opBasico(){var pf=perfilDe(F),rk=rankPara(S,pf).slice(0,4),bl=basicoLis
 function confereRefs(){var l=itensFalta(F).filter(function(x){var r=String(x.n.ref||'').replace(/\D/g,'');return r&&x.n.ref_chk!==r&&!x.n.ref_ok});if(!l.length)return null;
  return Promise.all(l.map(function(x){var n=x.n,r=String(n.ref).replace(/\D/g,'');n.ref=r;return api({voz:'ref',ref:r}).then(function(o){n.ref_chk=r;if(o&&o.achou){n.ref_desc=String(o.d||'').toLowerCase().replace(/(^|\s)\S/g,function(c){return c.toUpperCase()});n.ref_nao=false;n.grade={cores:String(o.cores||'').split(/,\s*/).filter(String),tams:String(o.tams||'').split(/,\s*/).filter(String)}}else{n.ref_desc='';n.ref_nao=true}}).catch(function(){n.ref_chk=r})}))}
 function buscaPecas(){var l=itensFalta(F).filter(function(x){var n=x.n;return!n.ref_ok&&!n.ref_skip&&!n.ref&&n.cands===undefined});if(!l.length)return null;
- return Promise.all(l.map(function(x){var n=x.n,dt=n.busca?'':String(n.detalhe||''),q=(normaliza(dt).indexOf(normaliza(n.peca))>=0?dt:[n.busca||n.peca,dt].join(' ')).trim();return api({voz:'produto',t:q}).then(function(o){n.cands=(o&&o.l)||[]}).catch(function(){n.cands=[]})}))}
+ return Promise.all(l.map(function(x){var n=x.n,dt=n.busca?'':String(n.detalhe||''),q=(normaliza(dt).indexOf(normaliza(n.peca))>=0?dt:[n.busca||n.peca,dt].join(' ')).trim();return api({voz:'produto',t:q}).then(function(o){n.cands=(o&&o.l)||[];if(n.cands.length==1&&n.cands[0].sc==9)escolheProd(n,n.cands[0])}).catch(function(){n.cands=[]})}))}
 function proxima(){var pr=confereRefs();if(pr){msg('m4','<span class="spin"></span>Conferindo a referência…');pr.then(function(){msg('m4','');proxima()});return}
  var pb=buscaPecas();if(pb){msg('m4','<span class="spin"></span>Procurando a peça no cadastro…');pb.then(function(){msg('m4','');proxima()});return}
  paraOuvir();fila=perguntasPendentes(F,FI,feitas);var abre=apresentar?entendiFala(F):'',pt=apresentar?ponte(fila.length,primeira):'',anot=porVoz&&!apresentar?'Anotado.':'';porVoz=false;
@@ -691,7 +696,9 @@ function posResposta(id,r){var k=id.split(':')[0],tx=ultimaResp(r),neg=/^(nao|na
  if(!tx||neg||novos)return;
  if(k=='faltou'||k=='ncfalta')r.faltou_itens=(r.faltou_itens||[]).concat([{peca:limpaPeca(tx).slice(0,120),detalhe:tx.slice(0,200),cor:'',tamanho:'',ref:'',avisar:''}]);
  if(k=='nao_levou')r.nao_levou=(r.nao_levou||[]).concat([{peca:limpaPeca(tx).slice(0,120),detalhe:tx.slice(0,200),cor:'',tamanho:'',ref:'',avisar:'',motivo:motivoDe(tx)}])}
-function resposta(d){d.ctx=F;d.pergunta=atual.texto;if(F.nao_compra)d.modo='nc';var id=atual.id;return api({voz:'interpretar',d:d}).then(function(r){if(feitas.indexOf(id)<0)feitas.push(id);posResposta(id,r);recebe(r)})}
+function resposta(d){d.ctx=F;d.pergunta=atual.texto;if(F.nao_compra)d.modo='nc';var id=atual.id,q0=atual;return api({voz:'interpretar',d:d}).then(function(r){if(feitas.indexOf(id)<0)feitas.push(id);posResposta(id,r);
+ if(/^f(prod|cor|tam|qtd|tc|ref|refx|av)$/.test(id.split(':')[0])){var tx=ultimaResp(r);if(tx)try{if(!aplicaCurta(r,q0,tx)&&q0.op){var tn=normaliza(tx);q0.op.some(function(o){if(normaliza(o[1])&&tn.indexOf(normaliza(o[1]))>=0){aplicaOpcao(r,id,o[0],FI);return true}})}}catch(e){}}
+ recebe(r)})}
 $('mic2').onclick=function(){paraOuvir();porVoz=true;gravar({btn:'mic2',lbl:'micl2',lbl0:'Responder',tm:'timer2',m:'m4',max:60,envia:resposta})};
 $('qenv').onclick=function(){var t=$('qtxt').value.trim();if(!t)return;paraOuvir();cancelaAuto();if(aplicaCurta(F,atual,t)){feito();return}$('qenv').disabled=true;msg('m4','<span class="spin"></span>Entendendo…');resposta({texto:t}).catch(function(e){msg('m4','Não deu: '+e.message,'err')}).then(function(){$('qenv').disabled=false})};
 $('qtxt').addEventListener('keydown',function(e){if(e.key=='Enter')$('qenv').click()});
