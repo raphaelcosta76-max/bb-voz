@@ -313,6 +313,7 @@ function nomeCri(c,i){return c.apelido?c.apelido:'a criança '+(i+1)}
 var MOT_NC=[['sem_tamanho_cor','Não tinha tamanho/cor'],['caro','Achou caro'],['so_olhando','Só olhando'],['vai_voltar','Vai voltar'],['decidir_com_alguem','Vai decidir com alguém'],['outro','Outro']],MOT_NC_F={sem_tamanho_cor:'não tinha o tamanho ou a cor',caro:'achou caro',so_olhando:'só estava olhando',vai_voltar:'vai voltar',decidir_com_alguem:'vai decidir com alguém',outro:'outro motivo'};
 // v37: avisos separados (novidades e promoções) e peça que faltou com cor, tamanho, referência e "avisar quando chegar"
 var AVS=[['sim','Sim'],['nao','Não'],['nao_perguntei','Não perguntei']];
+function avisoPeca(F){return(F.faltou_itens||[]).concat(F.nao_levou||[]).some(function(n){return n&&!n._dup&&(n.avisar=='sim'||/^busca:|^vem$/.test(String(n.retirada||'')))})}
 function querAviso(F){return F.novidades=='sim'||F.promocoes=='sim'||(F.faltou_itens||[]).concat(F.nao_levou||[]).some(function(n){return n&&n.avisar=='sim'})}
 function itensFalta(F){juntaCopias(F);var l=[];(F.faltou_itens||[]).forEach(function(n,i){if(n&&!n._dup&&String(n.peca||'').trim())l.push({k:'f'+i,n:n})});(F.nao_levou||[]).forEach(function(n,i){if(n&&!n._dup&&String(n.peca||'').trim())l.push({k:'n'+i,n:n})});return l}
 function itemFalta(F,k){var a=String(k||'').charAt(0)=='f'?F.faltou_itens:F.nao_levou;return(a||[])[Number(String(k||'').slice(1))]}
@@ -391,6 +392,11 @@ function escolheProd(n,c){n.ref=c.r;n.ref_desc=capW(c.d);if(n.ref_draw!==c.d){n.
  var cr=corDe(txt,n.grade.cores);n.cor=cr||(n.grade.cores.length==1?n.grade.cores[0]:(n.grade.cores.indexOf(n.cor)>=0?n.cor:''));
  var tm=tamDe(txt,n.grade.tams);n.tamanho=tm||(n.grade.tams.length==1?n.grade.tams[0]:(n.grade.tams.indexOf(n.tamanho)>=0?n.tamanho:''));
  if(!n.qtd){var q=qtdPeca(n,[n.busca,n.detalhe,n.peca]);if(q)n.qtd=q}}
+// v38: celular — no atendimento sem venda e sem CPF, como antes (quer aviso de qualquer coisa); na venda, ou com CPF, quando ela quer aviso da peça que faltou,
+// reserva ou envio (é por ele que a loja avisa que chegou). Com CPF, "É o do cadastro" encerra a pergunta.
+function perguntaCel(F,add,nc){var pcel=nc&&!F.cpf?querAviso(F):avisoPeca(F);if(!pcel)return;
+ if(!F.celular&&!F.celular_nao&&!F.celular_cad)add('celular',nc&&!F.cpf?'Qual o celular dela? Fale com DDD.':'Qual o celular dela, para avisar quando a peça chegar? Fale com DDD.',F.cpf?[['cad','É o do cadastro'],['nao','Não deu']]:[['nao','Não deu']]);
+ var cd=String(F.celular||'').replace(/\D/g,'');if(cd&&(cd.length<10||cd.length>11)&&!F.celular_nao)add('celular2','O celular ficou incompleto: '+cd+'. Fale o número inteiro, com DDD.',[['nao','Não deu']])}
 function perguntasAviso(F,add){if(!F.novidades)add('novidades','Ela quer receber novidades da loja, peças e coleções novas?',AVS);if(!F.promocoes)add('promocoes','E promoções, ela quer receber?',AVS)}
 function perguntasNc(F,feitas){var q=[];function add(id,texto,op,tipo){if(feitas.indexOf(id)<0)q.push({id:id,texto:texto,op:op||null,tipo:tipo||'voz'})}
  if(!F.relacao)add('relacao','Quem era a cliente?',[['mae','Mãe'],['pai','Pai'],['avo','Avó/avô'],['tia','Tia/tio'],['madrinha','Madrinha'],['amiga','Amiga'],['outra','Outra']]);
@@ -400,8 +406,7 @@ function perguntasNc(F,feitas){var q=[];function add(id,texto,op,tipo){if(feitas
  if((F.motivo_nc=='vai_voltar'||F.motivo_nc=='decidir_com_alguem')&&!F.volta)add('volta','Ela disse quando volta?',[['nao','Não disse']]);
  if(F.motivo_nc=='sem_tamanho_cor'&&!itensFalta(F).length)add('ncfalta','Qual peça ela queria e a loja não tinha? Fale o modelo, a cor e o tamanho.');
  perguntasFalta(F,add);perguntasAviso(F,add);
- if(querAviso(F)&&!F.cpf&&!F.celular&&!F.celular_nao)add('celular','Qual o celular dela? Fale com DDD.',[['nao','Não deu']]);
- var cd=String(F.celular||'').replace(/\D/g,'');if(querAviso(F)&&!F.cpf&&cd&&(cd.length<10||cd.length>11)&&!F.celular_nao)add('celular2','O celular ficou incompleto: '+cd+'. Fale o número inteiro, com DDD.',[['nao','Não deu']]);
+ perguntaCel(F,add,true);
  return q}
 function perguntasPendentes(F,fi,feitas){var q=[];feitas=feitas||[];if(F.nao_compra)return perguntasNc(F,feitas);function add(id,texto,op,tipo){if(feitas.indexOf(id)<0)q.push({id:id,texto:texto,op:op||null,tipo:tipo||'voz'})}
  if(!F.boleta)add('boleta','Qual o número da boleta?',null,'boleta');
@@ -425,13 +430,13 @@ function perguntasPendentes(F,fi,feitas){var q=[];feitas=feitas||[];if(F.nao_com
  if(!F.faltou&&!(F.faltou_itens||[]).length)add('faltou','Ela procurou alguma coisa que a loja não tem?',[['nada','Não procurou']]);
  perguntasFalta(F,add);
  if(!F.evento_data&&!F.proximo_evento)add('evento','Ela comentou alguma data ou evento? Aniversário, nascimento, viagem, batizado…',[['nao','Não comentou']]);
- perguntasAviso(F,add);
+ perguntasAviso(F,add);perguntaCel(F,add,false);
  return q}
 // Resposta por botão: aplica direto, sem gastar IA.
 function aplicaOpcao(F,id,v,fi){var p=id.split(':'),k=p[0],i=Number(p[1]);
  if(k=='tipo'||k=='relacao'||k=='pode_avisar'||k=='motivo_nc'||k=='novidades'||k=='promocoes')F[k]=v;
  else if(k=='nome'&&v=='nao_sei')F.nome_ns=true;
- else if((k=='celular'||k=='celular2')&&v=='nao')F.celular_nao=true;
+ else if((k=='celular'||k=='celular2')&&v=='nao')F.celular_nao=true;else if(k=='celular'&&v=='cad')F.celular_cad=true;
  else if(k=='fav'){var nf=itemFalta(F,p[1]);if(nf){if(/^busca:/.test(v)||v=='vem'){nf.retirada=v;nf.avisar='sim';if(/^busca:/.test(v))reserva(nf,2)}else{nf.avisar=v;nf.retirada=v=='sim'?'aviso':'nao'}}}
  else if(k=='fref'){var nr=itemFalta(F,p[1]);if(nr){if(v=='sim'){nr.ref_ok=true;if(nr.grade)escolheProd(nr,{r:nr.ref,d:nr.ref_desc,cores:nr.grade.cores,tams:nr.grade.tams})}else{nr.ref='';nr.ref_desc='';nr.ref_skip=false;nr.cands=undefined}}}
  else if(k=='frefx'&&v=='tirar'){var nx=itemFalta(F,p[1]);if(nx){nx.ref='';nx.ref_nao=false;nx.ref_skip=true}}
@@ -443,7 +448,7 @@ function aplicaOpcao(F,id,v,fi){var p=id.split(':'),k=p[0],i=Number(p[1]);
  else if(k=='ftc'&&v=='nao_sei'){var nt=itemFalta(F,p[1]);if(nt)nt.ftc_ok=true}
  else if((k=='idade'||k=='sexo'||k=='prev')&&v=='nao_existe')tiraCrianca(F,i);
  else if(k=='volta'&&v=='nao')F.volta='não disse';
- else if(k=='celular'&&v=='nao')F.celular_nao=true;
+ else if(k=='celular'&&v=='nao')F.celular_nao=true;else if(k=='celular'&&v=='cad')F.celular_cad=true;
  else if(k=='boleta_conf'){F.boleta=String(v);delete F.boleta_falada}
  else if(k=='sexo'&&F.criancas[i])F.criancas[i].sexo=v;
  else if(k=='modelos')F.modelos_mostrados=Number(v);
