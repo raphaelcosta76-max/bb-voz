@@ -780,7 +780,9 @@ function comecaVenda(nc){destrava();paraOuvir();if(gravando()){parar();return}if
  primeira=primeiraDia();var nm=nomeEu(),ap=!!(Q.rede&&nm&&apresentadas().indexOf(nm)<0);if(!falar){gravar(REL);return}if(ap)marcaApres(nm);saudando=true;$('micl').textContent='Toque para falar já';
  fala(apresenta(F.nao_compra?(F.chave_ant?saudacaoResto(nm):saudacaoNc(nm,new Date().getHours())):saudacao(nm,primeira||ap,new Date().getHours()),ap),function(){if(!saudando)return;saudando=false;bip();setTimeout(function(){gravar(Object.assign({auto:true},REL))},250)})}
 function lerCliente(){var b=dig($('i_boleta').value),c=dig($('i_cpf').value);if(b)F.boleta=b;if(c)F.cpf=c}
-function relato(d){lerCliente();d.ctx=F;if(F.nao_compra)d.modo='nc';return api({voz:'interpretar',d:d}).then(function(r){apresentar=true;recebe(r)})}
+// v37l (B8): áudio que o servidor descartou (conversa de balcão, várias vozes, sem fala) não entra no registro: pede para gravar de novo
+var MSG_DESC='Não entendi como relato da venda — parece conversa da loja (outras vozes ou você falando com a cliente). Grave de novo só você contando, perto do celular, ou escreva.';
+function relato(d){lerCliente();d.ctx=F;if(F.nao_compra)d.modo='nc';return api({voz:'interpretar',d:d}).then(function(r){if(r&&r.descartado){msg('m1',MSG_DESC,'err');fala([MSG_DESC]);return}apresentar=true;recebe(r)})}
 function recebe(r){var nc=!!F.nao_compra,celn=F.celular_nao,bt=F.boleta,bf=F.boleta_falada,cpf=F.cpf,vend=F.vendedora,cant=F.chave_ant,etp=F.etapa;['modelo','ms','uso','travados'].forEach(function(k){delete r[k]});var fal=dig(r.boleta);F=r;if(bt){F.boleta=bt;if(fal&&fal!=dig(bt))F.boleta_falada=fal;else if(bf)F.boleta_falada=bf}F.boleta=dig(F.boleta);F.cpf=cpf;F.vendedora=vend;if(cant){F.chave_ant=cant;F.etapa=etp}if(nc){F.nao_compra=true;F.boleta='';delete F.boleta_falada;if(celn)F.celular_nao=true}F.respostas_ficha=F.respostas_ficha||{};msg('m1','');msg('m4','');guarda();proxima()}
 $('mic').onclick=comecaVenda;
 $('togtxt').onclick=function(){var b=$('txtbox');b.style.display=b.style.display=='none'?'':'none'};
@@ -835,7 +837,7 @@ function posResposta(id,r){var k=id.split(':')[0],tx=ultimaResp(r),neg=/^(nao|na
  if(!tx||neg||novos)return;
  if(k=='faltou'||k=='ncfalta')r.faltou_itens=(r.faltou_itens||[]).concat([{peca:limpaPeca(tx).slice(0,120),detalhe:tx.slice(0,200),cor:'',tamanho:'',ref:'',avisar:''}]);
  if(k=='nao_levou')r.nao_levou=(r.nao_levou||[]).concat([{peca:limpaPeca(tx).slice(0,120),detalhe:tx.slice(0,200),cor:'',tamanho:'',ref:'',avisar:'',motivo:motivoDe(tx)}])}
-function resposta(d){d.ctx=F;d.pergunta=atual.texto;if(F.nao_compra)d.modo='nc';var id=atual.id,q0=atual;return api({voz:'interpretar',d:d}).then(function(r){if(feitas.indexOf(id)<0)feitas.push(id);posResposta(id,r);
+function resposta(d){d.ctx=F;d.pergunta=atual.texto;if(F.nao_compra)d.modo='nc';var id=atual.id,q0=atual;return api({voz:'interpretar',d:d}).then(function(r){if(r&&r.descartado){msg('m4',MSG_DESC,'err');return}if(feitas.indexOf(id)<0)feitas.push(id);posResposta(id,r);
  if(/^f(prod|cor|tam|qtd|tc|ref|refx|av)$/.test(id.split(':')[0])){var tx=ultimaResp(r);if(tx)try{if(!aplicaCurta(r,q0,tx)&&q0.op){var tn=normaliza(tx);q0.op.some(function(o){if(normaliza(o[1])&&tn.indexOf(normaliza(o[1]))>=0){aplicaOpcao(r,id,o[0],FI);return true}})}}catch(e){}}
  recebe(r)})}
 $('mic2').onclick=function(){paraOuvir();porVoz=true;gravar({btn:'mic2',lbl:'micl2',lbl0:'Responder',tm:'timer2',m:'m4',max:60,envia:resposta})};
@@ -909,10 +911,18 @@ function salvar(subst){var alvo=$('s5').style.display!='none'?'m5':'m2',bt=alvo=
  if(falta.length&&pulou&&!subst&&!salvar.ciente){salvar.ciente=1;msg(alvo,'Falta: '+falta.join(', ')+'. Se salvar assim, a venda volta amanhã na sua página (Pendente de confirmação) para completar. Toque em Salvar de novo para confirmar.','err');return}
  if(F.modelos_mostrados>=0&&F.modelos_mostrados<4&&!subst&&!salvar.poucos){salvar.poucos=1;msg(alvo,'Só '+F.modelos_mostrados+' modelo(s) mostrado(s) — o mínimo é 4. Está certo? Toque em Salvar de novo para confirmar.','err');return}
  var ce0=dig(F.celular);if(ce0&&!F.celular_nao&&(ce0.length<10||ce0.length>11)){msg(alvo,'Celular com DDD: 10 ou 11 números.','err');return}avisoCel(F);
- $(bt).disabled=true;$(bt).innerHTML='<span class="spin"></span>Salvando…';var d=JSON.parse(JSON.stringify(F));d.boleta=b;d.cpf=dig(F.cpf);if(subst)d.substituir=true;
- api({voz:'gravar',d:d}).then(function(r){if(r.duplicada){$(alvo).innerHTML='<div class="dup"><b>A boleta '+esc(b)+' já foi registrada</b> em '+esc(r.quando)+' por '+esc(r.vendedora)+'. É a mesma venda?<button class="btn" type="button" id="subst">Sim, substituir pelo registro de agora</button><button class="btn sec" type="button" id="corr">Não, vou corrigir a boleta</button></div>';$('subst').onclick=function(){salvar(true)};$('corr').onclick=function(){if(alvo=='m5')conferir();msg('m2','');$('f_boleta').focus()};return}
+ $(bt).disabled=true;$(bt).innerHTML='<span class="spin"></span>Salvando…';var d=JSON.parse(JSON.stringify(F));d.boleta=b;d.cpf=dig(F.cpf);if(subst)d.substituir=true;d.v='37l';
+ api({voz:'gravar',d:d}).then(function(r){if(r.conflito_idade){conflitoIdade(r.conflito_idade,alvo,subst);return}if(r.duplicada){$(alvo).innerHTML='<div class="dup"><b>A boleta '+esc(b)+' já foi registrada</b> em '+esc(r.quando)+' por '+esc(r.vendedora)+'. É a mesma venda?<button class="btn" type="button" id="subst">Sim, substituir pelo registro de agora</button><button class="btn sec" type="button" id="corr">Não, vou corrigir a boleta</button></div>';$('subst').onclick=function(){salvar(true)};$('corr').onclick=function(){if(alvo=='m5')conferir();msg('m2','');$('f_boleta').focus()};return}
   var dc=F.dica,nm=nomeEu()||(r.vendedora&&Q.porLoja?r.vendedora:'');salvo();contaDia();var av='Amanhã você confere as peças em Pendente de confirmação.';$('okmsg').textContent='Pronto'+(nm?', '+nm:'')+', anotado. Boleta '+b+'.'+(av?' '+av:'');$('okdica').style.display=dc?'':'none';$('okdica').innerHTML=dc?'💡 '+esc(dc.texto):'';var wf=pintaWa(F,r.chave);$('okresto').style.display='none';show('s3');
   fala(['Pronto'+(nm?', '+nm:'')+', anotado.',av,dc?dc.texto:'',wf])}).catch(function(e){msg(alvo,e.message,'err')}).then(function(){$(bt).disabled=false;$(bt).textContent='Salvar registro'})}
+// v37l (B8): a idade de uma criança briga com o texto (ou com outra resposta) — pergunta qual vale antes de gravar; "Não sei" não grava nenhuma das duas (as duas ficam guardadas)
+function idTx(m){m=Number(m);return m<1?'menos de 1 mês':m<24?m+(m==1?' mês':' meses'):Math.floor(m/12)+' anos'}
+function conflitoIdade(l,alvo,subst){var x=l[0],k=(F.criancas||[])[x.i];if(!k){F.conflito_ok=true;salvar(subst);return}var nm=k.apelido||(k.sexo=='menina'?'a menina':k.sexo=='menino'?'o menino':'a criança'),dado=x.valores[0],out=x.valores.slice(1);
+ var h='<div class="dup"><b>Entendi duas idades para '+esc(nm)+'.</b> '+out.map(function(v){return v.de=='texto'?'No texto: “'+esc(v.txt)+'” (cerca de '+esc(idTx(v.m))+').':'Em outra resposta: '+esc(idTx(v.m))+'.'}).join(' ')+' Nos dados ficou '+esc(idTx(dado.m))+'. Qual é a idade?';
+ x.valores.forEach(function(v,i){h+='<button class="btn sec" type="button" data-ci="'+i+'">'+esc(idTx(v.m))+'</button>'});h+='<button class="btn sec" type="button" data-ci="ns">Não sei</button></div>';
+ $(alvo).innerHTML=h;fala(['Entendi duas idades. Qual é a idade?']);
+ $(alvo).querySelectorAll('[data-ci]').forEach(function(b){b.onclick=function(){var c=b.dataset.ci;if(c=='ns'){k._nao_sei_idade=x.valores.map(function(v){return v.m});k.idade_meses=''}else{k.idade_meses=x.valores[+c].m;delete k._nao_sei_idade}delete k.idade_alt;
+  if(l.length>1){conflitoIdade(l.slice(1),alvo,subst);return}F.conflito_ok=true;msg(alvo,'');salvar(subst)}})}
 function salvarNc(alvo,bt){
  if(Q.porLoja&&!F.vendedora){if(alvo=='m5')conferir();msg('m2','Marque quem atendeu.','err');window.scrollTo(0,0);return}
  if(F.cpf&&dig(F.cpf).length!=11){msg(alvo,'O CPF tem 11 números (ou deixe em branco).','err');return}
