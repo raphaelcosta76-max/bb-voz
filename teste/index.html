@@ -112,7 +112,9 @@ textarea{min-height:92px;resize:vertical}
   <div class="q" id="quemq">Quem vai contar a venda?</div>
   <div class="hint" id="quems" style="text-align:left;margin:0 0 10px">Toque no seu nome:</div>
   <div class="chips" id="quemv"></div>
+  <div id="novaf"></div>
  </div>
+ <div class="card" id="minha" style="display:none"></div>
  <div class="card">
   <h2>Cliente</h2>
   <div class="row">
@@ -613,7 +615,7 @@ var tok=(function(){var m=/[#?&]t=([0-9a-f]{20,40})/.exec(location.hash+location
 function api(b){b.tok=tok;if(TESTE)b.teste=1;if(EU&&Q.porLoja)b.vend=EU.nome;return fetch(URL_SCRIPT,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(b)}).then(function(r){return r.json()}).then(function(j){if(!j.ok)throw new Error(j.erro||'erro');return j.r})}
 function msg(id,t,cls){var e=$(id);e.innerHTML=t?'<div class="msg '+(cls||'')+'">'+t+'</div>':''}
 var SECS=['s0','s1','s2','s3','s4','s5','s6'];
-function show(n){SECS.forEach(function(s){$(s).style.display=s==n?'':'none'});$('vozp').style.display='none';window.scrollTo(0,0);if(n=='s1'&&typeof pintaPend=='function'){pintaPend();pintaCons()}}
+function show(n){SECS.forEach(function(s){$(s).style.display=s==n?'':'none'});$('vozp').style.display='none';window.scrollTo(0,0);if(n=='s1'&&typeof pintaPend=='function'){pintaPend();pintaCons();pintaMinha()}}
 function visivel(){return SECS.filter(function(s){return $(s).style.display!='none'})[0]||'s1'}
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}
 function dig(s){return String(s||'').replace(/\D/g,'')}
@@ -621,7 +623,7 @@ var EU=null;try{EU=JSON.parse(ls('bbvoz_eu')||'null')}catch(e){}
 var LOJA=ls('bbvoz_loja')||(EU&&EU.loja)||'',obOuviu=false;
 var S=null,Q={porLoja:false,vendedoras:[],demo:false,tts:''},F=novoF(),FI=null,feitas=[],fila=[],atual=null,pulou=false,apresentar=false,primeira=true,porVoz=false;
 if(!tok){$('hint').textContent='Link inválido. Use o link de voz que a gerente mandou.';$('mic').disabled=true}
-else api({voz:'quem'}).then(function(q){Q=q;Q.vendedoras=q.vendedoras||[];if(q.rede){var lj=(q.lojas||[]).filter(function(l){return l.loja==LOJA})[0];if(!lj){EU=null;pedeEu('s1')}else if(EU&&EU.loja==LOJA&&EU.dia==hojeL()&&lj.vendedoras.indexOf(EU.nome)>=0)souEu(EU);else{EU=null;semEu()}}else if(q.porLoja){$('nome').textContent='Sua assistente de vendas';$('loja').textContent='bb básico '+q.loja+' · link da loja'}else{$('nome').textContent=q.nome;$('loja').textContent='bb básico '+q.loja}if(q.demo)$('demo').style.display='block';api({voz:'sugestoes'}).then(function(r){S=r;if(r&&r.cat&&r.cat.length)BASICO=r.cat.map(function(c){return c.nome})}).catch(function(){});setTimeout(adianta,1500)}).catch(function(e){$('hint').textContent='Não consegui identificar o link: '+e.message;$('mic').disabled=true});
+else api({voz:'quem'}).then(function(q){if(q.mudou){linkMudou(q.lojas||[]);return}if(q.umaLoja){q.rede=true;LOJA=q.loja;ls('bbvoz_loja',LOJA)}Q=q;Q.vendedoras=q.vendedoras||[];if(q.rede){var lj=(q.lojas||[]).filter(function(l){return l.loja==LOJA})[0];if(!lj){EU=null;pedeEu('s1')}else if(EU&&EU.loja==LOJA&&EU.dia==hojeL()&&lj.vendedoras.indexOf(EU.nome)>=0)souEu(EU);else{EU=null;semEu()}}else if(q.porLoja){$('nome').textContent='Sua assistente de vendas';$('loja').textContent='bb básico '+q.loja+' · link da loja'}else{$('nome').textContent=q.nome;$('loja').textContent='bb básico '+q.loja}if(q.demo)$('demo').style.display='block';api({voz:'sugestoes'}).then(function(r){S=r;if(r&&r.cat&&r.cat.length)BASICO=r.cat.map(function(c){return c.nome})}).catch(function(){});setTimeout(adianta,1500)}).catch(function(e){$('hint').textContent='Não consegui identificar o link: '+e.message;$('mic').disabled=true});
 function nomeEu(){return EU?EU.nome:(Q.porLoja?'':(Q.nome&&!Q.demo?Q.nome:''))}
 
 // ---- voz da assistente: Sulafat no servidor (cache das frases); se falhar, a melhor voz do celular
@@ -682,14 +684,28 @@ function paraOuvir(){var r=ouvindo;ouvindo=null;if(r){try{r.abort()}catch(e){}if
 
 // ---- link da rede: quem é você (o nome define a loja); o celular lembra
 // celular da loja: guarda a loja; a vendedora vale só no dia e a cada venda a tela pergunta "Ainda é a X?"
-function cabLoja(){$('loja').innerHTML='bb básico '+esc(LOJA)+' · <button class="link" type="button" id="trocaeu" style="padding:0;font-size:13px">trocar loja</button>';$('trocaeu').onclick=function(){var vis=visivel();if(vis=='s2')lerForm();if(vis=='s0')vis='s1';pedeEu(vis)}}
-function souEu(e){EU={nome:e.nome,loja:e.loja,dia:hojeL()};LOJA=e.loja;F.vendedora=e.nome;ls('bbvoz_eu',JSON.stringify(EU));ls('bbvoz_loja',LOJA);$('nome').textContent=e.nome;cabLoja();pintaQuem()}
-function semEu(){EU=null;F.vendedora='';$('nome').textContent='Sua assistente de vendas';cabLoja();pintaQuem()}
+function cabLoja(){if(Q.umaLoja){$('loja').textContent='bb básico '+LOJA+' · link da loja';return}$('loja').innerHTML='bb básico '+esc(LOJA)+' · <button class="link" type="button" id="trocaeu" style="padding:0;font-size:13px">trocar loja</button>';$('trocaeu').onclick=function(){var vis=visivel();if(vis=='s2')lerForm();if(vis=='s0')vis='s1';pedeEu(vis)}}
+function souEu(e){EU={nome:e.nome,loja:e.loja,dia:hojeL()};LOJA=e.loja;F.vendedora=e.nome;ls('bbvoz_eu',JSON.stringify(EU));ls('bbvoz_loja',LOJA);$('nome').textContent=e.nome;cabLoja();pintaQuem();pintaMinha()}
+function semEu(){EU=null;F.vendedora='';$('nome').textContent='Sua assistente de vendas';cabLoja();pintaQuem();pintaMinha()}
 function vendLoja(){var l=(Q.lojas||[]).filter(function(x){return x.loja==LOJA})[0];return l?l.vendedoras:[]}
 function pintaQuem(){var c=$('quemc');if(!Q.rede||!LOJA){c.style.display='none';return}c.style.display='';var nm=EU&&EU.nome;
- $('quemq').textContent=nm?'Ainda é a '+nm+'?':'Quem vai contar a venda?';$('quems').textContent=nm?'Se for, toque no microfone. Se não, toque no seu nome:':'Toque no seu nome para começar:';
- $('quemv').innerHTML=vendLoja().filter(function(v){return v!=nm}).map(function(v){return'<button class="chip" type="button" data-qv="'+esc(v)+'">'+esc(v)+'</button>'}).join('')}
-$('quemv').addEventListener('click',function(e){var c=e.target.closest('.chip');if(!c)return;destrava();paraFala();souEu({nome:c.dataset.qv,loja:LOJA});F.vendedora=c.dataset.qv;comecaVenda()});
+ $('quemq').textContent=nm?'Ainda é a '+nm+'?':Q.umaLoja?'Quem está usando o celular?':'Quem vai contar a venda?';$('quems').textContent=nm?(Q.umaLoja?'Se não, toque no seu nome:':'Se for, toque no microfone. Se não, toque no seu nome:'):Q.umaLoja?'Toque no seu nome:':'Toque no seu nome para começar:';
+ $('quemv').innerHTML=vendLoja().filter(function(v){return v!=nm}).map(function(v){return'<button class="chip" type="button" data-qv="'+esc(v)+'">'+esc(v)+'</button>'}).join('')+(Q.umaLoja?'<button class="chip" type="button" id="souNova" style="border-style:dashed">＋ Sou nova aqui</button>':'');$('novaf').innerHTML=''}
+$('quemv').addEventListener('click',function(e){var c=e.target.closest('.chip');if(!c)return;if(c.id=='souNova'){novaForm();return}if(Q.umaLoja){destrava();paraFala();souEu({nome:c.dataset.qv,loja:LOJA});F.vendedora=c.dataset.qv;window.scrollTo(0,0);fala('Pronto, '+c.dataset.qv+'!');return}destrava();paraFala();souEu({nome:c.dataset.qv,loja:LOJA});F.vendedora=c.dataset.qv;comecaVenda()});
+// ---- v37n: link da loja — "Sou nova aqui", "Pendências e contatos (N)" e aviso de link mudado
+function novaForm(){paraFala();$('novaf').innerHTML='<label>Seu nome (como as colegas te chamam)</label><input id="novanm" maxlength="30" autocomplete="off" placeholder="ex.: Ana"><button class="btn" type="button" id="novaok">Entrar</button><div id="novam"></div>';var i=$('novanm');i.focus();
+ $('novaok').onclick=function(){var nm=i.value.trim();if(nm.length<2){msg('novam','Escreva o seu nome.','err');return}var b=$('novaok');b.disabled=true;b.innerHTML='<span class="spin"></span>Entrando…';
+  api({voz:'nova',nome:nm}).then(function(r){var lj=(Q.lojas||[]).filter(function(x){return x.loja==LOJA})[0];if(lj&&r.vendedoras)lj.vendedoras=r.vendedoras;if(r.vendedoras)Q.vendedoras=r.vendedoras;$('novaf').innerHTML='';souEu({nome:r.nome,loja:LOJA});F.vendedora=r.nome;
+   fala('Pronto, '+r.nome+'! Seja bem-vinda. Quando terminar uma venda, toque no botão e me conta.');window.scrollTo(0,0)}).catch(function(e){b.disabled=false;b.textContent='Entrar';msg('novam',esc(e.message),'err')})}}
+var MINHA={};
+function linkPend(){return URL_SCRIPT+'?v='+tok+'&n='+encodeURIComponent(EU.nome)+(TESTE?'&teste=1':'')}
+function pintaMinha(){var c=$('minha');if(!c)return;if(!Q.porLoja||!EU||!EU.nome){c.style.display='none';return}c.style.display='';var nm=EU.nome,m=MINHA[nm];
+ var tx=function(){var x=MINHA[nm]&&MINHA[nm].r,n=x?x.pend+x.cont:null;return'<button class="btn sec" type="button" id="abrePend" style="margin-top:0">📋 Pendências e contatos'+(n==null?'':' ('+n+')')+'</button>'+
+  (x?'<div class="hint" style="text-align:left;margin:8px 0 0">'+(x.pend?x.pend+(x.pend==1?' pendência':' pendências')+' para resolver'+(x.cont?' · '+x.cont+(x.cont==1?' contato':' contatos')+' (travados até resolver as pendências)':''):x.cont?x.cont+(x.cont==1?' contato para fazer':' contatos para fazer'):'Nada pendente agora.')+'</div>':'<div class="hint" style="text-align:left;margin:8px 0 0"><span class="spin"></span> Conferindo…</div>')};
+ c.innerHTML=tx();$('abrePend').onclick=function(){window.open(linkPend(),'bbpend')};
+ if(m&&Date.now()-m.t<60000)return;MINHA[nm]={t:Date.now(),r:m&&m.r};api({voz:'pend'}).then(function(r){MINHA[nm]={t:Date.now(),r:r};if(EU&&EU.nome==nm){c.innerHTML=tx();$('abrePend').onclick=function(){window.open(linkPend(),'bbpend')}}}).catch(function(){MINHA[nm].t=0;if(EU&&EU.nome==nm){var h=c.querySelector('.hint');if(h)h.textContent='Toque para ver as suas pendências e contatos.'}})}
+function linkMudou(l){var u=location.href.split('#')[0].split('?')[0];document.body.innerHTML='<div style="padding:24px;font:18px/1.45 sans-serif;max-width:520px;margin:auto"><p><b>Este link mudou.</b></p><p>Agora cada loja tem o seu link: nele você escolhe o seu nome, registra a venda e vê as pendências e os contatos. Toque na sua loja:</p>'+
+ l.map(function(x){return'<a href="'+u+'?x='+Date.now()+'#t='+x.t+'" style="display:block;text-align:center;background:#1b6b4a;color:#fff;padding:14px;border-radius:12px;text-decoration:none;font-weight:700;margin:10px 0">'+esc(x.loja)+'</a>'}).join('')+'<p style="font-size:15px;color:#555">Depois de abrir, salve o link novo na tela inicial do celular da loja.</p></div>'}
 function apresentadas(){try{return JSON.parse(ls('bbvoz_apres')||'[]')}catch(e){return[]}}
 function marcaApres(n){var a=apresentadas();if(n&&a.indexOf(n)<0){a.push(n);ls('bbvoz_apres',JSON.stringify(a))}}
 function pedeEu(volta){paraFala();paraOuvir();$('eus').innerHTML=(Q.lojas||[]).map(function(l){return'<label>'+esc(l.loja)+'</label><div class="chips">'+l.vendedoras.map(function(v){return'<button class="chip" type="button" data-loja="'+esc(l.loja)+'" data-v="'+esc(v)+'">'+esc(v)+'</button>'}).join('')+'</div>'}).join('');$('obconf').innerHTML='';pedeEu.volta=volta||'s1';show('s0')}
@@ -911,7 +927,7 @@ function salvar(subst){var alvo=$('s5').style.display!='none'?'m5':'m2',bt=alvo=
  if(falta.length&&pulou&&!subst&&!salvar.ciente){salvar.ciente=1;msg(alvo,'Falta: '+falta.join(', ')+'. Se salvar assim, a venda volta amanhã na sua página (Pendente de confirmação) para completar. Toque em Salvar de novo para confirmar.','err');return}
  if(F.modelos_mostrados>=0&&F.modelos_mostrados<4&&!subst&&!salvar.poucos){salvar.poucos=1;msg(alvo,'Só '+F.modelos_mostrados+' modelo(s) mostrado(s) — o mínimo é 4. Está certo? Toque em Salvar de novo para confirmar.','err');return}
  var ce0=dig(F.celular);if(ce0&&!F.celular_nao&&(ce0.length<10||ce0.length>11)){msg(alvo,'Celular com DDD: 10 ou 11 números.','err');return}avisoCel(F);
- $(bt).disabled=true;$(bt).innerHTML='<span class="spin"></span>Salvando…';var d=JSON.parse(JSON.stringify(F));d.boleta=b;d.cpf=dig(F.cpf);if(subst)d.substituir=true;d.v='37l';
+ $(bt).disabled=true;$(bt).innerHTML='<span class="spin"></span>Salvando…';var d=JSON.parse(JSON.stringify(F));d.boleta=b;d.cpf=dig(F.cpf);if(subst)d.substituir=true;d.v='37n';
  api({voz:'gravar',d:d}).then(function(r){if(r.conflito_idade){conflitoIdade(r.conflito_idade,alvo,subst);return}if(r.duplicada){$(alvo).innerHTML='<div class="dup"><b>A boleta '+esc(b)+' já foi registrada</b> em '+esc(r.quando)+' por '+esc(r.vendedora)+'. É a mesma venda?<button class="btn" type="button" id="subst">Sim, substituir pelo registro de agora</button><button class="btn sec" type="button" id="corr">Não, vou corrigir a boleta</button></div>';$('subst').onclick=function(){salvar(true)};$('corr').onclick=function(){if(alvo=='m5')conferir();msg('m2','');$('f_boleta').focus()};return}
   var dc=F.dica,nm=nomeEu()||(r.vendedora&&Q.porLoja?r.vendedora:'');salvo();contaDia();var av='Amanhã você confere as peças em Pendente de confirmação.';$('okmsg').textContent='Pronto'+(nm?', '+nm:'')+', anotado. Boleta '+b+'.'+(av?' '+av:'');$('okdica').style.display=dc?'':'none';$('okdica').innerHTML=dc?'💡 '+esc(dc.texto):'';var wf=pintaWa(F,r.chave);$('okresto').style.display='none';show('s3');
   fala(['Pronto'+(nm?', '+nm:'')+', anotado.',av,dc?dc.texto:'',wf])}).catch(function(e){msg(alvo,e.message,'err')}).then(function(){$(bt).disabled=false;$(bt).textContent='Salvar registro'})}
