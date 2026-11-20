@@ -25,7 +25,7 @@ h2{font-size:15px;margin:0 0 8px;color:var(--mute);font-weight:600;text-transfor
 .micbtn:disabled{opacity:.5}
 .hint{color:var(--mute);font-size:14px;text-align:center}
 .snc{display:none}body.nc .sov{display:none}body.nc .snc{display:block}
-.so37{display:none}.r37 .so37{display:block}.r37 .so36{display:none}.gcri{margin-top:14px;font-size:15px}.cri.k{border-style:solid}.tg{font-size:14px;margin-top:8px}
+.un{flex:0 0 auto;font-size:15px;color:#5b6b5f;margin:0 2px}.so37{display:none}.r37 .so37{display:block}.r37 .so36{display:none}.gcri{margin-top:14px;font-size:15px}.cri.k{border-style:solid}.tg{font-size:14px;margin-top:8px}
 .timer{font-variant-numeric:tabular-nums;font-size:20px;font-weight:600;min-height:26px}
 label{display:block;font-size:13px;color:var(--mute);margin:12px 0 4px}
 input,textarea,select{width:100%;font:inherit;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--fg)}
@@ -92,7 +92,7 @@ textarea{min-height:92px;resize:vertical}
 <section id="s0" style="display:none">
  <div class="card">
   <div class="q">Oi! 👋</div>
-  <div class="big2">Eu sou a sua assistente de vendas da bb básico. Eu guardo o que você me contar de cada cliente e te aviso a hora certa de chamar cada uma: aniversário, troca de tamanho, a peça que ela queria e chegou. Assim você vende mais.<br><b>Como você se chama?</b></div>
+  <div class="big2"><b>Como você se chama?</b></div>
   <div class="mic" id="obbox">
    <button class="micbtn p" id="obmic" type="button">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M12 17v5M8 22h8"/></svg>
@@ -561,9 +561,9 @@ function saudacaoResto(nome){return(nome?'Agora, '+nome+', me':'Agora me')+' con
 function saudacaoNc(nome,hora){var n=nome?', '+nome:'';return(hora<12?'Bom dia':hora<18?'Boa tarde':'Boa noite')+n+'! Me conta o atendimento: quem era, o que ela procurava e por que não levou.'}
 function saudacao(nome,primeira,hora){var n=nome?', '+nome:'';if(!primeira)return'Oi'+n+', pode contar.';return(hora<12?'Bom dia':hora<18?'Boa tarde':'Boa noite')+n+'! Me conta a venda: para quem era, o que você mostrou e o que ela levou.'}
 function ponte(n,primeira){if(!n)return'';if(primeira)return'Agora umas perguntas rápidas. Com elas eu monto a ficha dessa cliente.';return n==1?'Falta uma coisa.':'Faltam '+n+' coisas.'}
-var OB_APRES='Eu sou a sua assistente de vendas da bb básico. Eu guardo o que você me contar de cada cliente. No dia seguinte você confere, e eu te mostro quem chamar e o que dizer. Assim você vende mais.';
-function apresenta(s,ap){if(!ap)return s;var i=s.indexOf('!')+1;return i>0?s.slice(0,i)+' '+OB_APRES+' '+s.slice(i).trim():OB_APRES+' '+s}
-var OB_FALA='Oi! Eu sou a sua assistente de vendas da bb básico. Eu guardo o que você me contar de cada cliente. No dia seguinte você confere, e eu te mostro quem chamar e o que dizer. Assim você vende mais. Como você se chama?';
+// v37r (20/11, Raphael): sem a apresentação ("Eu sou a sua assistente…"): fala curta, só o que fazer
+function apresenta(s,ap){return s}
+var OB_FALA='Oi! Como você se chama?';
 // ---- v35: respostas curtas entendidas no próprio celular (sem gastar IA)
 function normaliza(s){return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9\s]/g,' ').replace(/\s+/g,' ').trim()}
 var NUM={zero:0,um:1,uma:1,dois:2,duas:2,tres:3,quatro:4,cinco:5,seis:6,sete:7,oito:8,nove:9,dez:10,onze:11,doze:12,treze:13,catorze:14,quatorze:14,quinze:15,dezesseis:16,dezessete:17,dezoito:18};
@@ -697,20 +697,20 @@ function ouve(cb,ind,forca,falhou){if(!SR||(!falar&&!forca))return false;paraOuv
 function paraOuvir(){var r=ouvindo;ouvindo=null;if(r){try{r.abort()}catch(e){}if(r._ind)$(r._ind).style.display='none'}}
 
 // ---- link da rede: quem é você (o nome define a loja); o celular lembra
-// celular da loja: guarda a loja; a vendedora vale só no dia e a cada venda a tela pergunta "Ainda é a X?"
+// celular da loja: guarda a loja; a vendedora vale só no dia e a cada venda a tela pergunta "Ainda é X?"
 function cabLoja(){if(Q.umaLoja){$('loja').textContent='bb básico '+LOJA+' · link da loja';return}$('loja').innerHTML='bb básico '+esc(LOJA)+' · <button class="link" type="button" id="trocaeu" style="padding:0;font-size:13px">trocar loja</button>';$('trocaeu').onclick=function(){var vis=visivel();if(vis=='s2')lerForm();if(vis=='s0')vis='s1';pedeEu(vis)}}
 function souEu(e){EU={nome:e.nome,loja:e.loja,dia:hojeL()};LOJA=e.loja;F.vendedora=e.nome;ls('bbvoz_eu',JSON.stringify(EU));ls('bbvoz_loja',LOJA);$('nome').textContent=e.nome;cabLoja();pintaQuem();pintaMinha()}
 function semEu(){EU=null;F.vendedora='';$('nome').textContent='Sua assistente de vendas';cabLoja();pintaQuem();pintaMinha()}
 function vendLoja(){var l=(Q.lojas||[]).filter(function(x){return x.loja==LOJA})[0];return l?l.vendedoras:[]}
 function pintaQuem(){var c=$('quemc');if(!Q.rede||!LOJA){c.style.display='none';return}c.style.display='';var nm=EU&&EU.nome;
- $('quemq').textContent=nm?'Ainda é a '+nm+'?':Q.umaLoja?'Quem está usando o celular?':'Quem vai contar a venda?';$('quems').textContent=nm?(Q.umaLoja?'Se não, toque no seu nome:':'Se for, toque no microfone. Se não, toque no seu nome:'):Q.umaLoja?'Toque no seu nome:':'Toque no seu nome para começar:';
- $('quemv').innerHTML=vendLoja().filter(function(v){return v!=nm}).map(function(v){return'<button class="chip" type="button" data-qv="'+esc(v)+'">'+esc(v)+'</button>'}).join('')+(Q.umaLoja?'<button class="chip" type="button" id="souNova" style="border-style:dashed">＋ Sou nova aqui</button>':'');$('novaf').innerHTML=''}
+ $('quemq').textContent=nm?'Ainda é '+nm+'?':Q.umaLoja?'Quem está usando o celular?':'Quem vai contar a venda?';$('quems').textContent=nm?(Q.umaLoja?'Se não, toque no seu nome:':'Se for, toque no microfone. Se não, toque no seu nome:'):Q.umaLoja?'Toque no seu nome:':'Toque no seu nome para começar:';
+ $('quemv').innerHTML=vendLoja().filter(function(v){return v!=nm}).map(function(v){return'<button class="chip" type="button" data-qv="'+esc(v)+'">'+esc(v)+'</button>'}).join('')+(Q.umaLoja?'<button class="chip" type="button" id="souNova" style="border-style:dashed">＋ Primeira vez aqui</button>':'');$('novaf').innerHTML=''}
 $('quemv').addEventListener('click',function(e){var c=e.target.closest('.chip');if(!c)return;if(c.id=='souNova'){novaForm();return}if(Q.umaLoja){destrava();paraFala();souEu({nome:c.dataset.qv,loja:LOJA});F.vendedora=c.dataset.qv;window.scrollTo(0,0);fala('Pronto, '+c.dataset.qv+'!');return}destrava();paraFala();souEu({nome:c.dataset.qv,loja:LOJA});F.vendedora=c.dataset.qv;comecaVenda()});
 // ---- v37n: link da loja — "Sou nova aqui", "Pendências e contatos (N)" e aviso de link mudado
-function novaForm(){paraFala();$('novaf').innerHTML='<label>Seu nome (como as colegas te chamam)</label><input id="novanm" maxlength="30" autocomplete="off" placeholder="ex.: Ana"><button class="btn" type="button" id="novaok">Entrar</button><div id="novam"></div>';var i=$('novanm');i.focus();
+function novaForm(){paraFala();$('novaf').innerHTML='<label>Seu nome (como a equipe te chama)</label><input id="novanm" maxlength="30" autocomplete="off" placeholder="ex.: Ana"><button class="btn" type="button" id="novaok">Entrar</button><div id="novam"></div>';var i=$('novanm');i.focus();
  $('novaok').onclick=function(){var nm=i.value.trim();if(nm.length<2){msg('novam','Escreva o seu nome.','err');return}var b=$('novaok');b.disabled=true;b.innerHTML='<span class="spin"></span>Entrando…';
   api({voz:'nova',nome:nm}).then(function(r){var lj=(Q.lojas||[]).filter(function(x){return x.loja==LOJA})[0];if(lj&&r.vendedoras)lj.vendedoras=r.vendedoras;if(r.vendedoras)Q.vendedoras=r.vendedoras;$('novaf').innerHTML='';souEu({nome:r.nome,loja:LOJA});F.vendedora=r.nome;
-   fala('Pronto, '+r.nome+'! Seja bem-vinda. Quando terminar uma venda, toque no botão e me conta.');window.scrollTo(0,0)}).catch(function(e){b.disabled=false;b.textContent='Entrar';msg('novam',esc(e.message),'err')})}}
+   fala('Pronto, '+r.nome+'. Terminou uma venda? Toque no botão e conte.');window.scrollTo(0,0)}).catch(function(e){b.disabled=false;b.textContent='Entrar';msg('novam',esc(e.message),'err')})}}
 var MINHA={};
 function linkPend(){return URL_SCRIPT+'?v='+tok+'&n='+encodeURIComponent(EU.nome)+(TESTE?'&teste=1':'')}
 function pintaMinha(){var c=$('minha');if(!c)return;if(!Q.porLoja||!EU||!EU.nome){c.style.display='none';return}c.style.display='';var nm=EU.nome,m=MINHA[nm];
@@ -723,14 +723,14 @@ function linkMudou(l){var u=location.href.split('#')[0].split('?')[0];document.b
 function apresentadas(){try{return JSON.parse(ls('bbvoz_apres')||'[]')}catch(e){return[]}}
 function marcaApres(n){var a=apresentadas();if(n&&a.indexOf(n)<0){a.push(n);ls('bbvoz_apres',JSON.stringify(a))}}
 function pedeEu(volta){paraFala();paraOuvir();$('eus').innerHTML=(Q.lojas||[]).map(function(l){return'<label>'+esc(l.loja)+'</label><div class="chips">'+l.vendedoras.map(function(v){return'<button class="chip" type="button" data-loja="'+esc(l.loja)+'" data-v="'+esc(v)+'">'+esc(v)+'</button>'}).join('')+'</div>'}).join('');$('obconf').innerHTML='';pedeEu.volta=volta||'s1';show('s0')}
-function entrou(e){souEu(e);if(obOuviu)marcaApres(e.nome);adianta.ok=0;setTimeout(adianta,3000);var v=pedeEu.volta;if(v=='s2')conferir();else if(v=='s5')final();else show(v);fala('Pronto, '+e.nome+'! Quando terminar uma venda, toque no botão e me conta.')}
+function entrou(e){souEu(e);if(obOuviu)marcaApres(e.nome);adianta.ok=0;setTimeout(adianta,3000);var v=pedeEu.volta;if(v=='s2')conferir();else if(v=='s5')final();else show(v);fala('Pronto, '+e.nome+'. Terminou uma venda? Toque no botão e conte.')}
 $('eus').addEventListener('click',function(e){var c=e.target.closest('.chip');if(!c)return;destrava();paraOuvir();entrou({nome:c.dataset.v,loja:c.dataset.loja})});
 $('obmic').onclick=function(){destrava();paraFala();paraOuvir();$('obconf').innerHTML='';obOuviu=true;fala(OB_FALA,function(){if(!ouve(ouveNome,'obouv',true))obConf('Toque no seu nome aqui embaixo.')})};
 function obConf(h,falado){$('obconf').innerHTML='<div class="dup">'+h+'</div>';if(falado)fala(falado)}
 function ouveNome(alts){var c=[];alts.some(function(a){c=achaNome(Q.lojas,a);return c.length});
  if(!c.length){obConf('Não achei o seu nome'+(alts[0]?' ("'+esc(alts[0])+'")':'')+'. Toque nele aqui embaixo.','Não achei o seu nome. Toque nele aqui embaixo.');return}
  if(c.length==1){confirmaEu(c[0]);return}
- obConf('Qual delas é você?<div class="chips" style="margin-top:8px">'+c.map(function(x,i){return'<button class="chip" type="button" data-oc="'+i+'">'+esc(x.nome)+' · '+esc(x.loja)+'</button>'}).join('')+'</div>','Você é '+c.map(function(x){return'a '+x.nome+' do '+x.loja}).join(' ou ')+'?');obConf.c=c}
+ obConf('Qual delas é você?<div class="chips" style="margin-top:8px">'+c.map(function(x,i){return'<button class="chip" type="button" data-oc="'+i+'">'+esc(x.nome)+' · '+esc(x.loja)+'</button>'}).join('')+'</div>','Você é '+c.map(function(x){return x.nome+', do '+x.loja}).join(' ou ')+'?');obConf.c=c}
 function confirmaEu(x){obConf.x=x;obConf('Você é <b>'+esc(x.nome)+'</b>, do <b>'+esc(x.loja)+'</b>?<div class="row" style="margin-top:8px"><button class="btn" type="button" data-os="sim">Sim</button><button class="btn sec" type="button" data-os="nao">Não</button></div>');
  fala('Oi, '+x.nome+'! Você é do '+x.loja+'?',function(){ouve(function(a){var r='';a.some(function(t){r=simNao(t);return r});if(r=='sim')entrou(x);else if(r=='nao')obConf('Então toque no seu nome aqui embaixo.','Então toque no seu nome aqui embaixo.')},'obouv',true)})}
 $('obconf').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;paraOuvir();paraFala();if(b.dataset.oc!=null){confirmaEu(obConf.c[+b.dataset.oc]);return}if(b.dataset.os=='sim')entrou(obConf.x);else if(b.dataset.os=='nao')obConf('Então toque no seu nome aqui embaixo.')});
@@ -918,7 +918,8 @@ document.querySelectorAll('.chips[data-f]').forEach(function(g){g.addEventListen
 var TAM=['RN','P','M','G','GG','01','02','03','04','06','08','10','12'];
 function criHtml(c,i){if(c.conhecida)return r37()?criK(c,i):'';var sem=c.idade_meses===''||c.idade_meses==null,im=+c.idade_meses||0,a=sem?'':(Math.floor(im/12)||(im%12?'':'0')),m=sem?'':(im%12||'');
  return'<div class="cri" data-i="'+i+'"><button class="x" type="button" title="remover">×</button>'
- +'<div class="row"><div><label>Nome (se souber)</label><input data-k="apelido" value="'+esc(c.apelido||'')+'"></div><div><label>Idade</label><div class="row"><input data-k="anos" inputmode="numeric" placeholder="anos" value="'+a+'"><input data-k="meses" inputmode="numeric" placeholder="meses" value="'+m+'"></div></div></div>'
+ +'<label>Nome (se souber)</label><input data-k="apelido" value="'+esc(c.apelido||'')+'" style="width:calc(100% - 30px)">'
+ +'<label>Idade</label><div style="display:flex;align-items:center;gap:6px"><input data-k="anos" inputmode="numeric" value="'+a+'" style="width:64px;flex:0 0 64px"><span class="un">anos</span><input data-k="meses" inputmode="numeric" value="'+m+'" style="width:64px;flex:0 0 64px;margin-left:10px"><span class="un">meses</span></div>'
  +'<label>Menino ou menina</label><div class="chips" data-k="sexo"><button class="chip'+(c.sexo=='menina'?' on':'')+'" data-v="menina">Menina</button><button class="chip'+(c.sexo=='menino'?' on':'')+'" data-v="menino">Menino</button><button class="chip'+(c.nascido=='nao'?' on':'')+'" data-v="nasc">Ainda vai nascer</button></div>'
  +'<label>Tamanho da etiqueta</label><div class="chips" data-k="tamanho">'+TAM.map(function(t){return'<button class="chip'+(c.tamanho==t?' on':'')+'" data-v="'+t+'">'+t+'</button>'}).join('')+'</div>'
  +'<div data-k="prevbox" style="display:'+(c.nascido=='nao'?'':'none')+'"><label>Previsão do nascimento</label><input data-k="previsao" type="month" value="'+esc(c.previsao||'')+'"></div>'
