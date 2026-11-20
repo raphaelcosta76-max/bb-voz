@@ -1086,7 +1086,7 @@ function salvar(subst){var alvo=$('s5').style.display!='none'?'m5':'m2',bt=alvo=
   fala(['Pronto'+(nm?', '+nm:'')+', anotado.',av,dc?dc.texto:'',wf])}).catch(function(e){msg(alvo,e.message,'err')}).then(function(){$(bt).disabled=false;$(bt).textContent='Salvar registro'})}
 // v37l (B8): a idade de uma criança briga com o texto (ou com outra resposta) — pergunta qual vale antes de gravar; "Não sei" não grava nenhuma das duas (as duas ficam guardadas)
 function idTx(m){m=Number(m);return m<1?'menos de 1 mês':m<24?m+(m==1?' mês':' meses'):Math.floor(m/12)+' anos'}
-function conflitoIdade(l,alvo,subst){var x=l[0],k=(F.criancas||[])[x.i];if(!k){F.conflito_ok=true;salvar(subst);return}var nm=k.apelido||(k.sexo=='menina'?'a menina':k.sexo=='menino'?'o menino':'a criança'),dado=x.valores[0],out=x.valores.slice(1);
+function conflitoIdade(l,alvo,subst){var x=l[0],k=(F.criancas||[])[x.i];if(!k){F.conflito_ok=true;salvar(subst);return}var dado=x.valores[0],out=x.valores.slice(1),nm=(k.apelido||(k.sexo=='menina'?'a menina':k.sexo=='menino'?'o menino':'a criança'))+(k.compra=='sim'?' da compra':k.compra=='nao'?' que não entrou na compra':'');/* v37s: com duas meninas, dizer qual */
  var h='<div class="dup"><b>Entendi duas idades para '+esc(nm)+'.</b> '+out.map(function(v){return v.de=='texto'?'No texto: “'+esc(v.txt)+'” (cerca de '+esc(idTx(v.m))+').':'Em outra resposta: '+esc(idTx(v.m))+'.'}).join(' ')+' Nos dados ficou '+esc(idTx(dado.m))+'. Qual é a idade?';
  x.valores.forEach(function(v,i){h+='<button class="btn sec" type="button" data-ci="'+i+'">'+esc(idTx(v.m))+'</button>'});h+='<button class="btn sec" type="button" data-ci="ns">Não sei</button></div>';
  $(alvo).innerHTML=h;fala(['Entendi duas idades. Qual é a idade?']);
