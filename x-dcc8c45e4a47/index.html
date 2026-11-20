@@ -307,7 +307,7 @@ function dicaPara(S,F,pf){if(!S)return null;var mos=(F.basico_mostrado||[]).map(
  var rc=S.rec||{},best=null;(mos.length?mos:rk.map(function(x){return x.g})).forEach(function(g){var r=rc[g];if(r&&r.n>=60&&ok(g)&&(!best||r.mesmo>best.r.mesmo))best={g:g,r:r}});
  if(best)return{id:'rec:'+best.g,g:best.g,texto:'Você sabia? '+best.r.voltou+'% das clientes que levam '+nomeG(S,best.g).toLowerCase()+' voltam em até 12 meses, e '+best.r.mesmo+'% levam '+nomeG(S,best.g).toLowerCase()+' de novo. Peça o WhatsApp e avise quando chegar o próximo tamanho.'};
  return null}
-var MOTIVOS=[['caro','Achou caro'],['sem_tamanho_cor','Não tinha tamanho/cor'],['duvida','Ficou na dúvida'],['vai_voltar','Vai voltar'],['outro','Outro']];
+var MOTIVOS=[['nao_quis','Não quis (só mostrei)'],['caro','Achou caro'],['sem_tamanho_cor','Não tinha tamanho/cor'],['duvida','Ficou na dúvida'],['vai_voltar','Vai voltar'],['outro','Outro']];
 function novoF(){return{transcricao:'',resumo:'',boleta:'',cpf:'',tipo:'',relacao:'',relacao_outra:'',cliente_nome:'',ocasiao:'',criancas:[],faltou:'',faltou_itens:[],pode_avisar:'',novidades:'',promocoes:'',celular:'',proximo_evento:'',evento_tipo:'',evento_data:'',modelos_mostrados:-1,basico_mostrado:[],nao_levou:[],preferencias:[],avisar_sobre:[],respostas_ficha:{},vendedora:'',procurava:'',volta:'',motivo_nc:''}}
 function nomeCri(c,i){return c.apelido?c.apelido:'a criança '+(i+1)}
 // Lista do que ainda falta perguntar, na ordem. Pergunta já feita (respondida ou pulada) não volta.
@@ -322,12 +322,12 @@ function itemFalta(F,k){var a=String(k||'').charAt(0)=='f'?F.faltou_itens:F.nao_
 // a vendedora escolhe o modelo, depois a cor e o tamanho entre os que existem, e a quantidade. Sem achar no cadastro, fica o texto (cor e tamanho livres).
 function capW(s){return String(s||'').toLowerCase().replace(/(^|\s)\S/g,function(c){return c.toUpperCase()})}
 // v37c: toda pergunta diz de qual peça se trata (o que ela contou); peça dita só pelo tipo ("outra camiseta") pede o detalhe antes de mostrar os modelos
-var MOT_CTX={sem_tamanho_cor:'porque não tinha o tamanho ou a cor',caro:'porque achou caro',duvida:'porque ficou em dúvida',vai_voltar:'e vai voltar',so_olhando:'porque só estava olhando',decidir_com_alguem:'porque vai decidir com alguém'};
+var MOT_CTX={nao_quis:'porque não quis',sem_tamanho_cor:'porque não tinha o tamanho ou a cor',caro:'porque achou caro',duvida:'porque ficou em dúvida',vai_voltar:'e vai voltar',so_olhando:'porque só estava olhando',decidir_com_alguem:'porque vai decidir com alguém'};
 var PALV_VAZ=['um','uma','uns','umas','outra','outro','outras','outros','de','da','do','das','dos','a','o','as','os','peca','pecas','mais','tambem','e','pra','para','que','ela'];
 function generico(n){if(n.busca||n.ref)return false;var w=normaliza(n.peca).split(' ').filter(function(x){return x&&PALV_VAZ.indexOf(x)<0&&!/^\d+$/.test(x)});return w.length<=1}
 function limpaPeca(t){var s=String(t||'').replace(/\s+/g,' ').trim();s=s.replace(/^(ela |a cliente )?(olhou|procurou|queria|viu|pediu|perguntou( por)?)\s+/i,'').replace(/^(a|o|uma|um)\s+/i,'');
  s=s.replace(/[,;]?\s*(que|mas|e|porque|pois)?\s*(a gente |a loja |nos )?(nao|não) (tinha|tem|tinhamos|tínhamos|levou)\b.*$/i,'').replace(/[\s,.;:!?]+$/,'');return s||String(t||'').trim()}
-function motivoDe(t){t=normaliza(t);if(!t)return'';if(/nao (tinha|tem|tinhamos|achou|encontrou)|acabou|esgot|faltou|sem (o |a )?(tamanho|cor|numero)|nao serviu/.test(t))return'sem_tamanho_cor';if(/caro|preco|valor/.test(t))return'caro';if(/duvida|indecis|pensar/.test(t))return'duvida';if(/vai voltar|volta (depois|outro|amanha|semana)|depois ela/.test(t))return'vai_voltar';return''}
+function motivoDe(t){t=normaliza(t);if(!t)return'';if(/interess|nao quis|nao gostou|nao curtiu|nao precis|nao queria|nao quer\b|recusou|so (mostrei|ofereci|apresentei|mostrou|ofereceu)|mostrei (so|para|pra) ela ver/.test(t)&&!/caro|preco|valor|nao (tinha|tem|tinhamos) (o |a )?(tamanho|cor|numero)/.test(t))return'nao_quis';if(/nao (tinha|tem|tinhamos|achou|encontrou)|acabou|esgot|faltou|sem (o |a )?(tamanho|cor|numero)|nao serviu/.test(t))return'sem_tamanho_cor';if(/caro|preco|valor/.test(t))return'caro';if(/duvida|indecis|pensar/.test(t))return'duvida';if(/vai voltar|volta (depois|outro|amanha|semana)|depois ela/.test(t))return'vai_voltar';return''}
 function palavrasPeca(t){return normaliza(t).split(' ').filter(function(w){return w&&w.length>2&&PALV_VAZ.indexOf(w)<0&&!/^\d+$/.test(w)&&['nao','tinha','loja','tamanho','anos','meses','levou','porque','com','sem','cor'].indexOf(w)<0}).map(stemW)}
 function mesmaPeca(a,b){var x=palavrasPeca(a),y=palavrasPeca(b);if(!x.length||!y.length)return false;var p=x.length<=y.length?x:y,g=p===x?y:x;return p.every(function(w){return g.indexOf(w)>=0})}
 // v37e: cópias da mesma peça (a IA devolve a peça de novo, com outro nome) viram uma só, ficando com o que já foi respondido
@@ -349,7 +349,9 @@ function estoqueTxt(n){var e=n.estq;if(!e||e.erro)return'';if(!e.dia)return e.l&
 // v37g: na linha da peça do resumo — "ontem tinha no Goiânia Shopping (4)"
 function estoqueCurto(n){var e=n.estq;if(!e||e.erro)return'';if(!e.dia)return e.l&&!e.l.length?'ontem não tinha em nenhuma loja':'';var s=estoqueLojas(n),q=s.qd.charAt(0).toLowerCase()+s.qd.slice(1);
  if(!s.l.length)return q+' não tinha em nenhuma loja';return q+' tinha '+listaF(s.l.map(function(x){return(x.loja==s.aq?'aqui na loja':'no '+x.loja)+' ('+x.saldo+')'}))}
-function perguntasFalta(F,add){itensFalta(F).forEach(function(x){var n=x.n,k=x.k,p=n.peca,nm=n.ref_ok&&n.ref_desc?n.ref_desc:p,falta=k.charAt(0)=='f',cx=ctxFalta(n,falta);
+// v37q (19/11): peça que a cliente não quis (só mostrada) não gera pergunta de detalhe — fica só o que a vendedora falou
+function semInteresse(n,k){return String(k||'').charAt(0)!='f'&&n&&n.motivo=='nao_quis'}
+function perguntasFalta(F,add){itensFalta(F).forEach(function(x){if(semInteresse(x.n,x.k))return;var n=x.n,k=x.k,p=n.peca,nm=n.ref_ok&&n.ref_desc?n.ref_desc:p,falta=k.charAt(0)=='f',cx=ctxFalta(n,falta);
   if(n.ref&&n.ref_desc&&!n.ref_ok&&!n.ref_skip)add('fref:'+k,sobreF(p,falta)+'a referência '+n.ref+' é '+n.ref_desc+'?',[['sim','É essa'],['nao','Não é']]);
   if(n.ref&&n.ref_nao&&!n.ref_ok&&!n.ref_skip)add('frefx:'+k,sobreF(p,falta)+'não achei a referência '+n.ref+' no cadastro. Qual é o número certo?',[['tirar','Deixa sem referência']]);
   if(!n.ref_ok&&!n.ref_skip&&!n.ref){if(n.cands&&n.cands.length>3&&!n.fdet&&generico(n))add('fdet:'+k,cx+' Qual '+(String(p).trim().split(/\s+/).filter(function(w){return PALV_VAZ.indexOf(normaliza(w))<0}).join(' ')||p).toLowerCase()+'? Fale o modelo, a cor ou a referência da etiqueta.',[['nao_sei','Não sei']]);
@@ -463,7 +465,7 @@ function rotuloBas(nome,F){if(nome!='Calcinha/cueca')return nome;var sx=(F.crian
 function basicoListas(S,F,todos){var el=elegiveis(S,F);if(!el)return{lista:todos.slice(),outros:[]};var l=el.ord.map(function(g){return nomeG(S,g)}).filter(function(n){return todos.indexOf(n)>=0});return{lista:l,outros:todos.filter(function(n){return l.indexOf(n)<0})}}
 // ---- v35: o que a assistente entendeu (tela e fala)
 var REL_F={mae:'a mãe',pai:'o pai',avo:'a avó ou o avô',tia:'a tia ou o tio',madrinha:'a madrinha',amiga:'uma amiga',outra:'outra pessoa'};
-var MOT_F={caro:'achou caro',sem_tamanho_cor:'não tinha o tamanho ou a cor',duvida:'ficou na dúvida',vai_voltar:'disse que vai voltar',outro:''};
+var MOT_F={nao_quis:'não quis',caro:'achou caro',sem_tamanho_cor:'não tinha o tamanho ou a cor',duvida:'ficou na dúvida',vai_voltar:'disse que vai voltar',outro:''};
 var AVI_F={promocao:'promoções',chegada:'chegada de peça',colecao:'coleção nova',evento:'data ou evento',outro:'outro'};
 function pecaF(n){return(n.qtd>1?n.qtd+' × ':'')+(n.ref_ok&&n.ref_desc?n.ref_desc:n.peca)+(n.cor?' '+capW(n.cor):'')+(n.tamanho?' '+n.tamanho:'')+(n.ref?' (ref. '+n.ref+')':'')+(function(){var c=estoqueCurto(n);return c?' · '+c:(n.estoque?' · '+n.estoque:'')})()}
 function idadeF(m){m=Number(m);if(m<1)return'menos de 1 mês';return m<24?m+(m==1?' mês':' meses'):Math.floor(m/12)+' anos'}
@@ -724,10 +726,24 @@ $('obconf').addEventListener('click',function(e){var b=e.target.closest('button'
 if(!SR)$('obbox').style.display='none';
 
 // ---- ficha da cliente
+// v37q: calculadora do cashback (regra: paga no máximo CB.lim da compra; vale para todas as peças)
+var CB={saldo:0,lim:0.15,v:['']};
+function cbNum(s){s=String(s||'').replace(/[^\d,.]/g,'');if(s.indexOf(',')>=0)s=s.replace(/\./g,'').replace(',','.');var n=parseFloat(s);return isFinite(n)?n:0}
+function cbLinha(v,i){return'<div class="row" style="margin:4px 0"><input class="cbv" data-i="'+i+'" inputmode="decimal" placeholder="valor da peça (R$)" value="'+esc(v)+'" style="flex:1"></div>'}
+function cbCalc(saldo,valor,lim){var teto=Math.floor(valor*lim*100+1e-6)/100,d=Math.round(Math.min(Math.max(0,saldo),teto)*100)/100;return{teto:teto,desconto:d,paga:Math.round((valor-d)*100)/100,sobra:Math.round((saldo-d)*100)/100,para_tudo:saldo>0?Math.ceil(saldo/lim*100-1e-6)/100:0}}
+function cbMostra(){var r=$('cbr');if(!r)return;var R$=function(v){return'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})},tot=CB.v.reduce(function(s,x){return s+cbNum(x)},0);
+ if(!(tot>0)){r.innerHTML='<div class="sofar">Digite o valor de cada peça. O cashback paga até '+Math.round(CB.lim*100)+'% da compra.</div>';return}
+ var c=cbCalc(CB.saldo,tot,CB.lim);r.innerHTML='<div>Peças: <b>'+R$(tot)+'</b></div><div>Desconto do cashback: <b>'+R$(c.desconto)+'</b>'+(c.desconto<CB.saldo?' (até '+Math.round(CB.lim*100)+'% da compra = '+R$(c.teto)+')':' (todo o saldo)')+'</div><div style="font-size:19px;margin-top:4px">Ela paga: <b>'+R$(c.paga)+'</b></div>'
+  +(c.sobra>0?'<div class="sofar">Sobra de cashback: '+R$(c.sobra)+'. Para usar tudo, a compra precisa ser de '+R$(c.para_tudo)+'.</div>':'')}
+document.addEventListener('input',function(e){var x=e.target;if(!x.classList||!x.classList.contains('cbv'))return;CB.v[+x.dataset.i]=x.value;cbMostra()});
+document.addEventListener('click',function(e){if(e.target.id!='cbadd')return;CB.v.push('');$('cbl').innerHTML=CB.v.map(cbLinha).join('');var l=document.querySelectorAll('.cbv');if(l.length)l[l.length-1].focus();cbMostra()});
 function fichaHtml(f){var h='<h2>O que já sabemos</h2>',R$=function(v){return'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})},M=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];function dm(s){s=String(s||'');return s.length>=10?s.slice(8,10)+'/'+s.slice(5,7)+'/'+s.slice(2,4):s.length==7?M[+s.slice(5,7)-1]+'/'+s.slice(0,4):s}
  function idade(m){if(m===''||m==null)return'';m=+m;return m<24?m+(m==1?' mês':' meses'):Math.floor(m/12)+' anos'+(m%12?' e '+m%12+(m%12==1?' mês':' meses'):'')}
- // cashback calculado pelas compras nas lojas próprias (10%, vale do dia seguinte até 61 dias) — só na tela
- if(f.cashback&&!f.cashback.erro){var cb=f.cashback;h+='<div class="cbk">'+(cb.saldo>0?'💰 <b>Cashback: '+R$(cb.saldo)+'</b>'+(cb.vencimentos||[]).slice(0,3).map(function(x){return'<div>'+R$(x.v)+' vence em '+dm(x.ate)+'</div>'}).join(''):'💰 Sem cashback válido agora')+'<div class="sofar">Vale se ela tem cadastro no cashback.</div></div>'}
+ // v37q: saldo real da Quickon (ou estimado do CRM, marcado) + calculadora: valor das peças → desconto (até o limite da compra) e quanto ela paga
+ if(f.cashback&&!f.cashback.erro){var cb=f.cashback,est=cb.fonte!='quickon';CB.saldo=cb.cadastro===false?0:Number(cb.saldo)||0;CB.lim=Number(cb.limite)||0.15;
+  h+='<div class="cbk">'+(cb.cadastro===false?'💰 Sem cadastro no cashback (Quickon). Cadastre para ela começar a ganhar.':(CB.saldo>0?'💰 <b>Cashback'+(est?' estimado':'')+': '+R$(CB.saldo)+'</b>'+(cb.vencimentos||[]).filter(function(x){return x.liberado!==false}).slice(0,3).map(function(x){return'<div>'+R$(x.v)+' vence em '+dm(x.ate)+'</div>'}).join('')+(cb.a_liberar||[]).map(function(x){return'<div class="sofar">'+R$(x.v)+' libera em '+dm(x.desde)+'</div>'}).join(''):'💰 Sem cashback válido agora'))
+   +(est?'<div class="sofar">Estimado pelas compras (a Quickon não respondeu'+(dig($('i_cpf').value)?'':' — digite o CPF para o saldo real')+'). Confira no sistema antes de falar em valor.</div>':'<div class="sofar">Saldo da Quickon agora.</div>')
+   +(CB.saldo>0?'<div class="t" style="margin-top:8px">Quanto ela paga com o cashback</div><div id="cbl">'+CB.v.map(cbLinha).join('')+'</div><button class="link" type="button" id="cbadd">+ outra peça</button><div id="cbr"></div>':'')+'</div>'}
  if(f.venda)h+='<div>Venda de hoje: '+f.venda.pecas+' peça(s), R$ '+Number(f.venda.valor||0).toFixed(2).replace('.',',')+'</div>';
  if(f.compras){var c=f.compras;h+='<div class="t">Última visita</div>';
   if(c.ult)h+='<div><b>'+dm(c.ult)+'</b>'+(c.loja?' no '+esc(c.loja):'')+(c.atendeu?', atendida por '+esc(c.atendeu):'')+(c.valor_ult?' · '+R$(c.valor_ult):'')+'</div>'+(c.itens_ult?'<div class="sofar">'+esc(c.itens_ult)+'</div>':'');
@@ -739,7 +755,7 @@ function fichaHtml(f){var h='<h2>O que já sabemos</h2>',R$=function(v){return'R
  if((f.avisos||[]).length)h+='<div class="t">Quer ser avisada de</div><ul>'+f.avisos.map(function(p){return'<li>'+esc(p)+'</li>'}).join('')+'</ul>';
  var sg=[];f.criancas.forEach(function(c){var pf=perfilDe({criancas:[{nascido:c.nascido,tamanho:'',idade_meses:c.idade_meses,sexo:c.sexo}],tipo:''});var rk=rankPara(S,pf).slice(0,3);if(rk.length)sg.push((c.apelido?esc(c.apelido)+' ('+esc(descPerfil(pf))+')':esc(descPerfil(pf)))+': '+rk.map(function(x){return esc(x.nome)+' '+x.pct+'%'}).join(', '))});
  if(sg.length)h+='<div class="t">Para mostrar (o que mais vende nessa idade)</div><ul>'+sg.map(function(x){return'<li>'+x+'</li>'}).join('')+'</ul>';
- var ol=[];f.historico.forEach(function(x){(x.nao_levou||[]).forEach(function(n){ol.push(dm(x.data)+': '+n.peca+(n.tamanho?' '+n.tamanho:'')+(n.motivo?' — '+({caro:'achou caro',sem_tamanho_cor:'não tinha tamanho/cor',duvida:'ficou na dúvida',vai_voltar:'disse que voltaria',outro:'outro motivo'})[n.motivo]:''))});if(x.faltou&&x.faltou!='nada')ol.push(dm(x.data)+': procurou '+x.faltou+' (não tinha)')});
+ var ol=[];f.historico.forEach(function(x){(x.nao_levou||[]).forEach(function(n){ol.push(dm(x.data)+': '+n.peca+(n.tamanho?' '+n.tamanho:'')+(n.motivo?' — '+({caro:'achou caro',sem_tamanho_cor:'não tinha tamanho/cor',duvida:'ficou na dúvida',vai_voltar:'disse que voltaria',nao_quis:'não quis',outro:'outro motivo'})[n.motivo]:''))});if(x.faltou&&x.faltou!='nada')ol.push(dm(x.data)+': procurou '+x.faltou+' (não tinha)')});
  if(ol.length)h+='<div class="t">Oportunidades anteriores</div><ul>'+ol.map(function(x){return'<li>'+esc(x)+'</li>'}).join('')+'</ul>';
  if(f.historico.length)h+='<div class="t">Atendimentos anteriores</div><ul>'+f.historico.map(function(x){return'<li>'+dm(x.data)+' · '+esc(x.vendedora)+': '+esc(x.resumo)+'</li>'}).join('')+'</ul>';
  if(f.pendentes.length)h+='<div class="sofar" style="margin-top:8px">Vou perguntar sobre isso na entrevista.</div>';
@@ -749,7 +765,7 @@ function buscaFicha(silencioso){var b=dig($('i_boleta').value),c=dig($('i_cpf').
   // crianças já cadastradas entram como "conhecidas": a IA reaproveita em vez de duplicar
   F.criancas=(F.criancas||[]).filter(function(x){return!x.conhecida}).concat(f.criancas.map(function(c){return{id:c.id,apelido:c.apelido,sexo:c.sexo,idade_meses:c.idade_meses,tamanho:c.tamanho,nascido:c.nascido,previsao:c.previsao,nasc:c.nasc,conhecida:true}}));
   if(!f.achou){$('ficha').style.display='none';msg('mf',f.venda?'Primeira vez que registramos esta cliente.':'Não achei esta cliente. A venda de hoje entra amanhã no sistema; pelo CPF eu acho as compras antigas.');return}
-  $('ficha').innerHTML=fichaHtml(f);$('ficha').style.display=''}).catch(function(e){msg('mf','Não consegui buscar: '+e.message,'err')})}
+  CB.v=[''];$('ficha').innerHTML=fichaHtml(f);$('ficha').style.display='';cbMostra()}).catch(function(e){msg('mf','Não consegui buscar: '+e.message,'err')})}
 $('verficha').onclick=function(){buscaFicha(false)};
 $('i_cpf').addEventListener('input',function(){if(dig(this.value).length==11)buscaFicha(true)});
 
@@ -815,7 +831,7 @@ function confereRefs(){var l=itensFalta(F).filter(function(x){var r=String(x.n.r
  return Promise.all(l.map(function(x){var n=x.n,r=String(n.ref).replace(/\D/g,'');n.ref=r;return api({voz:'ref',ref:r}).then(function(o){n.ref_chk=r;if(o&&o.achou){n.ref_draw=String(o.d||'');n.ref_desc=String(o.d||'').toLowerCase().replace(/(^|\s)\S/g,function(c){return c.toUpperCase()});n.ref_nao=false;n.grade={cores:String(o.cores||'').split(/,\s*/).filter(String),tams:String(o.tams||'').split(/,\s*/).filter(String)}}else{n.ref_desc='';n.ref_nao=true}}).catch(function(){n.ref_chk=r})}))}
 function buscaEstoque(){var l=itensFalta(F).filter(function(x){var n=x.n;return n.ref_ok&&n.ref&&n.ref_draw&&n.estq===undefined});if(!l.length)return null;
  return Promise.all(l.map(function(x){var n=x.n;return api({voz:'estoque',ref:n.ref,d:n.ref_draw}).then(function(o){n.estq=o||{l:[]}}).catch(function(){n.estq={l:[],erro:1}})}))}
-function buscaPecas(){var l=itensFalta(F).filter(function(x){var n=x.n;return!n.ref_ok&&!n.ref_skip&&!n.ref&&n.cands===undefined});if(!l.length)return null;
+function buscaPecas(){var l=itensFalta(F).filter(function(x){var n=x.n;if(x.k.charAt(0)!='f'&&(n.motivo=='nao_quis'||(!n.motivo&&!F.nao_compra)))return false;return!n.ref_ok&&!n.ref_skip&&!n.ref&&n.cands===undefined});if(!l.length)return null;
  return Promise.all(l.map(function(x){var n=x.n,dt=n.busca?'':String(n.detalhe||''),q=(normaliza(dt).indexOf(normaliza(n.peca))>=0?dt:[n.busca||n.peca,dt].join(' ')).trim();return api({voz:'produto',t:q}).then(function(o){n.cands=(o&&o.l)||[];if(n.cands.length==1&&n.cands[0].sc==9)escolheProd(n,n.cands[0])}).catch(function(){n.cands=[]})}))}
 function proxima(){var pr=confereRefs();if(pr){msg('m4','<span class="spin"></span>Conferindo a referência…');pr.then(function(){msg('m4','');proxima()});return}
  var pb=buscaPecas();if(pb){msg('m4','<span class="spin"></span>Procurando a peça no cadastro…');pb.then(function(){msg('m4','');proxima()});return}
@@ -834,17 +850,19 @@ function escutaLonga(q,aviso){if(!falar||atual!==q||gravando()||$('s4').style.di
  setTimeout(function(){if(atual!==q||gravando())return;gravar({btn:'mic2',lbl:'micl2',lbl0:'Responder',tm:'timer2',m:'m4',max:60,envia:resposta,auto:true,vad:true})},300)}
 function cancelaAuto(){if(gravando()&&gr&&gr.vad){gr.cancel=true;parar()}}
 // resposta curta falada: tenta entender no celular; se não der, manda o texto para a IA
-function respCurta(q,alts){if(atual!==q)return;for(var i=0;i<alts.length;i++)if(aplicaCurta(F,q,alts[i])){porVoz=true;feito();return}
+function respCurta(q,alts){if(atual!==q)return;for(var i=0;i<alts.length;i++)if(aplicaCurta(F,q,alts[i])){porVoz=true;logP(alts[i],'voz');feito();return}
  if(q.tipo=='boleta'){msg('m4','Entendi "'+esc(alts[0]||'')+'". Digite o número da boleta.','err');return}
  msg('m4','<span class="spin"></span>Entendendo…');porVoz=true;resposta({texto:alts[0]}).catch(function(e){msg('m4','Não deu: '+e.message,'err')})}
+// v37q: cada pergunta mostrada e a resposta vão para a aba Perguntas (resposta vazia = em branco)
+function logP(r,modo){if(!atual)return;F.perg_log=F.perg_log||[];F.perg_log.push({id:atual.id,p:String(atual.texto||'').slice(0,300),r:String(r==null?'':r).slice(0,300),m:modo||'',h:new Date().toTimeString().slice(0,5)})}
 function feito(){if(feitas.indexOf(atual.id)<0)feitas.push(atual.id);guarda();proxima()}
 $('qop').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;paraOuvir();cancelaAuto();
  if(b.dataset.bo){var sel=[].map.call($('qbas').querySelectorAll('.chip.on'),function(x){return x.dataset.b});opBasico.outros=true;$('qop').innerHTML=opBasico();sel.forEach(function(v){var c=$('qbas').querySelector('[data-b="'+v.replace(/"/g,'')+'"]');if(c)c.classList.add('on')});return}
  if(b.dataset.m){$('qmod').querySelectorAll('.chip').forEach(function(x){x.classList.toggle('on',x===b)});return}
  if(b.dataset.b){b.classList.toggle('on');if(b.dataset.b=='nenhuma'&&b.classList.contains('on'))$('qbas').querySelectorAll('.chip').forEach(function(x){if(x!==b)x.classList.remove('on')});else if(b.dataset.b!='nenhuma')$('qbas').querySelector('[data-b=nenhuma]').classList.remove('on');return}
- if(b.dataset.ok=='boleta'){var v=dig($('qbol').value);if(!v||v.length>6){msg('m4','Digite o número da boleta (até 6 números).','err');return}F.boleta=v;feito();return}
- if(b.dataset.ok=='basico'){var sel2=[].map.call($('qbas').querySelectorAll('.chip.on'),function(x){return x.dataset.b});var mo=$('qmod').querySelector('.chip.on');if(!sel2.length||!mo){msg('m4','Marque as peças (ou "Não mostrei") e quantos modelos — ou responda falando.','err');return}F.basico_mostrado=sel2;F.modelos_mostrados=parseInt(mo.dataset.m,10);feito();return}
- if(b.dataset.v!=null){aplicaOpcao(F,atual.id,b.dataset.v,FI);feito()}});
+ if(b.dataset.ok=='boleta'){var v=dig($('qbol').value);if(!v||v.length>6){msg('m4','Digite o número da boleta (até 6 números).','err');return}F.boleta=v;logP(v,'digitou');feito();return}
+ if(b.dataset.ok=='basico'){var sel2=[].map.call($('qbas').querySelectorAll('.chip.on'),function(x){return x.dataset.b});var mo=$('qmod').querySelector('.chip.on');if(!sel2.length||!mo){msg('m4','Marque as peças (ou "Não mostrei") e quantos modelos — ou responda falando.','err');return}F.basico_mostrado=sel2;F.modelos_mostrados=parseInt(mo.dataset.m,10);logP(sel2.join(', ')+' · '+mo.dataset.m+' modelo(s)','botão');feito();return}
+ if(b.dataset.v!=null){aplicaOpcao(F,atual.id,b.dataset.v,FI);logP(b.textContent,'botão');feito()}});
 function ultimaResp(r){var t=String(r.transcricao||''),i=t.lastIndexOf('R: ');return i>=0?t.slice(i+3).trim():''}
 function posResposta(id,r){var k=id.split(':')[0],tx=ultimaResp(r),neg=/^(nao|nada|nenhum|nenhuma)\b/.test(normaliza(tx));
  if(k=='fdet'||k=='fmod'){var key=id.split(':')[1],a=key.charAt(0)=='f'?'faltou_itens':'nao_levou',nF=(F.faltou_itens||[]).length,nN=(F.nao_levou||[]).length;r.faltou_itens=(r.faltou_itens||[]).slice(0,nF);r.nao_levou=(r.nao_levou||[]).slice(0,nN);var it=(r[a]||[])[Number(key.slice(1))];
@@ -854,13 +872,13 @@ function posResposta(id,r){var k=id.split(':')[0],tx=ultimaResp(r),neg=/^(nao|na
  if(!tx||neg||novos)return;
  if(k=='faltou'||k=='ncfalta')r.faltou_itens=(r.faltou_itens||[]).concat([{peca:limpaPeca(tx).slice(0,120),detalhe:tx.slice(0,200),cor:'',tamanho:'',ref:'',avisar:''}]);
  if(k=='nao_levou')r.nao_levou=(r.nao_levou||[]).concat([{peca:limpaPeca(tx).slice(0,120),detalhe:tx.slice(0,200),cor:'',tamanho:'',ref:'',avisar:'',motivo:motivoDe(tx)}])}
-function resposta(d){d.ctx=F;d.pergunta=atual.texto;if(F.nao_compra)d.modo='nc';var id=atual.id,q0=atual;return api({voz:'interpretar',d:d}).then(function(r){if(r&&r.descartado){msg('m4',MSG_DESC,'err');return}if(feitas.indexOf(id)<0)feitas.push(id);posResposta(id,r);
+function resposta(d){d.ctx=F;d.pergunta=atual.texto;if(F.nao_compra)d.modo='nc';var id=atual.id,q0=atual;return api({voz:'interpretar',d:d}).then(function(r){if(r&&r.descartado){msg('m4',MSG_DESC,'err');return}if(feitas.indexOf(id)<0)feitas.push(id);if(atual===q0)logP(ultimaResp(r)||d.texto||'(áudio)',d.texto?'digitou':'voz');posResposta(id,r);
  if(/^f(prod|cor|tam|qtd|tc|ref|refx|av)$/.test(id.split(':')[0])){var tx=ultimaResp(r);if(tx)try{if(!aplicaCurta(r,q0,tx)&&q0.op){var tn=normaliza(tx);q0.op.some(function(o){if(normaliza(o[1])&&tn.indexOf(normaliza(o[1]))>=0){aplicaOpcao(r,id,o[0],FI);return true}})}}catch(e){}}
  recebe(r)})}
 $('mic2').onclick=function(){paraOuvir();porVoz=true;gravar({btn:'mic2',lbl:'micl2',lbl0:'Responder',tm:'timer2',m:'m4',max:60,envia:resposta})};
-$('qenv').onclick=function(){var t=$('qtxt').value.trim();if(!t)return;paraOuvir();cancelaAuto();if(aplicaCurta(F,atual,t)){feito();return}$('qenv').disabled=true;msg('m4','<span class="spin"></span>Entendendo…');resposta({texto:t}).catch(function(e){msg('m4','Não deu: '+e.message,'err')}).then(function(){$('qenv').disabled=false})};
+$('qenv').onclick=function(){var t=$('qtxt').value.trim();if(!t)return;paraOuvir();cancelaAuto();if(aplicaCurta(F,atual,t)){logP(t,'digitou');feito();return}$('qenv').disabled=true;msg('m4','<span class="spin"></span>Entendendo…');resposta({texto:t}).catch(function(e){msg('m4','Não deu: '+e.message,'err')}).then(function(){$('qenv').disabled=false})};
 $('qtxt').addEventListener('keydown',function(e){if(e.key=='Enter')$('qenv').click()});
-$('qpula').onclick=function(){paraOuvir();cancelaAuto();feito()};
+$('qpula').onclick=function(){paraOuvir();cancelaAuto();logP('','pulou');feito()};
 $('qfim').onclick=function(){pulou=true;paraFala();paraOuvir();cancelaAuto();final('')};
 
 // ---- fim da entrevista: resumo + dica → salvar (ou corrigir tudo)
@@ -899,7 +917,7 @@ function renderBasico(){var s=(F.basico_mostrado||[]).map(function(x){return Str
 $('basico').addEventListener('click',function(e){var b=e.target.closest('.chip');if(!b)return;e.preventDefault();if(b.dataset.bo){basOutros=true;renderBasico();return}var v=b.dataset.b,l=(F.basico_mostrado||[]).slice(),ix=l.map(function(x){return String(x).toLowerCase()}).indexOf(v.toLowerCase());if(ix>=0)l.splice(ix,1);else{if(v=='nenhuma')l=[];else l=l.filter(function(x){return x!='nenhuma'});l.push(v)}F.basico_mostrado=l;renderBasico()});
 function pecaCampos(n){return'<div class="row"><div><label>Cor</label><input data-k="cor" value="'+esc(n.cor||'')+'"></div><div style="flex:0 0 90px"><label>Tamanho</label><input data-k="tamanho" value="'+esc(n.tamanho||'')+'"></div><div style="flex:0 0 110px"><label>Referência</label><input data-k="ref" inputmode="numeric" placeholder="se souber" value="'+esc(n.ref||'')+'"></div></div>'+(n.ref_desc?'<div class="sofar">'+esc(n.ref_desc)+'</div>':'')}
 function avisarHtml(n){return'<label>Avisar quando chegar?</label><div class="chips" data-av="1"><button class="chip'+(n.avisar=='sim'?' on':'')+'" data-a="sim">Sim</button><button class="chip'+(n.avisar=='nao'?' on':'')+'" data-a="nao">Não</button></div>'}
-function nlHtml(n,i){return'<div class="nl" data-i="'+i+'"><button class="x" type="button">×</button><label>Peça</label><input data-k="peca" value="'+esc(n.peca||'')+'">'+pecaCampos(n)+'<label>Por quê</label><div class="chips">'+MOTIVOS.map(function(m){return'<button class="chip'+(n.motivo==m[0]?' on':'')+'" data-v="'+m[0]+'">'+m[1]+'</button>'}).join('')+'</div>'+(n.motivo=='sem_tamanho_cor'?avisarHtml(n):'')+'<input data-k="detalhe" placeholder="detalhe (opcional)" style="margin-top:8px" value="'+esc(n.detalhe||'')+'"></div>'}
+function nlHtml(n,i){return'<div class="nl" data-i="'+i+'"><button class="x" type="button">×</button><label>Peça</label><input data-k="peca" value="'+esc(n.peca||'')+'">'+(n.motivo=='nao_quis'?'':pecaCampos(n))+'<label>Por quê</label><div class="chips">'+MOTIVOS.map(function(m){return'<button class="chip'+(n.motivo==m[0]?' on':'')+'" data-v="'+m[0]+'">'+m[1]+'</button>'}).join('')+'</div>'+(n.motivo=='sem_tamanho_cor'?avisarHtml(n):'')+'<input data-k="detalhe" placeholder="detalhe (opcional)" style="margin-top:8px" value="'+esc(n.detalhe||'')+'"></div>'}
 function fiHtml(n,i){return'<div class="nl fi" data-i="'+i+'"><button class="x" type="button">×</button><label>Peça (modelo)</label><input data-k="peca" value="'+esc(n.peca||'')+'">'+pecaCampos(n)+avisarHtml(n)+'</div>'}
 function renderFi(){$('fis').innerHTML=(F.faltou_itens||[]).map(fiHtml).join('')}
 $('fis').addEventListener('click',function(e){var box=e.target.closest('.fi');if(!box)return;var i=+box.dataset.i,n=F.faltou_itens[i];if(e.target.classList.contains('x')){F.faltou_itens.splice(i,1);renderFi();return}var ch=e.target.closest('.chip');if(!ch)return;e.preventDefault();n.avisar=n.avisar==ch.dataset.a?'':ch.dataset.a;renderFi()});
@@ -928,7 +946,7 @@ function salvar(subst){var alvo=$('s5').style.display!='none'?'m5':'m2',bt=alvo=
  if(falta.length&&pulou&&!subst&&!salvar.ciente){salvar.ciente=1;msg(alvo,'Falta: '+falta.join(', ')+'. Se salvar assim, a venda volta amanhã na sua página (Pendente de confirmação) para completar. Toque em Salvar de novo para confirmar.','err');return}
  if(F.modelos_mostrados>=0&&F.modelos_mostrados<4&&!subst&&!salvar.poucos){salvar.poucos=1;msg(alvo,'Só '+F.modelos_mostrados+' modelo(s) mostrado(s) — o mínimo é 4. Está certo? Toque em Salvar de novo para confirmar.','err');return}
  var ce0=dig(F.celular);if(ce0&&!F.celular_nao&&(ce0.length<10||ce0.length>11)){msg(alvo,'Celular com DDD: 10 ou 11 números.','err');return}avisoCel(F);
- $(bt).disabled=true;$(bt).innerHTML='<span class="spin"></span>Salvando…';var d=JSON.parse(JSON.stringify(F));d.boleta=b;d.cpf=dig(F.cpf);if(subst)d.substituir=true;d.v='37o';
+ $(bt).disabled=true;$(bt).innerHTML='<span class="spin"></span>Salvando…';var d=JSON.parse(JSON.stringify(F));d.boleta=b;d.cpf=dig(F.cpf);if(subst)d.substituir=true;d.v='37q';
  api({voz:'gravar',d:d}).then(function(r){if(r.conflito_idade){conflitoIdade(r.conflito_idade,alvo,subst);return}if(r.duplicada){$(alvo).innerHTML='<div class="dup"><b>A boleta '+esc(b)+' já foi registrada</b> em '+esc(r.quando)+' por '+esc(r.vendedora)+'. É a mesma venda?<button class="btn" type="button" id="subst">Sim, substituir pelo registro de agora</button><button class="btn sec" type="button" id="corr">Não, vou corrigir a boleta</button></div>';$('subst').onclick=function(){salvar(true)};$('corr').onclick=function(){if(alvo=='m5')conferir();msg('m2','');$('f_boleta').focus()};return}
   var dc=F.dica,nm=nomeEu()||(r.vendedora&&Q.porLoja?r.vendedora:'');salvo();contaDia();var av='Amanhã você confere as peças em Pendente de confirmação.';$('okmsg').textContent='Pronto'+(nm?', '+nm:'')+', anotado. Boleta '+b+'.'+(av?' '+av:'');$('okdica').style.display=dc?'':'none';$('okdica').innerHTML=dc?'💡 '+esc(dc.texto):'';var wf=pintaWa(F,r.chave);$('okresto').style.display='none';show('s3');
   fala(['Pronto'+(nm?', '+nm:'')+', anotado.',av,dc?dc.texto:'',wf])}).catch(function(e){msg(alvo,e.message,'err')}).then(function(){$(bt).disabled=false;$(bt).textContent='Salvar registro'})}
