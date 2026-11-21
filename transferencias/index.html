@@ -100,7 +100,7 @@ function api(acao, dados) {
 }
 function acao(nome, dados, msgOk) {
   if (OCUP) return Promise.resolve(); OCUP = true; document.body.style.cursor = 'progress';
-  return api(nome, dados).then(function (o) { if (o.estado) EST = o.estado; if (o.painel) PAINEL = o.painel; render(); if (msgOk || o.msg) toast(msgOk || o.msg, 'ok'); return o; })
+  return api(nome, dados).then(function (o) { if (o.estado) EST = o.estado; if (o.painel) PAINEL = o.painel; render(); if (o.msg || msgOk) toast(o.msg || msgOk, 'ok'); return o; })
     .catch(function (e) { toast(e.message, 'er'); }).then(function (o) { OCUP = false; document.body.style.cursor = ''; return o; });
 }
 
