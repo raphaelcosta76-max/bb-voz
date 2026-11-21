@@ -171,6 +171,7 @@ function hSeparar() {
       + '<div class="lin"><button class="btn" data-bipar="' + L.id + '">📷 Bipar peças</button></div>'
       + '<div class="lin"><input data-cod="' + L.id + '" inputmode="numeric" placeholder="ou digite o código e Enter"></div>'
       + L.itens.map(function (i) { var c = p.cont[i.id] || 0; return '<div class="item' + (c >= i.qtd ? ' ok' : '') + '"><div class="nm"><div class="ds">' + esc(nomeIt(i)) + '</div><div><span class="tam">' + esc(i.tamanho) + '</span><span class="mu">ref ' + esc(i.ref) + '</span></div>'
+        + (i.estq != null ? '<div class="mu">Mandar ' + i.qtd + ' · <b>no sistema em ' + dt(i.estq_data) + ': ' + i.estq + '</b></div>' : '')
         + '<div class="lin" style="margin-top:6px">' + (c > 0 ? '<button class="btn sec pq" data-menos="' + i.id + '">− 1</button>' : '') + (c < i.qtd ? '<button class="btn sec pq" data-nao="' + i.id + '">Não encontrei</button>' : '') + '</div></div><div class="ct">' + c + ' / ' + i.qtd + '</div></div>'; }).join('')
       + '<div class="lin"><button class="btn ok" data-acordo="' + L.id + '"' + (completo ? '' : ' disabled') + '>De acordo: tudo conferido</button></div>'
       + (completo ? '' : '<div class="mu" style="margin-top:6px">O "de acordo" libera quando todas as peças forem bipadas.</div>') + '</div>';
