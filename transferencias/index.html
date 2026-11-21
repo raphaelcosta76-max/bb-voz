@@ -84,7 +84,7 @@ details summary{cursor:pointer;font-weight:600;padding:6px 0}
 <script>
 var EXEC = "https://script.google.com/macros/s/AKfycbyBi659H2-n8E2D-PRBoUz319O5oGC3IAdH-cI3wCLDn0rWJZcvbWyfJneH1jRHYGK2NQ/exec";
 var TOK = (location.hash.match(/t=([^&]+)/) || [])[1] || '';
-var EST = null, PAINEL = null, ABA = null, LOJA_ADM = null, OCUP = false;
+var EST = null, PAINEL = null, ABA = null, LOJA_ADM = null, OCUP = false, SIMUL = null;
 function $(i) { return document.getElementById(i); }
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 function dt(d) { d = String(d || '').slice(0, 10); return d ? d.slice(8, 10) + '/' + d.slice(5, 7) : ''; }
@@ -160,7 +160,7 @@ $('abas').onclick = function (e) { var b = e.target.closest('[data-ab]'); if (!b
 // ---------- Separar ----------
 function prog(L) { var p = lsGet('lote_' + L.id) || { cont: {}, bip: [] }; L.itens.forEach(function (i) { if (p.cont[i.id] > i.qtd) p.cont[i.id] = i.qtd; }); return p; }
 function hSeparar() {
-  var acum = (EST.acumulando || []).map(function (a) { return '<div class="mu">Para ' + esc(a.paraNome) + ': ' + a.pecas + ' de ' + a.lote + ' peças acumuladas (desde ' + dt(a.desde) + ').</div>'; }).join('');
+  var acum = (EST.acumulando || []).map(function (a) { return '<div class="mu">Na fila para ' + esc(a.paraNome) + ': ' + a.pecas + (a.pecas == 1 ? ' peça' : ' peças') + ' (desde ' + dt(a.desde) + '). Sai um lote de até ' + a.lote + ' peças por vez, primeiro o que mais vende.</div>'; }).join('');
   if (!EST.separar.length) return '<div class="card"><div class="vazio">Nenhum lote para separar hoje.</div>' + acum + '</div>';
   return EST.separar.map(function (L) {
     var p = prog(L), tot = 0, ok = 0;
@@ -204,10 +204,9 @@ function hEnviar() {
   }).join('');
 }
 
-// ---------- Receber ----------
+// ---------- Receber: lotes a confirmar + situação de tudo que vem para a loja ----------
 function hReceber() {
-  if (!EST.receber.length) return '<div class="card"><div class="vazio">Nada a caminho da sua loja.</div></div>';
-  return EST.receber.map(function (L) {
+  var h = EST.receber.length ? EST.receber.map(function (L) {
     var pc = L.itens.reduce(function (s, i) { return s + i.qtd_bipada; }, 0);
     return '<div class="card"><h2>Do ' + esc(L.deNome) + '</h2><div class="mu">Romaneio ' + esc(L.romaneio) + ' · enviado em ' + dt(L.enviado_em) + ' · ' + pc + ' peças</div>'
       + '<details><summary>Peças</summary>' + L.itens.map(function (i) { return '<div class="item"><div class="nm"><div class="ds">' + esc(nomeIt(i)) + '</div><span class="tam">' + esc(i.tamanho) + '</span></div><div class="ct">' + i.qtd_bipada + '</div></div>'; }).join('') + '</details>'
@@ -215,7 +214,23 @@ function hReceber() {
       + '<label style="display:flex;gap:8px;align-items:center;color:var(--tx)"><input type="checkbox" data-dif="' + L.id + '" style="width:22px;min-height:22px"> Chegou diferente</label>'
       + '<textarea data-obs="' + L.id + '" placeholder="O que veio diferente? (opcional)" hidden></textarea>'
       + '<div class="lin"><button class="btn ok" data-rec="' + L.id + '">Recebido</button></div><div class="mu" style="margin-top:6px">Dê a entrada no sistema normalmente. Aqui é só para registrar que chegou.</div></div>';
-  }).join('');
+  }).join('') : '<div class="card"><div class="vazio">Nenhum lote enviado para confirmar.</div></div>';
+  return h + hSituacao();
+}
+var COR_GRUPO = { enviado: 'ok', transporte: 'ok', conferido: '', separacao: '', solicitado: '', nao_encontrado: 'er', cancelado: 'av', recebido: 'ok' };
+function hSituacao() {
+  var g = EST.aReceber || [];
+  if (!g.length) return '<div class="card"><h2>O que vem para a sua loja</h2><div class="mu">Nada pedido para a sua loja agora.</div></div>';
+  return '<div class="card"><h2>O que vem para a sua loja</h2><div class="mu">Cada peça pedida para cá e em que etapa está.</div>' + g.map(function (x) {
+    return '<details data-grupo="' + x.grupo + '"' + (x.grupo == 'enviado' || x.grupo == 'nao_encontrado' ? ' open' : '') + '><summary><span class="pill ' + (COR_GRUPO[x.grupo] || '') + '">' + esc(x.rotulo) + '</span> ' + x.pecas + (x.pecas == 1 ? ' peça' : ' peças') + '</summary>'
+      + (x.dica ? '<div class="mu" style="margin-bottom:4px">' + esc(x.dica) + '</div>' : '')
+      + x.itens.map(function (i) {
+        var info = [i.deNome ? 'do ' + i.deNome : '', i.romaneio ? 'romaneio ' + i.romaneio : '', i.data ? dt(i.data) : ''].filter(Boolean).join(' · ');
+        return '<div class="item"><div class="nm"><div class="ds">' + esc(nomeIt(i)) + '</div><div><span class="tam">' + esc(i.tamanho) + '</span><span class="mu">ref ' + esc(i.ref) + (info ? ' · ' + esc(info) : '') + '</span></div>'
+          + (i.nota ? '<div class="mu">' + esc(i.nota) + '</div>' : '') + (i.motivo ? '<div class="mu">Motivo: ' + esc(i.motivo) + '</div>' : '')
+          + (i.desfecho ? '<div class="aviso av" style="margin:6px 0 0">' + esc(i.desfecho) + '</div>' : '') + '</div><div class="ct">' + i.qtd + '</div></div>';
+      }).join('') + '</details>';
+  }).join('') + '</div>';
 }
 
 // ---------- Contar (duas etapas: 1. física, pela peça; 2. bipagem da etiqueta) ----------
@@ -294,7 +309,10 @@ function renderPainel() {
   var p = PAINEL; $('titulo').textContent = 'Painel de transferências'; $('sub').textContent = 'Hoje, ' + dt(p.hoje); $('abas').hidden = true;
   var h = '';
   (p.alertas || []).forEach(function (a) { h += '<div class="aviso ' + (a.tipo == 'equivalencia' ? 'av' : 'er') + '">' + esc(a.detalhe) + '</div>'; });
-  h += '<div class="card"><div class="lin" style="margin-top:0"><button class="btn" id="rodar">Rodar a rotina agora</button><select id="vercomo"><option value="">Ver como loja…</option><option value="43">Flamboyant</option><option value="1097">Goiânia Shopping</option><option value="45">Terraço</option></select></div></div>';
+  h += '<div class="card"><div class="lin" style="margin-top:0"><button class="btn" id="rodar">Rodar a rotina agora</button><select id="vercomo"><option value="">Ver como loja…</option><option value="43">Flamboyant</option><option value="1097">Goiânia Shopping</option><option value="45">Terraço</option></select></div>'
+    + '<div class="lin"><button class="btn sec" id="simular">Simular remontagem dos lotes</button><button class="btn sec" id="remontar">Remontar lotes agora</button></div>'
+    + '<div class="mu" style="margin-top:6px">Remontar desfaz os lotes ainda em separação (nenhuma peça conferida) e monta de novo pela prioridade e pelo tamanho de lote atuais. Simular mostra o resultado sem mudar nada.</div></div>';
+  if (SIMUL) h += hSimulacao(SIMUL, p);
   h += '<div class="card"><h2>Atrasos</h2>' + (p.atrasos.length ? '<div class="tabw"><table><tr><th>Etapa</th><th>Onde</th><th>Dias</th><th>Detalhe</th></tr>' + p.atrasos.map(function (a) { return '<tr><td><span class="pill er">' + esc(a.tipo) + '</span></td><td>' + esc(a.rota) + '</td><td>' + a.dias + '</td><td>' + esc(a.detalhe) + '</td></tr>'; }).join('') + '</table></div>' : '<div class="mu">Nenhum atraso.</div>') + '</div>';
   var cob = p.divergencias.filter(function (d) { return d.tipo == 'sem_entrada' || d.tipo == 'entrada_diferente'; });
   h += '<div class="card"><h2>Divergências</h2>' + (cob.length ? '<div class="aviso av">' + cob.length + ' para cobrar da Alterdata (entrada não lançada ou diferente).</div>' : '')
@@ -305,15 +323,29 @@ function renderPainel() {
     var dif = r && r.diferencas && r.diferencas.length ? '<table><tr><th>Código</th><th>Tamanho</th><th>Físico</th><th>Sistema</th><th>Ajuste</th></tr>' + r.diferencas.map(function (x) { var g = nomes[x.sku] || {}; return '<tr><td>' + esc(x.sku) + '</td><td>' + esc((g.c || '') + ' ' + (g.t || '')) + '</td><td>' + x.fisico + '</td><td>' + x.sistema + '</td><td>' + (x.diferenca > 0 ? '+' : '') + x.diferenca + '</td></tr>'; }).join('') + '</table>' : '';
     return '<div class="item"><div class="nm"><div><span class="pill ' + (c.status == 'ajuste_pendente' ? 'av' : (c.status == 'ajustada' || c.status == 'sem_diferenca' ? 'ok' : '')) + '">' + esc(c.status.replace('_', ' ')) + '</span> <b>' + esc(c.loja) + '</b> · ref ' + esc(c.ref) + ' ' + esc(c.cor || '(referência inteira)') + '</div><div class="mu">Aberta ' + dt(c.aberta_em) + (c.contada_em ? ' · contada ' + dt(c.contada_em) : '') + (r ? ' · físico ' + r.totalFisico + ' × sistema ' + r.totalSistema + (r.referencia ? ' (' + esc(r.referencia) + ')' : '') : '') + '</div>' + (dif ? '<div class="mu" style="margin-top:6px"><b>Físico × sistema</b> (ajuste de estoque)</div>' + dif : '') + eti + (c.status == 'ajuste_pendente' ? '<div class="lin"><button class="btn sec pq" data-ajust="' + c.id + '">Ajuste lançado</button></div>' : '') + '</div></div>';
   }).join('') : '<div class="mu">Nenhuma contagem.</div>') + '</div>';
-  h += '<div class="card"><h2>Acumulando para o próximo lote</h2>' + (p.acumulando.length ? '<table><tr><th>Rota</th><th>Peças</th><th>Lote</th><th>Desde</th></tr>' + p.acumulando.map(function (a) { return '<tr><td>' + esc(a.rota) + '</td><td>' + a.pecas + '</td><td>' + a.lote + '</td><td>' + dt(a.desde) + '</td></tr>'; }).join('') + '</table>' : '<div class="mu">Nada acumulando.</div>') + '</div>';
+  h += '<div class="card"><h2>Fila para os próximos lotes</h2><div class="mu">Peças por categoria de prioridade: normal sai primeiro; tamanho isolado (sem outro tamanho da cor no destino) e parado (a rede não vendeu em 90 dias) por último.</div>' + (p.acumulando.length ? '<div class="tabw"><table><tr><th>Rota</th><th>Peças</th><th>Normal</th><th>Isolado</th><th>Parado</th><th>Lote</th><th>Desde</th></tr>' + p.acumulando.map(function (a) { return '<tr><td>' + esc(a.rota) + '</td><td>' + a.pecas + '</td><td>' + (a.normal || 0) + '</td><td>' + (a.isolado || 0) + '</td><td>' + (a.parado || 0) + '</td><td>' + a.lote + '</td><td>' + dt(a.desde) + '</td></tr>'; }).join('') + '</table></div>' : '<div class="mu">Nada na fila.</div>') + '</div>';
   h += '<div class="card"><h2>Lotes (30 dias)</h2>' + (p.lotes.length ? '<div class="tabw"><table><tr><th>Rota</th><th>Situação</th><th>Peças</th><th>Liberado</th><th>Romaneio</th><th>Enviado</th><th>Entrada</th></tr>' + p.lotes.map(function (l) { return '<tr><td>' + esc(l.rota) + '</td><td>' + esc(ST_LOTE[l.status] || l.status) + (l.nao_encontradas ? ' <span class="pill er">' + l.nao_encontradas + ' não encontrada(s)</span>' : '') + '</td><td>' + l.pecas + '</td><td>' + dt(l.liberado_em) + '</td><td>' + esc(l.romaneio || '') + '</td><td>' + dt(l.enviado_em) + '</td><td>' + dt(l.entrada_em) + '</td></tr>'; }).join('') + '</table></div>' : '<div class="mu">Nenhum lote ainda.</div>') + '</div>';
-  h += '<div class="card"><h2>Rupturas sem doador (7 dias): ' + p.rupturas.total + '</h2><div class="mu">' + p.rupturas.porLoja.map(function (x) { return esc(x.loja) + ': ' + x.n; }).join(' · ') + '. É compra, não transferência.</div>' + (p.rupturas.lista.length ? '<details><summary>Ver lista</summary><div class="tabw"><table><tr><th>Dia</th><th>Loja</th><th>Produto</th><th>Tam.</th></tr>' + p.rupturas.lista.map(function (r) { return '<tr><td>' + dt(r.data) + '</td><td>' + esc({ 43: 'Flamboyant', 45: 'Terraço', 1097: 'Goiânia Shopping' }[r.para] || r.para) + '</td><td>' + esc(r.descricao + ' ' + r.cor) + '</td><td>' + esc(r.tamanho) + '</td></tr>'; }).join('') + '</table></div></details>' : '') + '</div>';
+  h += '<div class="card"><h2>Zerados sem doador: ' + p.rupturas.total + '</h2><div class="mu">Retrato de ' + dt(p.rupturas.data) + ': ' + p.rupturas.porLoja.map(function (x) { return esc(x.loja) + ' ' + x.n; }).join(' · ') + '. Nenhuma outra loja pode ceder e a rede vendeu em 90 dias: é compra, não transferência.</div>' + (p.rupturas.lista.length ? '<details><summary>Ver as ' + p.rupturas.lista.length + ' que mais vendem na rede</summary><div class="tabw"><table><tr><th>Loja</th><th>Produto</th><th>Tam.</th><th>Venda rede</th><th>Por quê</th></tr>' + p.rupturas.lista.map(function (r) { return '<tr><td>' + esc({ 43: 'Flamboyant', 45: 'Terraço', 1097: 'Goiânia Shopping' }[r.para] || r.para) + '</td><td>' + esc(r.ref + ' ' + r.descricao + ' ' + r.cor) + '</td><td>' + esc(r.tamanho) + '</td><td>' + esc(r.venda_rede) + '</td><td>' + esc(r.motivo) + '</td></tr>'; }).join('') + '</table></div></details>' : '') + '</div>';
   if (p.foraDoApp.length) h += '<div class="card"><h2>Transferências fora do app (30 dias)</h2>' + p.foraDoApp.map(function (x) { return '<div class="mu" style="padding:4px 0">' + esc(x) + '</div>'; }).join('') + '</div>';
   h += '<div class="card"><h2>Parâmetros</h2>' + p.parametros.map(function (x) { return '<div class="param"><div><b>' + esc(x.chave) + '</b><div class="mu">' + esc(x.obs) + '</div></div><input data-pv="' + esc(x.chave) + '" value="' + esc(x.valor) + '"><button class="btn sec pq" data-ps="' + esc(x.chave) + '">Salvar</button></div>'; }).join('') + '</div>';
   h += '<div class="card"><details><summary>Registro da rotina</summary>' + p.log.map(function (l) { return '<div class="mu" style="padding:4px 0;word-break:break-word">' + esc(l.quando + ' · ' + l.acao + ' · ' + l.detalhe) + '</div>'; }).join('') + '</details></div>';
   $('conteudo').innerHTML = h;
   $('rodar').onclick = function () { acao('rodar', {}, 'Rotina executada.'); };
+  $('simular').onclick = function () { acao('remontar', { simular: true }, 'Simulação pronta.').then(function (o) { if (o && o.rodada) { SIMUL = o.rodada; render(); } }); };
+  $('remontar').onclick = function () { if (!confirm('Remontar os lotes que ainda estão em separação? As lojas passam a ver os lotes novos.')) return; acao('remontar', {}, 'Lotes remontados.').then(function (o) { if (o && o.rodada) { SIMUL = o.rodada; render(); } }); };
   $('vercomo').onchange = function () { if (!this.value) return; LOJA_ADM = Number(this.value); ABA = null; api('estado').then(function (o) { EST = o.estado; render(); }).catch(function (e) { toast(e.message, 'er'); }); };
+}
+function hSimulacao(r, p) {
+  if (r.semCarga) return '<div class="card"><div class="aviso er">Sem carga do banco: nada foi calculado.</div></div>';
+  var pr = r.proposta || { resumo: [] }, aplicada = !r.simulacao;
+  var h = '<div class="card"><h2>' + (aplicada ? 'Remontagem aplicada' : 'Simulação da remontagem') + '</h2><div class="mu">' + (aplicada ? 'Os lotes abaixo já estão com as lojas.' : 'Nada foi gravado. Lista completa, item a item e lote a lote, na aba Simulacao da <a href="' + esc(p.planilha) + '" target="_blank">planilha</a>.') + ' Lotes desfeitos: ' + (r.desmontados || 0) + ' · pedidos novos: ' + (r.novos || 0) + ' · cancelados: ' + (r.cancelados || 0) + '.</div>';
+  if (!pr.resumo.length) return h + (r.lotes && r.lotes.length ? '<div class="mu">' + r.lotes.map(esc).join('<br>') + '</div>' : '') + '</div>';
+  h += '<div class="tabw"><table><tr><th>Rota</th><th>Lote agora</th><th>Fila</th><th>Lotes</th><th>Normal</th><th>Isolado</th><th>Parado</th></tr>' + pr.resumo.map(function (x) { var c = x.pecas_por_categoria || {}; return '<tr><td>' + esc(x.rota) + '</td><td>' + x.lote_agora + ' de ' + x.tamanho_lote + '</td><td>' + x.fila + '</td><td>' + x.lotes_total + '</td><td>' + (c.normal || 0) + '</td><td>' + (c['tamanho isolado'] || 0) + '</td><td>' + (c.parado || 0) + '</td></tr>'; }).join('') + '</table></div>';
+  pr.resumo.forEach(function (x) {
+    if (!x.itens_lote.length) return;
+    h += '<details><summary>' + esc(x.rota) + ': lote de ' + x.lote_agora + ' peças</summary><div class="tabw"><table><tr><th>Produto</th><th>Tam.</th><th>Qtd</th><th>Categoria</th><th>Venda rede</th><th>Venda cor destino</th></tr>' + x.itens_lote.map(function (i) { return '<tr><td>' + esc(i.ref + ' ' + i.descricao + ' ' + i.cor) + (i.tipo == 'reposicao' ? ' <span class="pill">reposição</span>' : '') + '</td><td>' + esc(i.tamanho) + '</td><td>' + i.qtd + '</td><td>' + esc(i.categoria) + '</td><td>' + i.venda_rede + '</td><td>' + i.venda_cor_destino + '</td></tr>'; }).join('') + '</table></div></details>';
+  });
+  return h + '</div>';
 }
 $('conteudo').addEventListener('click', function (e) {
   if (!PAINEL || LOJA_ADM) return; var b = e.target.closest('button'); if (!b) return; var d = b.dataset;
