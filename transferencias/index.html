@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1f3b5c">
+<title>Transferências bb básico</title>
+<style>
+:root{--bg:#f4f6f8;--card:#fff;--tx:#1b2430;--mu:#5b6675;--li:#dde3ea;--pri:#1f3b5c;--pri2:#2d5584;--ok:#1e7b34;--okbg:#e6f4ea;--er:#b3261e;--erbg:#fdecea;--av:#9a5b00;--avbg:#fff4e0;--chip:#eef2f6}
+@media (prefers-color-scheme:dark){:root{--bg:#11161c;--card:#1a2129;--tx:#e8edf2;--mu:#9aa7b5;--li:#2c3640;--pri:#8fb4e0;--pri2:#a9c6ea;--ok:#6fd08a;--okbg:#17321f;--er:#ff8a80;--erbg:#3a1b19;--av:#f2b45a;--avbg:#3a2a12;--chip:#232c36}}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+header{background:var(--pri);color:#fff;padding:14px 16px 10px}
+@media (prefers-color-scheme:dark){header{background:#1f3b5c}}
+header .marca{font-size:12px;letter-spacing:.06em;text-transform:uppercase;opacity:.8}
+header h1{margin:2px 0 0;font-size:22px}
+header .sub{font-size:13px;opacity:.85}
+nav{display:flex;gap:6px;padding:10px 12px;overflow-x:auto;background:var(--card);border-bottom:1px solid var(--li);position:sticky;top:0;z-index:5}
+nav button{flex:0 0 auto;border:1px solid var(--li);background:var(--chip);color:var(--tx);border-radius:999px;padding:8px 12px;font:inherit;font-size:15px;font-weight:600}
+nav button.on{background:var(--pri);color:#fff;border-color:var(--pri)}
+@media (prefers-color-scheme:dark){nav button.on{color:#11161c}}
+nav .n{display:inline-block;min-width:20px;margin-left:6px;padding:0 6px;border-radius:10px;background:var(--er);color:#fff;font-size:12px;line-height:20px;text-align:center}
+main{padding:12px 12px 90px;max-width:760px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--li);border-radius:12px;padding:14px;margin:0 0 12px}
+.card h2{margin:0 0 4px;font-size:18px}
+.card h3{margin:14px 0 6px;font-size:15px}
+.mu{color:var(--mu);font-size:14px}
+.vazio{color:var(--mu);text-align:center;padding:28px 10px}
+.item{display:flex;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--li)}
+.item:first-of-type{border-top:0}
+.item .nm{flex:1;min-width:0}
+.item .ds{font-weight:600}
+.item .ct{font-size:20px;font-weight:700;min-width:64px;text-align:right}
+.item.ok .ct{color:var(--ok)}
+.tam{display:inline-block;background:var(--chip);border-radius:6px;padding:1px 8px;font-weight:700;margin-right:6px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:10px;padding:12px 16px;font:inherit;font-weight:700;background:var(--pri);color:#fff;min-height:48px}
+@media (prefers-color-scheme:dark){.btn{color:#11161c}}
+.btn.sec{background:var(--chip);color:var(--tx);border:1px solid var(--li)}
+.btn.ok{background:var(--ok);color:#fff}
+.btn.pq{min-height:36px;padding:6px 10px;font-size:14px;font-weight:600}
+.btn:disabled{opacity:.45}
+.lin{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.lin>*{flex:1 1 auto}
+.item .lin>*{flex:0 0 auto}
+input,textarea,select{font:inherit;padding:10px 12px;border-radius:10px;border:1px solid var(--li);background:var(--card);color:var(--tx);min-height:46px;width:100%}
+textarea{min-height:80px}
+label{display:block;font-size:14px;color:var(--mu);margin:10px 0 4px}
+.aviso{border-radius:10px;padding:10px 12px;margin:0 0 10px;font-size:15px}
+.aviso.er{background:var(--erbg);color:var(--er)}
+.aviso.av{background:var(--avbg);color:var(--av)}
+.aviso.ok{background:var(--okbg);color:var(--ok)}
+.barra{height:8px;background:var(--chip);border-radius:6px;overflow:hidden;margin:8px 0 2px}
+.barra i{display:block;height:100%;background:var(--ok)}
+.scan{position:fixed;inset:0;background:#000;z-index:50;display:flex;flex-direction:column}
+.scan[hidden]{display:none}
+.scan video{flex:1;width:100%;object-fit:cover;min-height:0}
+.scan .mira{position:absolute;left:10%;right:10%;top:32%;height:18%;border:3px solid rgba(255,255,255,.8);border-radius:12px;pointer-events:none}
+.scanbar{background:#111;color:#fff;padding:12px;padding-bottom:calc(12px + env(safe-area-inset-bottom))}
+.fb{border-radius:12px;padding:14px;margin-bottom:10px;font-size:18px;font-weight:700;text-align:center;background:#2a2f36}
+.fb.ok{background:#1e7b34}.fb.er{background:#b3261e}.fb.av{background:#9a5b00}
+.fb small{display:block;font-size:15px;font-weight:600;opacity:.95;margin-top:4px}
+#toast{position:fixed;left:12px;right:12px;bottom:16px;z-index:60;display:none;padding:14px;border-radius:12px;font-weight:600;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.25)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:7px 6px;border-top:1px solid var(--li);vertical-align:top}
+th{font-size:12px;color:var(--mu);text-transform:uppercase;letter-spacing:.03em;border-top:0}
+.tabw{overflow-x:auto}
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:700;background:var(--chip)}
+.pill.er{background:var(--erbg);color:var(--er)}.pill.ok{background:var(--okbg);color:var(--ok)}.pill.av{background:var(--avbg);color:var(--av)}
+details summary{cursor:pointer;font-weight:600;padding:6px 0}
+.param{display:grid;grid-template-columns:1fr 110px 84px;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--li)}
+.param input{min-height:40px;padding:6px 8px}
+@media (max-width:420px){.param{grid-template-columns:1fr 90px 74px}}
+</style>
+</head>
+<body>
+<header><div class="marca">bb básico · transferências entre lojas</div><h1 id="titulo">Carregando…</h1><div class="sub" id="sub"></div></header>
+<nav id="abas" hidden></nav>
+<main id="conteudo"><div class="vazio">Carregando…</div></main>
+<div id="scan" class="scan" hidden>
+  <video id="scanv" playsinline muted></video><div class="mira"></div>
+  <div class="scanbar"><div id="scanfb" class="fb">Aponte para o código de barras da etiqueta</div><button class="btn sec" id="scanx" style="width:100%">Fechar câmera</button></div>
+</div>
+<div id="toast"></div>
+<script>
+var EXEC = "https://script.google.com/macros/s/AKfycbyBi659H2-n8E2D-PRBoUz319O5oGC3IAdH-cI3wCLDn0rWJZcvbWyfJneH1jRHYGK2NQ/exec";
+var TOK = (location.hash.match(/t=([^&]+)/) || [])[1] || '';
+var EST = null, PAINEL = null, ABA = null, LOJA_ADM = null, OCUP = false;
+function $(i) { return document.getElementById(i); }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function dt(d) { d = String(d || '').slice(0, 10); return d ? d.slice(8, 10) + '/' + d.slice(5, 7) : ''; }
+// a data padrão vem do servidor (horário de Brasília), não do relógio do celular
+function hojeISO() { if (EST && EST.hoje) return EST.hoje; var d = new Date(Date.now() - 3 * 3600e3); return d.toISOString().slice(0, 10); }
+function lsGet(k) { try { return JSON.parse(localStorage.getItem('bbt_' + k) || 'null'); } catch (e) { return null; } }
+function lsSet(k, v) { try { if (v == null) localStorage.removeItem('bbt_' + k); else localStorage.setItem('bbt_' + k, JSON.stringify(v)); } catch (e) { } }
+function toast(m, tipo) { var t = $('toast'); t.textContent = m; t.style.display = 'block'; t.style.background = tipo == 'er' ? 'var(--er)' : (tipo == 'ok' ? 'var(--ok)' : '#333'); t.style.color = '#fff'; clearTimeout(toast.t); toast.t = setTimeout(function () { t.style.display = 'none'; }, tipo == 'er' ? 6000 : 3000); }
+function api(acao, dados) {
+  var b = Object.assign({ tok: TOK, acao: acao }, dados || {}); if (LOJA_ADM) b.loja = LOJA_ADM;
+  return fetch(EXEC, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(b) })
+    .then(function (r) { return r.json(); }).then(function (o) { if (!o.ok) throw new Error(o.erro || 'erro'); return o; });
+}
+function acao(nome, dados, msgOk) {
+  if (OCUP) return Promise.resolve(); OCUP = true; document.body.style.cursor = 'progress';
+  return api(nome, dados).then(function (o) { if (o.estado) EST = o.estado; if (o.painel) PAINEL = o.painel; render(); if (msgOk || o.msg) toast(msgOk || o.msg, 'ok'); return o; })
+    .catch(function (e) { toast(e.message, 'er'); }).then(function (o) { OCUP = false; document.body.style.cursor = ''; return o; });
+}
+
+// ---------- código da etiqueta (mesma tolerância do servidor e do CRM) ----------
+function codigos(c) { c = String(c || '').replace(/\D/g, ''); if (!c) return []; var a = c.replace(/^0+/, '') || '0', o = [a]; if (c.length == 12 || c.length == 14) { var b = c.slice(0, -1).replace(/^0+/, '') || '0'; if (o.indexOf(b) < 0) o.push(b); } return o; }
+function casa(c, sku) { return codigos(c).indexOf(String(sku).replace(/^0+/, '') || '0') >= 0; }
+function nomeIt(i) { return [i.descricao, i.cor].filter(Boolean).join(' · '); }
+
+// ---------- som e vibração ----------
+var AC = null;
+function bip(ok) { try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); var o = AC.createOscillator(), g = AC.createGain(); o.frequency.value = ok ? 880 : 220; o.connect(g); g.connect(AC.destination); g.gain.value = .15; o.start(); o.stop(AC.currentTime + (ok ? .09 : .35)); } catch (e) { } try { navigator.vibrate && navigator.vibrate(ok ? 60 : [120, 60, 120]); } catch (e) { } }
+
+// ---------- câmera (Android: leitor do Chrome; iPhone: ZXing, igual ao CRM) ----------
+var SCAN = null;
+function carregaZx() { if (window.ZXing) return Promise.resolve(); return new Promise(function (ok, nok) { var s = document.createElement('script'); s.src = '/bb-voz/zxing.min.js'; s.onload = ok; s.onerror = function () { nok(new Error('leitor')); }; document.head.appendChild(s); }); }
+function fb(txt, sub, tipo) { var f = $('scanfb'); f.className = 'fb ' + (tipo || ''); f.innerHTML = esc(txt) + (sub ? '<small>' + esc(sub) + '</small>' : ''); }
+function fechaScanner() { var s = SCAN; SCAN = null; $('scan').hidden = true; if (!s) return; try { s.zx && s.zx.reset(); } catch (e) { } try { (s.st || $('scanv').srcObject).getTracks().forEach(function (t) { t.stop(); }); } catch (e) { } $('scanv').srcObject = null; render(); }
+function abreScanner(cb) {
+  $('scan').hidden = false; fb('Aponte para o código de barras da etiqueta'); var me = SCAN = { cb: cb, ult: '', quando: 0 }, v = $('scanv');
+  function lido(c) { if (SCAN !== me || !c) return; var t = Date.now(); if (c == me.ult && t - me.quando < 1500) return; if (t - me.quando < 700) return; me.ult = c; me.quando = t; me.cb(String(c)); }
+  function erro(m) { if (SCAN === me) fb(m, '', 'er'); }
+  if (window.BarcodeDetector) {
+    (BarcodeDetector.getSupportedFormats ? BarcodeDetector.getSupportedFormats() : Promise.resolve(['ean_13', 'code_128'])).then(function (fs) {
+      var bd = new BarcodeDetector({ formats: fs.filter(function (f) { return ['ean_13', 'ean_8', 'code_128', 'code_39', 'itf', 'upc_a', 'upc_e', 'codabar'].indexOf(f) >= 0; }) });
+      return navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false }).then(function (st) {
+        if (SCAN !== me) { st.getTracks().forEach(function (t) { t.stop(); }); return; } me.st = st; v.srcObject = st;
+        return v.play().then(function () { (function loop() { if (SCAN !== me) return; bd.detect(v).then(function (l) { if (l && l.length) lido(l[0].rawValue); setTimeout(loop, 120); }).catch(function () { setTimeout(loop, 300); }); })(); });
+      });
+    }).catch(function (e) { erro('Não consegui abrir a câmera (' + (e && e.name || 'erro') + '). Permita a câmera para este site ou digite o código.'); });
+    return;
+  }
+  carregaZx().then(function () { if (SCAN !== me) return; var rd = new ZXing.BrowserMultiFormatReader(); me.zx = rd; return rd.decodeFromConstraints({ video: { facingMode: { ideal: 'environment' } }, audio: false }, v, function (r) { if (r) lido(r.getText()); }); })
+    .catch(function (e) { erro('Não consegui ler com a câmera (' + (e && (e.name || e.message) || 'erro') + '). Digite o código.'); });
+}
+$('scanx').onclick = fechaScanner;
+
+// ---------- abas da loja ----------
+function abasLoja() {
+  var e = EST;
+  return [['separar', 'Separar', e.separar.reduce(function (s, l) { return s + l.itens.length; }, 0)], ['enviar', 'Enviar', e.enviar.length], ['receber', 'Receber', e.receber.length], ['contar', 'Contar', e.contar.length]];
+}
+function render() {
+  if (PAINEL && !LOJA_ADM) return renderPainel();
+  if (!EST) return;
+  $('titulo').textContent = EST.nome + (LOJA_ADM ? ' (vista do painel)' : '');
+  $('sub').textContent = 'Hoje, ' + dt(EST.hoje);
+  var ab = abasLoja();
+  if (!ABA) { ABA = (ab.filter(function (a) { return a[2] > 0; })[0] || ab[0])[0]; }
+  $('abas').hidden = false;
+  $('abas').innerHTML = (LOJA_ADM ? '<button data-ab="painel">← Painel</button>' : '') + ab.map(function (a) { return '<button data-ab="' + a[0] + '" class="' + (ABA == a[0] ? 'on' : '') + '">' + a[1] + (a[2] ? '<span class="n">' + a[2] + '</span>' : '') + '</button>'; }).join('');
+  var h = (EST.avisos || []).map(function (m) { return '<div class="aviso er">' + esc(m) + '</div>'; }).join('');
+  h += { separar: hSeparar, enviar: hEnviar, receber: hReceber, contar: hContar }[ABA]();
+  $('conteudo').innerHTML = h;
+}
+$('abas').onclick = function (e) { var b = e.target.closest('[data-ab]'); if (!b) return; if (b.dataset.ab == 'painel') { LOJA_ADM = null; EST = null; ABA = null; $('abas').hidden = true; return carrega(); } ABA = b.dataset.ab; render(); };
+
+// ---------- Separar ----------
+function prog(L) { var p = lsGet('lote_' + L.id) || { cont: {}, bip: [] }; L.itens.forEach(function (i) { if (p.cont[i.id] > i.qtd) p.cont[i.id] = i.qtd; }); return p; }
+function hSeparar() {
+  var acum = (EST.acumulando || []).map(function (a) { return '<div class="mu">Para ' + esc(a.paraNome) + ': ' + a.pecas + ' de ' + a.lote + ' peças acumuladas (desde ' + dt(a.desde) + ').</div>'; }).join('');
+  if (!EST.separar.length) return '<div class="card"><div class="vazio">Nenhum lote para separar hoje.</div>' + acum + '</div>';
+  return EST.separar.map(function (L) {
+    var p = prog(L), tot = 0, ok = 0;
+    L.itens.forEach(function (i) { tot += i.qtd; ok += Math.min(p.cont[i.id] || 0, i.qtd); });
+    var completo = ok == tot && tot > 0;
+    return '<div class="card" data-lote="' + L.id + '"><h2>Para ' + esc(L.paraNome) + '</h2><div class="mu">Liberado em ' + dt(L.liberado_em) + ' · ' + tot + ' peças. Bipe cada peça antes de fazer a transferência no sistema.</div>'
+      + '<div class="barra"><i style="width:' + (tot ? Math.round(100 * ok / tot) : 0) + '%"></i></div><div class="mu">' + ok + ' de ' + tot + ' bipadas</div>'
+      + '<div class="lin"><button class="btn" data-bipar="' + L.id + '">📷 Bipar peças</button></div>'
+      + '<div class="lin"><input data-cod="' + L.id + '" inputmode="numeric" placeholder="ou digite o código e Enter"></div>'
+      + L.itens.map(function (i) { var c = p.cont[i.id] || 0; return '<div class="item' + (c >= i.qtd ? ' ok' : '') + '"><div class="nm"><div class="ds">' + esc(nomeIt(i)) + '</div><div><span class="tam">' + esc(i.tamanho) + '</span><span class="mu">ref ' + esc(i.ref) + '</span></div>'
+        + '<div class="lin" style="margin-top:6px">' + (c > 0 ? '<button class="btn sec pq" data-menos="' + i.id + '">− 1</button>' : '') + (c < i.qtd ? '<button class="btn sec pq" data-nao="' + i.id + '">Não encontrei</button>' : '') + '</div></div><div class="ct">' + c + ' / ' + i.qtd + '</div></div>'; }).join('')
+      + '<div class="lin"><button class="btn ok" data-acordo="' + L.id + '"' + (completo ? '' : ' disabled') + '>De acordo: tudo conferido</button></div>'
+      + (completo ? '' : '<div class="mu" style="margin-top:6px">O "de acordo" libera quando todas as peças forem bipadas.</div>') + '</div>';
+  }).join('') + (acum ? '<div class="card">' + acum + '</div>' : '');
+}
+function lidoSeparar(L, code) {
+  var p = prog(L), it = L.itens.filter(function (i) { return casa(code, i.sku); })[0];
+  if (!it) {
+    p.bip.push({ c: code, sku: '', r: 'errada' }); lsSet('lote_' + L.id, p); bip(false);
+    fb('PEÇA ERRADA', 'Não está neste lote. Não envie.', 'er');
+    api('produto', { codigo: code }).then(function (o) { if (SCAN && o.produto && o.produto.achou) fb('PEÇA ERRADA', o.produto.descricao + ' ' + o.produto.cor + ' ' + o.produto.tamanho + ': não está neste lote.', 'er'); }).catch(function () { });
+    return;
+  }
+  var c = p.cont[it.id] || 0;
+  if (c >= it.qtd) { p.bip.push({ c: code, sku: it.sku, r: 'excesso' }); lsSet('lote_' + L.id, p); bip(false); fb('A MAIS', nomeIt(it) + ' ' + it.tamanho + ': já tem ' + it.qtd + '. Não envie esta.', 'av'); return; }
+  p.cont[it.id] = c + 1; p.bip.push({ c: code, sku: it.sku, r: 'ok' }); lsSet('lote_' + L.id, p); bip(true);
+  fb('OK · ' + it.tamanho, nomeIt(it) + ' — ' + (c + 1) + ' de ' + it.qtd, 'ok');
+  if (!SCAN) render();
+}
+function lotePorId(id) { return EST.separar.filter(function (l) { return l.id == id; })[0]; }
+
+// ---------- Enviar ----------
+function hEnviar() {
+  if (!EST.enviar.length) return '<div class="card"><div class="vazio">Nada para enviar.</div></div>';
+  return EST.enviar.map(function (L) {
+    var pc = L.itens.reduce(function (s, i) { return s + i.qtd_bipada; }, 0);
+    var h = '<div class="card"><h2>Para ' + esc(L.paraNome) + '</h2><div class="mu">' + pc + ' peças conferidas em ' + dt(L.de_acordo_em) + '</div>';
+    if (L.status == 'de_acordo') h += '<label>1. Faça a transferência no sistema e digite o número do romaneio</label><div class="lin"><input data-rom="' + L.id + '" inputmode="numeric" placeholder="número do romaneio"><button class="btn" data-romok="' + L.id + '" style="flex:0 0 auto">Salvar</button></div>';
+    else h += '<div class="aviso ok">Romaneio ' + esc(L.romaneio) + '</div><label>2. No dia em que a mercadoria sair, marque o envio</label><div class="lin"><input type="date" data-envd="' + L.id + '" value="' + hojeISO() + '" max="' + hojeISO() + '"><button class="btn" data-env="' + L.id + '" style="flex:0 0 auto">Enviado</button></div>';
+    return h + '<details><summary>Peças</summary>' + L.itens.map(function (i) { return '<div class="item"><div class="nm"><div class="ds">' + esc(nomeIt(i)) + '</div><span class="tam">' + esc(i.tamanho) + '</span></div><div class="ct">' + i.qtd_bipada + '</div></div>'; }).join('') + '</details></div>';
+  }).join('');
+}
+
+// ---------- Receber ----------
+function hReceber() {
+  if (!EST.receber.length) return '<div class="card"><div class="vazio">Nada a caminho da sua loja.</div></div>';
+  return EST.receber.map(function (L) {
+    var pc = L.itens.reduce(function (s, i) { return s + i.qtd_bipada; }, 0);
+    return '<div class="card"><h2>Do ' + esc(L.deNome) + '</h2><div class="mu">Romaneio ' + esc(L.romaneio) + ' · enviado em ' + dt(L.enviado_em) + ' · ' + pc + ' peças</div>'
+      + '<details><summary>Peças</summary>' + L.itens.map(function (i) { return '<div class="item"><div class="nm"><div class="ds">' + esc(nomeIt(i)) + '</div><span class="tam">' + esc(i.tamanho) + '</span></div><div class="ct">' + i.qtd_bipada + '</div></div>'; }).join('') + '</details>'
+      + '<label>Dia em que chegou</label><input type="date" data-recd="' + L.id + '" value="' + hojeISO() + '" max="' + hojeISO() + '">'
+      + '<label style="display:flex;gap:8px;align-items:center;color:var(--tx)"><input type="checkbox" data-dif="' + L.id + '" style="width:22px;min-height:22px"> Chegou diferente</label>'
+      + '<textarea data-obs="' + L.id + '" placeholder="O que veio diferente? (opcional)" hidden></textarea>'
+      + '<div class="lin"><button class="btn ok" data-rec="' + L.id + '">Recebido</button></div><div class="mu" style="margin-top:6px">Dê a entrada no sistema normalmente. Aqui é só para registrar que chegou.</div></div>';
+  }).join('');
+}
+
+// ---------- Contar (duas etapas: 1. física, pela peça; 2. bipagem da etiqueta) ----------
+function progC(C) { var p = lsGet('cont_' + C.id) || {}; p.passo = p.passo || 1; p.fis = p.fis || {}; p.eti = p.eti || {}; p.outros = p.outros || []; p.bip = p.bip || []; return p; }
+function somaObj(o) { return Object.keys(o).reduce(function (s, k) { return s + (o[k] || 0); }, 0); }
+function hContar() {
+  if (!EST.contar.length) return '<div class="card"><div class="vazio">Nenhuma contagem pendente.</div></div>';
+  return EST.contar.map(function (C) {
+    var p = progC(C), d = (C.grade[0] || {}).descricao || '', tf = somaObj(p.fis), te = somaObj(p.eti) + p.outros.length;
+    var h = '<div class="card"><h2>Contar: ' + esc(d) + '</h2><div class="mu">Ref ' + esc(C.ref) + ' · ' + (C.etapa == 'cor' ? 'todos os tamanhos da cor ' + esc(C.cor) : 'a referência inteira, todas as cores') + '. Conte a loja e o estoque.</div>';
+    if (p.passo == 1) {
+      h += '<div class="aviso av" style="margin-top:10px"><b>Passo 1 de 2 · Contagem física.</b> Pegue cada peça e conte pela cor e pelo tamanho da própria roupa. Não bipe agora.</div>'
+        + C.grade.map(function (g) { var n = p.fis[g.sku] || 0; return '<div class="item"><div class="nm"><div class="ds">' + esc(g.cor) + '</div><span class="tam">' + esc(g.tamanho) + '</span></div><button class="btn sec pq" data-cm="' + C.id + '|' + g.sku + '">−</button><div class="ct" style="min-width:40px;text-align:center">' + n + '</div><button class="btn sec pq" data-cp="' + C.id + '|' + g.sku + '">+</button></div>'; }).join('')
+        + '<div class="lin"><button class="btn" data-cfim="' + C.id + '">Concluir contagem física (' + tf + ' peças)</button></div>';
+    } else {
+      h += '<div class="aviso ok" style="margin-top:10px">Passo 1 concluído: ' + tf + (tf == 1 ? ' peça contada.' : ' peças contadas.') + '</div><div class="aviso av"><b>Passo 2 de 2 · Bipagem.</b> Agora bipe a etiqueta de cada peça contada.</div>'
+        + '<div class="lin"><button class="btn" data-cbipar="' + C.id + '">📷 Bipar etiquetas</button></div>'
+        + '<div class="lin"><input data-ccod="' + C.id + '" inputmode="numeric" placeholder="ou digite o código e Enter"></div>'
+        + C.grade.map(function (g) { var n = p.eti[g.sku] || 0; return '<div class="item"><div class="nm"><div class="ds">' + esc(g.cor) + '</div><span class="tam">' + esc(g.tamanho) + '</span></div>' + (n ? '<button class="btn sec pq" data-cmb="' + C.id + '|' + g.sku + '">− 1</button>' : '') + '<div class="ct">' + n + '</div></div>'; }).join('')
+        + (p.outros.length ? '<div class="item"><div class="nm"><div class="ds">Etiquetas de outros produtos</div><span class="mu">' + esc(p.outros.join(', ')) + '</span></div><button class="btn sec pq" data-cmo="' + C.id + '">− 1</button><div class="ct">' + p.outros.length + '</div></div>' : '')
+        + '<div class="mu" style="margin-top:8px">Contadas no passo 1: ' + tf + ' · etiquetas bipadas: ' + te + '</div>'
+        + '<div class="lin"><button class="btn ok" data-creg="' + C.id + '">Registrar contagem</button><button class="btn sec" data-cvolta="' + C.id + '" style="flex:0 0 auto">Voltar ao passo 1</button></div>';
+    }
+    return h + '</div>';
+  }).join('');
+}
+function contPorId(id) { return EST.contar.filter(function (c) { return c.id == id; })[0]; }
+function lidoContar(C, code) {
+  var p = progC(C); if (p.passo != 2) return;
+  var g = C.grade.filter(function (x) { return casa(code, x.sku); })[0];
+  if (!g) { p.outros.push(String(code).replace(/\D/g, '')); p.bip.push({ c: code, sku: '', r: 'outro' }); lsSet('cont_' + C.id, p); bip(false); fb('ETIQUETA DE OUTRO PRODUTO', 'Registrada. Pode ser etiqueta trocada: separe a peça.', 'av'); if (!SCAN) render(); return; }
+  p.eti[g.sku] = (p.eti[g.sku] || 0) + 1; p.bip.push({ c: code, sku: g.sku, r: 'ok' }); lsSet('cont_' + C.id, p); bip(true);
+  fb('+1 · ' + g.tamanho, g.cor + ' — ' + p.eti[g.sku] + ' etiquetas', 'ok'); if (!SCAN) render();
+}
+
+// ---------- cliques e teclas da loja ----------
+$('conteudo').addEventListener('click', function (e) {
+  var b = e.target.closest('button,input[type=checkbox]'); if (!b) return; var d = b.dataset;
+  if (d.bipar) { var L = lotePorId(d.bipar); return abreScanner(function (c) { lidoSeparar(L, c); }); }
+  if (d.menos) { EST.separar.forEach(function (L) { var p = prog(L); if (p.cont[d.menos] > 0) { p.cont[d.menos]--; p.bip.push({ c: '', sku: '', r: 'menos' }); lsSet('lote_' + L.id, p); } }); return render(); }
+  if (d.nao) {
+    var L2 = EST.separar.filter(function (l) { return l.itens.some(function (i) { return i.id == d.nao; }); })[0], it = L2.itens.filter(function (i) { return i.id == d.nao; })[0], c = prog(L2).cont[it.id] || 0, f = it.qtd - c;
+    if (!confirm('Não encontrou ' + f + ' peça(s) de ' + nomeIt(it) + ' ' + it.tamanho + '?\n\nA peça sai deste lote, o app pede de outra loja e abre uma contagem desta referência aqui.')) return;
+    return acao('naoEncontrei', { lote: L2.id, item: it.id, faltam: f }, 'Registrado. Vai aparecer uma contagem na aba Contar.');
+  }
+  if (d.acordo) { var L3 = lotePorId(d.acordo), p3 = prog(L3); return acao('deAcordo', { lote: L3.id, cont: p3.cont, bip: p3.bip }, 'De acordo registrado. Agora faça a transferência no sistema.').then(function (o) { if (o) { lsSet('lote_' + L3.id, null); ABA = 'enviar'; render(); } }); }
+  if (d.romok) { var n = (document.querySelector('[data-rom="' + d.romok + '"]') || {}).value; return acao('romaneio', { lote: d.romok, numero: n }, 'Romaneio salvo.'); }
+  if (d.env) { return acao('enviado', { lote: d.env, data: document.querySelector('[data-envd="' + d.env + '"]').value }, 'Envio registrado.'); }
+  if (d.dif) { var ta = document.querySelector('[data-obs="' + d.dif + '"]'); ta.hidden = !b.checked; return; }
+  if (d.rec) { var dif = document.querySelector('[data-dif="' + d.rec + '"]').checked; return acao('recebido', { lote: d.rec, data: document.querySelector('[data-recd="' + d.rec + '"]').value, diferente: dif, obs: document.querySelector('[data-obs="' + d.rec + '"]').value }, 'Recebimento registrado.'); }
+  if (d.cbipar) { var C = contPorId(d.cbipar); return abreScanner(function (c) { lidoContar(C, c); }); }
+  if (d.cp || d.cm) { var k = (d.cp || d.cm).split('|'), C2 = contPorId(k[0]), p = progC(C2); p.fis[k[1]] = Math.max(0, (p.fis[k[1]] || 0) + (d.cp ? 1 : -1)); lsSet('cont_' + C2.id, p); return render(); }
+  if (d.cmb) { var k2 = d.cmb.split('|'), C5 = contPorId(k2[0]), p5 = progC(C5); p5.eti[k2[1]] = Math.max(0, (p5.eti[k2[1]] || 0) - 1); lsSet('cont_' + C5.id, p5); return render(); }
+  if (d.cmo) { var C6 = contPorId(d.cmo), p6 = progC(C6); p6.outros.pop(); lsSet('cont_' + C6.id, p6); return render(); }
+  if (d.cfim) { var C7 = contPorId(d.cfim), p7 = progC(C7); if (!confirm('Concluir a contagem física com ' + somaObj(p7.fis) + ' peça(s)? Depois você vai bipar as etiquetas.')) return; p7.passo = 2; lsSet('cont_' + C7.id, p7); return render(); }
+  if (d.cvolta) { var C8 = contPorId(d.cvolta), p8 = progC(C8); p8.passo = 1; lsSet('cont_' + C8.id, p8); return render(); }
+  if (d.creg) {
+    var C3 = contPorId(d.creg), p4 = progC(C3), tf = somaObj(p4.fis), te = somaObj(p4.eti) + p4.outros.length;
+    if (!confirm(tf == te ? 'Registrar a contagem: ' + tf + ' peça(s) contadas e ' + te + ' etiquetas bipadas?' : 'Você contou ' + tf + ' peça(s) e bipou ' + te + ' etiqueta(s). Registrar assim mesmo?')) return;
+    return acao('contagem', { id: C3.id, fisico: p4.fis, bipado: p4.eti, outros: p4.outros, bip: p4.bip }).then(function (o) { if (o) lsSet('cont_' + C3.id, null); });
+  }
+});
+$('conteudo').addEventListener('keydown', function (e) {
+  if (e.key != 'Enter') return; var t = e.target, v = t.value.trim(); if (!v) return;
+  if (t.dataset.cod) { lidoSeparar(lotePorId(t.dataset.cod), v); t.value = ''; render(); var n = document.querySelector('[data-cod="' + t.dataset.cod + '"]'); n && n.focus(); }
+  if (t.dataset.ccod) { lidoContar(contPorId(t.dataset.ccod), v); t.value = ''; render(); var m = document.querySelector('[data-ccod="' + t.dataset.ccod + '"]'); m && m.focus(); }
+  if (t.dataset.rom) document.querySelector('[data-romok="' + t.dataset.rom + '"]').click();
+});
+// sem a câmera, o resultado da leitura digitada aparece em aviso
+var fbOrig = fb; fb = function (txt, sub, tipo) { fbOrig(txt, sub, tipo); if (!SCAN) toast(txt + (sub ? ' — ' + sub : ''), tipo == 'ok' ? 'ok' : 'er'); };
+
+// ---------- Painel ----------
+var TIPO_DIV = { romaneio_nao_encontrado: 'Romaneio não encontrado', destino_errado: 'Destino errado', saida_diferente: 'Saída diferente', entrada_diferente: 'Entrada diferente', sem_entrada: 'Sem entrada no sistema', chegou_diferente: 'Chegou diferente' };
+var ST_LOTE = { separando: 'separando', de_acordo: 'conferido', romaneio: 'com romaneio', enviado: 'enviado', recebido: 'recebido', validado: 'validado', cancelado: 'cancelado' };
+function renderPainel() {
+  var p = PAINEL; $('titulo').textContent = 'Painel de transferências'; $('sub').textContent = 'Hoje, ' + dt(p.hoje); $('abas').hidden = true;
+  var h = '';
+  (p.alertas || []).forEach(function (a) { h += '<div class="aviso ' + (a.tipo == 'equivalencia' ? 'av' : 'er') + '">' + esc(a.detalhe) + '</div>'; });
+  h += '<div class="card"><div class="lin" style="margin-top:0"><button class="btn" id="rodar">Rodar a rotina agora</button><select id="vercomo"><option value="">Ver como loja…</option><option value="43">Flamboyant</option><option value="1097">Goiânia Shopping</option><option value="45">Terraço</option></select></div></div>';
+  h += '<div class="card"><h2>Atrasos</h2>' + (p.atrasos.length ? '<div class="tabw"><table><tr><th>Etapa</th><th>Onde</th><th>Dias</th><th>Detalhe</th></tr>' + p.atrasos.map(function (a) { return '<tr><td><span class="pill er">' + esc(a.tipo) + '</span></td><td>' + esc(a.rota) + '</td><td>' + a.dias + '</td><td>' + esc(a.detalhe) + '</td></tr>'; }).join('') + '</table></div>' : '<div class="mu">Nenhum atraso.</div>') + '</div>';
+  var cob = p.divergencias.filter(function (d) { return d.tipo == 'sem_entrada' || d.tipo == 'entrada_diferente'; });
+  h += '<div class="card"><h2>Divergências</h2>' + (cob.length ? '<div class="aviso av">' + cob.length + ' para cobrar da Alterdata (entrada não lançada ou diferente).</div>' : '')
+    + (p.divergencias.length ? p.divergencias.map(function (d) { return '<div class="item"><div class="nm"><div><span class="pill ' + (d.status == 'cobrada' ? 'av' : 'er') + '">' + esc(TIPO_DIV[d.tipo] || d.tipo) + (d.status == 'cobrada' ? ' · cobrada' : '') + '</span> <span class="mu">' + esc(d.rota) + ' · ' + dt(d.quando) + '</span></div><div>' + esc(d.detalhe) + '</div><div class="lin" style="margin-top:6px">' + (d.status != 'cobrada' ? '<button class="btn sec pq" data-div="' + d.id + '|cobrada">Cobrada</button>' : '') + '<button class="btn sec pq" data-div="' + d.id + '|resolvida">Resolvida</button></div></div></div>'; }).join('') : '<div class="mu">Nenhuma divergência aberta.</div>') + '</div>';
+  h += '<div class="card"><h2>Contagens</h2>' + (p.contagens.length ? p.contagens.map(function (c) {
+    var r = c.resultado, nomes = c.grade || {};
+    var eti = r && r.etiquetas && r.etiquetas.troca ? '<div class="mu" style="margin-top:6px"><b>Físico × etiqueta</b> (etiqueta trocada: reetiquetar)</div><table><tr><th>Código</th><th>Produto</th><th>Físico</th><th>Etiqueta</th></tr>' + r.etiquetas.diferencas.map(function (x) { var g = nomes[x.sku] || {}; return '<tr><td>' + esc(x.sku) + '</td><td>' + esc([g.d, g.c, g.t].filter(Boolean).join(' ')) + '</td><td>' + x.fisico + '</td><td>' + x.etiqueta + '</td></tr>'; }).join('') + '</table>' : '';
+    var dif = r && r.diferencas && r.diferencas.length ? '<table><tr><th>Código</th><th>Tamanho</th><th>Físico</th><th>Sistema</th><th>Ajuste</th></tr>' + r.diferencas.map(function (x) { var g = nomes[x.sku] || {}; return '<tr><td>' + esc(x.sku) + '</td><td>' + esc((g.c || '') + ' ' + (g.t || '')) + '</td><td>' + x.fisico + '</td><td>' + x.sistema + '</td><td>' + (x.diferenca > 0 ? '+' : '') + x.diferenca + '</td></tr>'; }).join('') + '</table>' : '';
+    return '<div class="item"><div class="nm"><div><span class="pill ' + (c.status == 'ajuste_pendente' ? 'av' : (c.status == 'ajustada' || c.status == 'sem_diferenca' ? 'ok' : '')) + '">' + esc(c.status.replace('_', ' ')) + '</span> <b>' + esc(c.loja) + '</b> · ref ' + esc(c.ref) + ' ' + esc(c.cor || '(referência inteira)') + '</div><div class="mu">Aberta ' + dt(c.aberta_em) + (c.contada_em ? ' · contada ' + dt(c.contada_em) : '') + (r ? ' · físico ' + r.totalFisico + ' × sistema ' + r.totalSistema + (r.referencia ? ' (' + esc(r.referencia) + ')' : '') : '') + '</div>' + (dif ? '<div class="mu" style="margin-top:6px"><b>Físico × sistema</b> (ajuste de estoque)</div>' + dif : '') + eti + (c.status == 'ajuste_pendente' ? '<div class="lin"><button class="btn sec pq" data-ajust="' + c.id + '">Ajuste lançado</button></div>' : '') + '</div></div>';
+  }).join('') : '<div class="mu">Nenhuma contagem.</div>') + '</div>';
+  h += '<div class="card"><h2>Acumulando para o próximo lote</h2>' + (p.acumulando.length ? '<table><tr><th>Rota</th><th>Peças</th><th>Lote</th><th>Desde</th></tr>' + p.acumulando.map(function (a) { return '<tr><td>' + esc(a.rota) + '</td><td>' + a.pecas + '</td><td>' + a.lote + '</td><td>' + dt(a.desde) + '</td></tr>'; }).join('') + '</table>' : '<div class="mu">Nada acumulando.</div>') + '</div>';
+  h += '<div class="card"><h2>Lotes (30 dias)</h2>' + (p.lotes.length ? '<div class="tabw"><table><tr><th>Rota</th><th>Situação</th><th>Peças</th><th>Liberado</th><th>Romaneio</th><th>Enviado</th><th>Entrada</th></tr>' + p.lotes.map(function (l) { return '<tr><td>' + esc(l.rota) + '</td><td>' + esc(ST_LOTE[l.status] || l.status) + (l.nao_encontradas ? ' <span class="pill er">' + l.nao_encontradas + ' não encontrada(s)</span>' : '') + '</td><td>' + l.pecas + '</td><td>' + dt(l.liberado_em) + '</td><td>' + esc(l.romaneio || '') + '</td><td>' + dt(l.enviado_em) + '</td><td>' + dt(l.entrada_em) + '</td></tr>'; }).join('') + '</table></div>' : '<div class="mu">Nenhum lote ainda.</div>') + '</div>';
+  h += '<div class="card"><h2>Rupturas sem doador (7 dias): ' + p.rupturas.total + '</h2><div class="mu">' + p.rupturas.porLoja.map(function (x) { return esc(x.loja) + ': ' + x.n; }).join(' · ') + '. É compra, não transferência.</div>' + (p.rupturas.lista.length ? '<details><summary>Ver lista</summary><div class="tabw"><table><tr><th>Dia</th><th>Loja</th><th>Produto</th><th>Tam.</th></tr>' + p.rupturas.lista.map(function (r) { return '<tr><td>' + dt(r.data) + '</td><td>' + esc({ 43: 'Flamboyant', 45: 'Terraço', 1097: 'Goiânia Shopping' }[r.para] || r.para) + '</td><td>' + esc(r.descricao + ' ' + r.cor) + '</td><td>' + esc(r.tamanho) + '</td></tr>'; }).join('') + '</table></div></details>' : '') + '</div>';
+  if (p.foraDoApp.length) h += '<div class="card"><h2>Transferências fora do app (30 dias)</h2>' + p.foraDoApp.map(function (x) { return '<div class="mu" style="padding:4px 0">' + esc(x) + '</div>'; }).join('') + '</div>';
+  h += '<div class="card"><h2>Parâmetros</h2>' + p.parametros.map(function (x) { return '<div class="param"><div><b>' + esc(x.chave) + '</b><div class="mu">' + esc(x.obs) + '</div></div><input data-pv="' + esc(x.chave) + '" value="' + esc(x.valor) + '"><button class="btn sec pq" data-ps="' + esc(x.chave) + '">Salvar</button></div>'; }).join('') + '</div>';
+  h += '<div class="card"><details><summary>Registro da rotina</summary>' + p.log.map(function (l) { return '<div class="mu" style="padding:4px 0;word-break:break-word">' + esc(l.quando + ' · ' + l.acao + ' · ' + l.detalhe) + '</div>'; }).join('') + '</details></div>';
+  $('conteudo').innerHTML = h;
+  $('rodar').onclick = function () { acao('rodar', {}, 'Rotina executada.'); };
+  $('vercomo').onchange = function () { if (!this.value) return; LOJA_ADM = Number(this.value); ABA = null; api('estado').then(function (o) { EST = o.estado; render(); }).catch(function (e) { toast(e.message, 'er'); }); };
+}
+$('conteudo').addEventListener('click', function (e) {
+  if (!PAINEL || LOJA_ADM) return; var b = e.target.closest('button'); if (!b) return; var d = b.dataset;
+  if (d.ps) acao('param', { chave: d.ps, valor: document.querySelector('[data-pv="' + d.ps + '"]').value }, 'Parâmetro salvo.');
+  if (d.div) { var k = d.div.split('|'); acao('divergencia', { id: k[0], status: k[1] }); }
+  if (d.ajust) acao('ajustado', { id: d.ajust });
+});
+
+function carrega() {
+  if (!TOK) { $('titulo').textContent = 'Link incompleto'; $('conteudo').innerHTML = '<div class="card"><div class="vazio">Abra o link da sua loja.</div></div>'; return; }
+  api('estado').then(function (o) { EST = o.estado || null; PAINEL = o.painel || null; render(); })
+    .catch(function (e) { $('titulo').textContent = 'Não carregou'; $('conteudo').innerHTML = '<div class="card"><div class="aviso er">' + esc(e.message) + '</div><button class="btn" onclick="carrega()">Tentar de novo</button></div>'; });
+}
+document.addEventListener('visibilitychange', function () { if (!document.hidden && !SCAN && !OCUP) carrega(); });
+carrega();
+</script>
+</body>
+</html>
