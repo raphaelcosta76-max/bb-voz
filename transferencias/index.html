@@ -628,7 +628,7 @@ function renderForn() {
   $('titulo').textContent = EST.nome + (FORN_ADM ? ' (vista do painel)' : '');
   $('sub').textContent = 'Hoje, ' + dt(EST.hoje) + (fQuem() ? ' · quem bipa: ' + fQuem() : '');
   if (!fQuem()) {
-    $('abas').hidden = true;
+    $('abas').hidden = !FORN_ADM; if (FORN_ADM) $('abas').innerHTML = '<button data-ab="painel">← Painel</button>'; // vista do painel: dá para voltar
     $('conteudo').innerHTML = '<div class="card"><h2>Quem está bipando?</h2><div class="mu">Fica registrado em cada movimento. Neste celular, pergunta só uma vez.</div><label>Seu nome</label><input data-fnome="1" maxlength="60" placeholder="nome"><div class="lin"><button class="btn" data-fnomeok="1">Continuar</button></div></div>';
     return;
   }
