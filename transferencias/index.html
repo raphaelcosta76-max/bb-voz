@@ -144,7 +144,7 @@ function abasLoja() {
   var e = EST;
   if (e.modo == 'contagem') return [['contar', 'Contar', e.contar.length]]; // loja da rede: só a contagem
   if (!e.lancar) { e.lancar = (e.enviar || []).filter(function (l) { return l.status == 'de_acordo'; }); e.sair = (e.enviar || []).filter(function (l) { return l.status == 'romaneio'; }); e.saidas = []; e.prestadores = []; }
-  return [['separar', 'Separar', e.separar.reduce(function (s, l) { return s + l.itens.length; }, 0)], ['lancar', 'Lançar no sistema', e.lancar.length], ['sair', 'Saída da loja', e.sair.length], ['receber', 'Receber', e.receber.length], ['contar', 'Contar', e.contar.length]];
+  return [['separar', 'Separar', e.separar.reduce(function (s, l) { return s + l.itens.length; }, 0)], ['lancar', 'Lançar no sistema', e.lancar.length], ['sair', 'Saída da loja', e.sair.length + (e.passagem || []).filter(function (l) { return l.viaEtapa != 'saiu'; }).length], ['receber', 'Receber', e.receber.length], ['contar', 'Contar', e.contar.length]];
 }
 function render() {
   if (FRANQ && (FRANQ_ADM || !PAINEL)) return renderFranq();
@@ -223,8 +223,28 @@ function hLancar() {
       + hPecas(L) + '</div>';
   }).join('');
 }
+// v2.11 — lotes de outras lojas que passam por esta: duas baixas simples (chegou aqui, saiu daqui), sem abrir o saco.
+function hPassagem() {
+  var ps = EST.passagem || []; if (!ps.length) return '';
+  var op = (EST.prestadores || []).map(function (n) { return '<option value="' + esc(n) + '">' + esc(n) + '</option>'; }).join('');
+  return '<div class="card"><h2>De passagem por aqui</h2><div class="aviso av">Lotes de outra loja que só passam por aqui. <b>Não abra o saco:</b> não é estoque desta loja e não entra em contagem. Marque quando chegar e quando sair.</div>'
+    + ps.map(function (L) {
+      var cab = '<h3>' + esc(L.deNome) + ' → ' + esc(L.paraNome) + ' · ' + pcs(L) + ' peças</h3><div class="mu">Romaneio ' + esc(L.romaneio) + ' · saiu do ' + esc(L.deNome) + ' em ' + dt(L.enviado_em) + (L.levou ? ' com ' + esc(L.levou) : '') + '</div>';
+      if (L.viaEtapa == 'indo') return cab + '<div class="lin"><button class="btn ok" data-vch="' + L.id + '">Chegou aqui</button></div>';
+      if (L.viaEtapa == 'saiu') return cab + '<div class="item"><div class="nm"><div class="mu">Chegou em ' + dt(L.via_chegou_em) + ' · saiu daqui em ' + dt(L.via_saiu_em) + (L.levou2 ? ' com ' + esc(L.levou2) : '') + '. Esperando o ' + esc(L.paraNome) + ' confirmar.</div></div><button class="btn sec pq" data-vdf="' + L.id + '">Marquei errado</button></div>';
+      return cab + '<div class="mu"><b>Está aqui desde ' + dt(L.via_chegou_em) + '.</b> Quando sair para o ' + esc(L.paraNome) + ', dê a baixa:</div><div data-saida="' + L.id + '">'
+        + '<label>Quem levou?</label><select data-lev="' + L.id + '"><option value="">Escolha…</option><option value="motoboy">Motoboy</option><option value="raphael">Raphael</option><option value="outro">Outra pessoa</option></select>'
+        + '<div data-bx="outro" hidden><label>Nome de quem levou</label><input data-levn="' + L.id + '" maxlength="60" placeholder="nome"></div>'
+        + '<div data-bx="motoboy" hidden><label>Qual motoboy?</label><select data-prs="' + L.id + '"><option value="">Escolha…</option>' + op + '<option value="__novo">Outro (novo)…</option></select>'
+        + '<div data-bx="novo" hidden><label>Nome do motoboy novo</label><input data-prn="' + L.id + '" maxlength="60" placeholder="nome"></div>'
+        + '<label>A entrega teve custo?</label><select data-cst="' + L.id + '"><option value="">Escolha…</option><option value="sim">Sim</option><option value="nao">Não</option></select>'
+        + '<div data-bx="valor" hidden><label>Valor do frete (R$)</label><input data-vlr="' + L.id + '" inputmode="decimal" placeholder="0,00"></div></div>'
+        + '<label>Dia em que saiu daqui</label><input type="date" data-envd="' + L.id + '" value="' + hojeISO() + '" max="' + hojeISO() + '">'
+        + '<div class="lin"><button class="btn ok" data-vsai="' + L.id + '">Saiu daqui</button><button class="btn sec" data-vdf="' + L.id + '" style="flex:0 0 auto">Não chegou (marquei errado)</button></div></div>';
+    }).join('') + '</div>';
+}
 function hSaida() {
-  var h = '';
+  var h = hPassagem();
   if (!EST.sair.length) h += '<div class="card"><div class="vazio">Nenhum lote esperando para sair.</div></div>';
   h += EST.sair.map(function (L) {
     var op = (EST.prestadores || []).map(function (n) { return '<option value="' + esc(n) + '">' + esc(n) + '</option>'; }).join('');
@@ -237,10 +257,11 @@ function hSaida() {
       + '<label>A entrega teve custo?</label><select data-cst="' + L.id + '"><option value="">Escolha…</option><option value="sim">Sim</option><option value="nao">Não</option></select>'
       + '<div data-bx="valor" hidden><label>Valor do frete (R$)</label><input data-vlr="' + L.id + '" inputmode="decimal" placeholder="0,00"></div></div>'
       + '<label>Dia em que saiu</label><input type="date" data-envd="' + L.id + '" value="' + hojeISO() + '" max="' + hojeISO() + '">'
+      + (L.viaPossivel ? '<label>Caminho</label><select data-via="' + L.id + '"><option value="">Vai direto para o ' + esc(L.paraNome) + '</option><option value="sim">Passa pelo ' + esc(L.viaPossivelNome) + ' (de lá segue para o ' + esc(L.paraNome) + ')</option></select>' : '')
       + '<div class="lin"><button class="btn ok" data-saiu="' + L.id + '">Saiu da loja</button></div>' + hPecas(L) + '</div>';
   }).join('');
   if ((EST.saidas || []).length) h += '<div class="card"><h2>Já saíram</h2><div class="mu">Esperando a outra loja confirmar que recebeu. Se marcou por engano e a mercadoria ainda está aqui, desfaça.</div>'
-    + EST.saidas.map(function (L) { return '<div class="item"><div class="nm"><div class="ds">Para ' + esc(L.paraNome) + ' · ' + pcs(L) + ' peças</div><div class="mu">Romaneio ' + esc(L.romaneio) + ' · saiu em ' + dt(L.enviado_em) + (L.levou ? ' com ' + esc(L.levou) : '') + '</div></div><button class="btn sec pq" data-desf="' + L.id + '">Marquei errado</button></div>'; }).join('') + '</div>';
+    + EST.saidas.map(function (L) { return '<div class="item"><div class="nm"><div class="ds">Para ' + esc(L.paraNome) + ' · ' + pcs(L) + ' peças</div><div class="mu">Romaneio ' + esc(L.romaneio) + ' · saiu em ' + dt(L.enviado_em) + (L.levou ? ' com ' + esc(L.levou) : '') + (L.viaTexto ? ' · ' + esc(L.viaTexto) : '') + '</div></div><button class="btn sec pq" data-desf="' + L.id + '">Marquei errado</button></div>'; }).join('') + '</div>';
   return h;
 }
 // mostra só as perguntas que valem para quem levou
@@ -254,7 +275,7 @@ $('conteudo').addEventListener('change', function (e) { var c = e.target.closest
 function hReceber() {
   var h = EST.receber.length ? EST.receber.map(function (L) {
     var pc = L.itens.reduce(function (s, i) { return s + i.qtd_bipada; }, 0);
-    return '<div class="card"><h2>Do ' + esc(L.deNome) + '</h2><div class="mu">Romaneio ' + esc(L.romaneio) + ' · saiu de lá em ' + dt(L.enviado_em) + (L.levou ? ' com ' + esc(L.levou) : '') + ' · ' + pc + ' peças</div>'
+    return '<div class="card"><h2>Do ' + esc(L.deNome) + '</h2><div class="mu">Romaneio ' + esc(L.romaneio) + ' · saiu de lá em ' + dt(L.enviado_em) + (L.levou ? ' com ' + esc(L.levou) : '') + ' · ' + pc + ' peças</div>' + (L.viaTexto ? '<div class="aviso av" style="margin-top:8px">Este lote ' + esc(L.viaTexto) + '. Só confirme o recebimento quando ele chegar aqui.</div>' : '')
       + '<details><summary>Peças</summary>' + L.itens.map(function (i) { return '<div class="item"><div class="nm"><div class="ds">' + esc(nomeIt(i)) + '</div><span class="tam">' + esc(i.tamanho) + '</span></div><div class="ct">' + i.qtd_bipada + '</div></div>'; }).join('') + '</details>'
       + '<label>Dia em que chegou</label><input type="date" data-recd="' + L.id + '" value="' + hojeISO() + '" max="' + hojeISO() + '">'
       + '<label style="display:flex;gap:8px;align-items:center;color:var(--tx)"><input type="checkbox" data-dif="' + L.id + '" style="width:22px;min-height:22px"> Chegou diferente</label>'
@@ -402,8 +423,15 @@ $('conteudo').addEventListener('click', function (e) {
   if (d.saiu) {
     var cs = b.closest('[data-saida]'), qv = function (a) { var x = cs.querySelector(a); return x ? x.value.trim() : ''; }, lev = qv('[data-lev]'), pr = qv('[data-prs]');
     if (!lev) { toast('Diga quem levou a mercadoria.', 'er'); return; }
-    return acao('saiu', { lote: d.saiu, data: qv('[data-envd]'), levou: lev, nome: qv('[data-levn]'), prestador: pr == '__novo' ? qv('[data-prn]') : pr, custo: qv('[data-cst]'), valor: qv('[data-vlr]') }, 'Saída registrada.');
+    return acao('saiu', { lote: d.saiu, data: qv('[data-envd]'), levou: lev, nome: qv('[data-levn]'), prestador: pr == '__novo' ? qv('[data-prn]') : pr, custo: qv('[data-cst]'), valor: qv('[data-vlr]'), via: qv('[data-via]') }, 'Saída registrada.');
   }
+  if (d.vch) return acao('viaChegou', { lote: d.vch }, 'Chegada registrada. Quando o lote sair daqui, dê a baixa.');
+  if (d.vsai) {
+    var cv = b.closest('[data-saida]'), qw = function (a) { var x = cv.querySelector(a); return x ? x.value.trim() : ''; }, lw = qw('[data-lev]'), pw = qw('[data-prs]');
+    if (!lw) { toast('Diga quem levou a mercadoria.', 'er'); return; }
+    return acao('viaSaiu', { lote: d.vsai, data: qw('[data-envd]'), levou: lw, nome: qw('[data-levn]'), prestador: pw == '__novo' ? qw('[data-prn]') : pw, custo: qw('[data-cst]'), valor: qw('[data-vlr]') }, 'Saída registrada.');
+  }
+  if (d.vdf) { if (!confirm('Desfazer a última baixa deste lote de passagem?')) return; return acao('viaDesfaz', { lote: d.vdf }, 'Baixa desfeita.'); }
   if (d.desf) { if (!confirm('A mercadoria deste lote ainda está na loja? O lote volta para "esperando para sair".')) return; return acao('desfazSaida', { lote: d.desf }, 'Saída desfeita. O lote voltou para a lista de espera.'); }
   if (d.dif) { var ta = document.querySelector('[data-obs="' + d.dif + '"]'); ta.hidden = !b.checked; return; }
   if (d.rec) { var dif = document.querySelector('[data-dif="' + d.rec + '"]').checked; return acao('recebido', { lote: d.rec, data: document.querySelector('[data-recd="' + d.rec + '"]').value, diferente: dif, obs: document.querySelector('[data-obs="' + d.rec + '"]').value }, 'Recebimento registrado.'); }
@@ -498,7 +526,7 @@ function renderPainel() {
 function brl(v) { return 'R$ ' + Number(v || 0).toFixed(2).replace('.', ','); }
 // v2.10 — formulário de saída dentro do painel: mesmos campos da tela da loja; v = saída já marcada (para corrigir).
 var AFORM = '';
-function hFormSaidaAdm(p, id, v) {
+function hFormSaidaAdm(p, id, v, trecho2) {
   v = v || {};
   var sel = function (a, b) { return a == b ? ' selected' : ''; }, nomes = (p.prestadores || []).map(function (x) { return x.nome; });
   var op = nomes.map(function (n) { return '<option value="' + esc(n) + '"' + sel(n, v.prestador) + '>' + esc(n) + '</option>'; }).join(''), cst = v.lev == 'motoboy' ? (v.frete ? 'sim' : 'nao') : '';
@@ -509,23 +537,29 @@ function hFormSaidaAdm(p, id, v) {
     + '<div data-bx="novo" hidden><label>Nome do motoboy novo</label><input data-prn="' + id + '" maxlength="60" placeholder="nome"></div>'
     + '<label>A entrega teve custo?</label><select data-cst="' + id + '"><option value="">Escolha…</option><option value="sim"' + sel('sim', cst) + '>Sim</option><option value="nao"' + sel('nao', cst) + '>Não</option></select>'
     + '<div data-bx="valor"' + (cst == 'sim' ? '' : ' hidden') + '><label>Valor do frete (R$)</label><input data-vlr="' + id + '" inputmode="decimal" placeholder="0,00" value="' + (v.frete ? String(v.frete).replace('.', ',') : '') + '"></div></div>'
-    + '<label>Dia em que saiu</label><input type="date" data-envd="' + id + '" value="' + (v.enviado_em || hojeISO()) + '" max="' + hojeISO() + '">'
-    + '<div class="lin"><button class="btn ok pq" data-asaiu="' + id + '">' + (v.enviado_em ? 'Salvar a correção' : 'Marcar que saiu') + '</button><button class="btn sec pq" data-aform="">Cancelar</button></div></div>';
+    + '<label>' + (trecho2 ? 'Dia em que saiu do ' + esc(trecho2.viaNome) : 'Dia em que saiu') + '</label><input type="date" data-envd="' + id + '" value="' + (v.enviado_em || hojeISO()) + '" max="' + hojeISO() + '">'
+    + (!trecho2 && v.viaOk ? '<label>Caminho</label><select data-via="' + id + '"><option value="">Vai direto para o ' + esc(v.paraNome) + '</option><option value="sim"' + (v.via ? ' selected' : '') + '>Passa pelo ' + esc(v.viaOkNome) + ' (de lá segue para o ' + esc(v.paraNome) + ')</option></select>' : '')
+    + '<div class="lin">' + (trecho2 ? '<button class="btn ok pq" data-avsai="' + id + '">Marcar que saiu do ' + esc(trecho2.viaNome) + '</button>' : '<button class="btn ok pq" data-asaiu="' + id + '">' + (v.enviado_em ? 'Salvar a correção' : 'Marcar que saiu') + '</button>') + '<button class="btn sec pq" data-aform="">Cancelar</button></div></div>';
 }
 function hRetirada(p) {
   var r = p.retirada || [], lojas = [], ac = p.aCaminho || [];
   r.forEach(function (x) { if (lojas.indexOf(x.deNome) < 0) lojas.push(x.deNome); });
-  var h = '<div class="card"><h2>Retirada e saída: o que está na loja e o que já saiu</h2><div class="mu">Aqui você muda direto o que a loja marcou. "Peguei" dá a baixa como levado por você hoje. "Saiu com outra pessoa" marca a saída com motoboy ou outra pessoa. Em "Já saíram", "Não saiu" volta o lote para a loja e "Corrigir" troca quem levou, o dia ou o frete.</div>';
+  var h = '<div class="card"><h2>Retirada e saída: o que está na loja e o que já saiu</h2><div class="mu">Aqui você muda direto o que a loja marcou. "Peguei" dá a baixa como levado por você hoje. "Saiu com outra pessoa" marca a saída com motoboy ou outra pessoa. Em "Já saíram", "Não saiu" volta o lote para a loja e "Corrigir" troca quem levou, o dia ou o frete. Entre Terraço e Goiânia Shopping o lote pode passar pelo Flamboyant: marque o caminho na saída e dê aqui as baixas de chegada e de saída do Flamboyant.</div>';
   var hAc = ac.length ? '<h3>Já saíram, esperando o destino confirmar</h3>' + ac.map(function (x) {
     return '<div class="item"><div class="nm"><div class="ds">' + esc(x.deNome) + ' → ' + esc(x.paraNome) + ' · ' + x.pecas + ' peças</div><div class="mu">Romaneio ' + esc(x.romaneio) + ' · saiu em ' + dt(x.enviado_em) + (x.levou ? ' com ' + esc(x.levou) : ' · <b>sem quem levou</b>') + (x.frete ? ' · frete R$ ' + x.frete.toFixed(2).replace('.', ',') + (x.pago ? ' (pago)' : '') : '') + (x.dias > 0 ? ' · há ' + x.dias + (x.dias == 1 ? ' dia' : ' dias') : '') + ' · baixa dada ' + (x.reg == 'painel' ? 'por você' : 'pela loja') + '</div>'
-      + (AFORM == x.id ? hFormSaidaAdm(p, x.id, x) : '<div class="lin" style="margin-top:6px"><button class="btn sec pq" data-anaosaiu="' + x.id + '">Não saiu</button><button class="btn sec pq" data-aform="' + x.id + '">Corrigir</button></div>') + '</div></div>';
+      + (x.via ? '<div class="mu"><span class="pill ' + (x.viaEtapa == 'na_loja' ? 'av' : '') + '">' + (x.viaEtapa == 'na_loja' ? 'parado no ' + esc(x.viaNome) : 'passa pelo ' + esc(x.viaNome)) + '</span> ' + esc(x.viaTexto) + (x.frete2 ? ' · frete do 2º trecho R$ ' + x.frete2.toFixed(2).replace('.', ',') + (x.pago2 ? ' (pago)' : '') : '') + '</div>' : '')
+      + (AFORM == x.id ? hFormSaidaAdm(p, x.id, x) : (AFORM == 'v:' + x.id ? hFormSaidaAdm(p, x.id, {}, x) : '<div class="lin" style="margin-top:6px">'
+        + (!x.via || x.viaEtapa == 'indo' ? '<button class="btn sec pq" data-anaosaiu="' + x.id + '">Não saiu</button><button class="btn sec pq" data-aform="' + x.id + '">Corrigir</button>' : '')
+        + (x.viaEtapa == 'indo' ? '<button class="btn ok pq" data-avia="' + x.id + '|chegou">Chegou ao ' + esc(x.viaNome) + '</button>' : '')
+        + (x.viaEtapa == 'na_loja' ? '<button class="btn ok pq" data-avia="' + x.id + '|peguei">Peguei no ' + esc(x.viaNome) + '</button><button class="btn sec pq" data-aform="v:' + x.id + '">Saiu do ' + esc(x.viaNome) + ' com outra pessoa</button>' : '')
+        + (x.viaEtapa == 'na_loja' || x.viaEtapa == 'saiu' ? '<button class="btn sec pq" data-avia="' + x.id + '|desfaz">Desfazer a última baixa</button>' : '') + '</div>')) + '</div></div>';
   }).join('') : '';
   if (!r.length) return h + '<div class="mu" style="margin-top:8px">Nada esperando para sair.</div>' + hAc + '</div>';
   lojas.forEach(function (n) {
     h += '<h3>No ' + esc(n) + '</h3>' + r.filter(function (x) { return x.deNome == n; }).map(function (x) {
       return '<div class="item"><div class="nm"><div class="ds">Para ' + esc(x.paraNome) + ' · ' + x.pecas + ' peças' + (x.busca ? ' <span class="pill ok">eu busco</span>' : '') + '</div><div class="mu">'
         + (x.pronto ? 'Romaneio ' + esc(x.romaneio) + ' · lançado em ' + dt(x.desde) + (x.dias > 0 ? ' · há ' + x.dias + (x.dias == 1 ? ' dia' : ' dias') : '') : 'Conferido em ' + dt(x.desde) + ' · <b>ainda não lançado no sistema</b>') + '</div>'
-        + '<div class="lin" style="margin-top:6px"><button class="btn sec pq" data-busco="' + x.id + '|' + (x.busca ? '' : '1') + '">' + (x.busca ? 'Não vou buscar' : 'Eu busco') + '</button>' + (x.pronto ? '<button class="btn ok pq" data-peguei="' + x.id + '">Peguei</button><button class="btn sec pq" data-aform="' + x.id + '">Saiu com outra pessoa</button>' : '') + '</div>' + (AFORM == x.id ? hFormSaidaAdm(p, x.id) : '') + '</div></div>';
+        + '<div class="lin" style="margin-top:6px"><button class="btn sec pq" data-busco="' + x.id + '|' + (x.busca ? '' : '1') + '">' + (x.busca ? 'Não vou buscar' : 'Eu busco') + '</button>' + (x.pronto ? '<button class="btn ok pq" data-peguei="' + x.id + '">Peguei' + (x.via ? ', levo direto' : '') + '</button>' + (x.via ? '<button class="btn ok pq" data-peguei="' + x.id + '|via">Peguei, deixo no ' + esc(x.viaNome) + '</button>' : '') + '<button class="btn sec pq" data-aform="' + x.id + '">Saiu com outra pessoa</button>' : '') + '</div>' + (AFORM == x.id ? hFormSaidaAdm(p, x.id, { viaOk: x.via, viaOkNome: x.viaNome, paraNome: x.paraNome }) : '') + '</div></div>';
     }).join('');
   });
   return h + hAc + '</div>';
@@ -542,6 +576,7 @@ function hAtividade(p) {
       if (pd.lancar) esp.push(pl(pd.lancar, 'lote para lançar no sistema', 'lotes para lançar no sistema'));
       if (pd.sair) esp.push(pl(pd.sair, 'lote lançado e ainda na loja', 'lotes lançados e ainda na loja'));
       if (pd.receber) esp.push(pl(pd.receber, 'lote para confirmar o recebimento', 'lotes para confirmar o recebimento'));
+      if (pd.passagem) esp.push(pl(pd.passagem, 'lote de passagem para despachar', 'lotes de passagem para despachar'));
       if (pd.contar) esp.push(pl(pd.contar, 'contagem aberta', 'contagens abertas'));
       var dia = '', ev = x.eventos.map(function (e) { var d = e.quando.slice(0, 10), cab = d != dia ? '<div class="mu" style="margin-top:8px"><b>' + (d == p.hoje ? 'Hoje, ' : '') + dt(d) + '</b></div>' : ''; dia = d; return cab + '<div class="mu">' + (hora(e.quando) ? hora(e.quando) + ' · ' : '') + esc(e.texto) + '</div>'; }).join('');
       var aberto = ATV[x.filial] === undefined ? x.hoje > 0 : ATV[x.filial];
@@ -614,7 +649,7 @@ function hFretes(p) {
   var h = '<div class="card"><h2>Fretes a pagar: ' + brl(p.fretesAberto) + '</h2><div class="mu">Entregas de motoboy com custo. O app só registra; o pagamento é feito fora dele.</div>'
     + (f.length ? '<div class="tabw"><table><tr><th>Saiu</th><th>Rota</th><th>Motoboy</th><th>Valor</th><th>Pix / conta</th><th></th></tr>' + f.map(function (x) {
       return '<tr><td>' + dt(x.saiu) + '</td><td>' + esc(x.rota) + '<div class="mu">romaneio ' + esc(x.romaneio) + '</div></td><td>' + esc(x.prestador) + '</td><td>' + brl(x.valor) + '</td><td>' + (x.pix ? esc(x.pix) : '<span class="pill av">sem Pix</span>') + '</td><td>'
-        + (x.pago_em ? 'pago em ' + dt(x.pago_em) + ' <button class="btn sec pq" data-fpago="' + x.lote + '|1">Desfazer</button>' : '<button class="btn sec pq" data-fpago="' + x.lote + '|">Pago</button>') + '</td></tr>';
+        + (x.pago_em ? 'pago em ' + dt(x.pago_em) + ' <button class="btn sec pq" data-fpago="' + x.lote + '|1|' + (x.trecho || 1) + '">Desfazer</button>' : '<button class="btn sec pq" data-fpago="' + x.lote + '||' + (x.trecho || 1) + '">Pago</button>') + '</td></tr>';
     }).join('') + '</table></div>' : '<div class="mu" style="margin-top:8px">Nenhum frete registrado.</div>') + '</div>';
   var pr = p.prestadores || [];
   h += '<div class="card"><h2>Motoboys e prestadores</h2><div class="mu">A loja só escolhe o nome. Nome novo digitado pela loja entra aqui como pendente, para você completar o Pix ou a conta.</div>'
@@ -647,12 +682,25 @@ $('conteudo').addEventListener('click', function (e) {
   if (d.asaiu) {
     var ca = b.closest('[data-saida]'), qa = function (s) { var x = ca.querySelector(s); return x ? x.value.trim() : ''; }, la = qa('[data-lev]'), pa = qa('[data-prs]');
     if (!la) { toast('Diga quem levou a mercadoria.', 'er'); return; }
-    acao('saidaAdm', { lote: d.asaiu, saiu: true, data: qa('[data-envd]'), levou: la, nome: qa('[data-levn]'), prestador: pa == '__novo' ? qa('[data-prn]') : pa, custo: qa('[data-cst]'), valor: qa('[data-vlr]') }, 'Saída registrada.').then(function (o) { if (o) { AFORM = ''; render(); } });
+    acao('saidaAdm', { lote: d.asaiu, saiu: true, data: qa('[data-envd]'), levou: la, nome: qa('[data-levn]'), prestador: pa == '__novo' ? qa('[data-prn]') : pa, custo: qa('[data-cst]'), valor: qa('[data-vlr]'), via: qa('[data-via]') }, 'Saída registrada.').then(function (o) { if (o) { AFORM = ''; render(); } });
+    return;
+  }
+  if (d.avsai) {
+    var cz = b.closest('[data-saida]'), qz = function (s) { var x = cz.querySelector(s); return x ? x.value.trim() : ''; }, lz = qz('[data-lev]'), pz = qz('[data-prs]');
+    if (!lz) { toast('Diga quem levou a mercadoria.', 'er'); return; }
+    acao('viaAdm', { lote: d.avsai, passo: 'saiu', data: qz('[data-envd]'), levou: lz, nome: qz('[data-levn]'), prestador: pz == '__novo' ? qz('[data-prn]') : pz, custo: qz('[data-cst]'), valor: qz('[data-vlr]') }, 'Saída do segundo trecho registrada.').then(function (o) { if (o) { AFORM = ''; render(); } });
+    return;
+  }
+  if (d.avia) {
+    var kv = d.avia.split('|');
+    if (kv[1] == 'chegou') acao('viaAdm', { lote: kv[0], passo: 'chegou' }, 'Chegada registrada.');
+    if (kv[1] == 'peguei') { if (!confirm('Dar a baixa: você pegou este lote hoje na loja de passagem e leva até o destino?')) return; acao('viaAdm', { lote: kv[0], passo: 'saiu', levou: 'raphael' }, 'Baixa registrada: saiu com você.'); }
+    if (kv[1] == 'desfaz') { if (!confirm('Desfazer a última baixa da passagem deste lote?')) return; acao('viaAdm', { lote: kv[0], passo: 'desfaz' }, 'Baixa desfeita.'); }
     return;
   }
   if (d.anaosaiu) { if (!confirm('Este lote não saiu da loja? Ele volta para "lançado no sistema, ainda na loja".')) return; acao('saidaAdm', { lote: d.anaosaiu, saiu: false }, 'Saída desfeita: o lote voltou para a loja.'); return; }
-  if (d.peguei) { if (!confirm('Dar a baixa: você pegou este lote na loja hoje?')) return; acao('peguei', { lote: d.peguei }, 'Baixa registrada: saiu com você.'); }
-  if (d.fpago) { var kf = d.fpago.split('|'); acao('fretePago', { lote: kf[0], desfaz: !!kf[1] }, kf[1] ? 'Baixa do frete desfeita.' : 'Frete marcado como pago.'); }
+  if (d.peguei) { var kp = d.peguei.split('|'); if (!confirm(kp[1] ? 'Dar a baixa: você pegou este lote na loja hoje e vai deixar na loja de passagem?' : 'Dar a baixa: você pegou este lote na loja hoje?')) return; acao('peguei', { lote: kp[0], via: kp[1] ? 'sim' : '' }, 'Baixa registrada: saiu com você.'); }
+  if (d.fpago) { var kf = d.fpago.split('|'); acao('fretePago', { lote: kf[0], desfaz: !!kf[1], trecho: Number(kf[2]) || 1 }, kf[1] ? 'Baixa do frete desfeita.' : 'Frete marcado como pago.'); }
   if (d.psalva) { var cp = b.closest('[data-prest]'); acao('prestador', { id: d.psalva == 'novo' ? '' : d.psalva, nome: cp.querySelector('[data-pnome]').value, pix: cp.querySelector('[data-ppix]').value }, 'Prestador salvo.'); }
 });
 
