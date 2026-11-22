@@ -86,7 +86,7 @@ details summary{cursor:pointer;font-weight:600;padding:6px 0}
 <script>
 var EXEC = "https://script.google.com/macros/s/AKfycbyBi659H2-n8E2D-PRBoUz319O5oGC3IAdH-cI3wCLDn0rWJZcvbWyfJneH1jRHYGK2NQ/exec";
 var TOK = (location.hash.match(/t=([^&]+)/) || [])[1] || '';
-var EST = null, PAINEL = null, ABA = null, LOJA_ADM = null, OCUP = false, SIMUL = null, NAO = null, BUSCA = null;
+var EST = null, PAINEL = null, FRANQ = null, FRANQ_ADM = null, ABA = null, LOJA_ADM = null, OCUP = false, SIMUL = null, NAO = null, BUSCA = null;
 function $(i) { return document.getElementById(i); }
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 function dt(d) { d = String(d || '').slice(0, 10); return d ? d.slice(8, 10) + '/' + d.slice(5, 7) : ''; }
@@ -96,13 +96,13 @@ function lsGet(k) { try { return JSON.parse(localStorage.getItem('bbt_' + k) || 
 function lsSet(k, v) { try { if (v == null) localStorage.removeItem('bbt_' + k); else localStorage.setItem('bbt_' + k, JSON.stringify(v)); } catch (e) { } }
 function toast(m, tipo) { var t = $('toast'); t.textContent = m; t.style.display = 'block'; t.style.background = tipo == 'er' ? 'var(--er)' : (tipo == 'ok' ? 'var(--ok)' : '#333'); t.style.color = '#fff'; clearTimeout(toast.t); toast.t = setTimeout(function () { t.style.display = 'none'; }, tipo == 'er' ? 6000 : 3000); }
 function api(acao, dados) {
-  var b = Object.assign({ tok: TOK, acao: acao }, dados || {}); if (LOJA_ADM) b.loja = LOJA_ADM;
+  var b = Object.assign({ tok: TOK, acao: acao }, dados || {}); if (LOJA_ADM) b.loja = LOJA_ADM; if (FRANQ_ADM) b.franq = FRANQ_ADM;
   return fetch(EXEC, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(b) })
     .then(function (r) { return r.json(); }).then(function (o) { if (!o.ok) throw new Error(o.erro || 'erro'); return o; });
 }
 function acao(nome, dados, msgOk) {
   if (OCUP) return Promise.resolve(); OCUP = true; document.body.style.cursor = 'progress';
-  return api(nome, dados).then(function (o) { if (o.estado) EST = o.estado; if (o.painel) PAINEL = o.painel; render(); if (o.msg || msgOk) toast(o.msg || msgOk, 'ok'); return o; })
+  return api(nome, dados).then(function (o) { if (o.estado) EST = o.estado; if (o.painel) PAINEL = o.painel; if (o.franq) FRANQ = o.franq; render(); if (o.msg || msgOk) toast(o.msg || msgOk, 'ok'); return o; })
     .catch(function (e) { toast(e.message, 'er'); }).then(function (o) { OCUP = false; document.body.style.cursor = ''; return o; });
 }
 
@@ -142,12 +142,15 @@ $('scanx').onclick = fechaScanner;
 // ---------- abas da loja ----------
 function abasLoja() {
   var e = EST;
+  if (e.modo == 'contagem') return [['contar', 'Contar', e.contar.length]]; // loja da rede: só a contagem
   if (!e.lancar) { e.lancar = (e.enviar || []).filter(function (l) { return l.status == 'de_acordo'; }); e.sair = (e.enviar || []).filter(function (l) { return l.status == 'romaneio'; }); e.saidas = []; e.prestadores = []; }
   return [['separar', 'Separar', e.separar.reduce(function (s, l) { return s + l.itens.length; }, 0)], ['lancar', 'Lançar no sistema', e.lancar.length], ['sair', 'Saída da loja', e.sair.length], ['receber', 'Receber', e.receber.length], ['contar', 'Contar', e.contar.length]];
 }
 function render() {
+  if (FRANQ && (FRANQ_ADM || !PAINEL)) return renderFranq();
   if (PAINEL && !LOJA_ADM) return renderPainel();
   if (!EST) return;
+  document.querySelector('.marca').textContent = EST.modo == 'contagem' ? 'bb básico · contagem de estoque' : 'bb básico · transferências entre lojas';
   $('titulo').textContent = EST.nome + (LOJA_ADM ? ' (vista do painel)' : '');
   $('sub').textContent = 'Hoje, ' + dt(EST.hoje);
   var ab = abasLoja();
@@ -158,7 +161,7 @@ function render() {
   h += { separar: hSeparar, lancar: hLancar, sair: hSaida, receber: hReceber, contar: hContar }[ABA]();
   $('conteudo').innerHTML = h;
 }
-$('abas').onclick = function (e) { var b = e.target.closest('[data-ab]'); if (!b) return; if (b.dataset.ab == 'painel') { LOJA_ADM = null; EST = null; ABA = null; $('abas').hidden = true; return carrega(); } ABA = b.dataset.ab; render(); };
+$('abas').onclick = function (e) { var b = e.target.closest('[data-ab]'); if (!b) return; if (b.dataset.ab == 'painel') { LOJA_ADM = null; FRANQ_ADM = null; FRANQ = null; EST = null; ABA = null; $('abas').hidden = true; return carrega(); } ABA = b.dataset.ab; render(); };
 
 // ---------- Separar ----------
 function prog(L) { var p = lsGet('lote_' + L.id) || { cont: {}, bip: [] }; L.itens.forEach(function (i) { if (p.cont[i.id] > i.qtd) p.cont[i.id] = i.qtd; }); return p; }
@@ -302,14 +305,23 @@ function hSituacao() {
 // ---------- Contar (duas etapas: 1. física, pela peça; 2. bipagem da etiqueta) ----------
 function progC(C) { var p = lsGet('cont_' + C.id) || {}; p.passo = p.passo || 1; p.fis = p.fis || {}; p.eti = p.eti || {}; p.outros = p.outros || []; p.bip = p.bip || []; return p; }
 function somaObj(o) { return Object.keys(o).reduce(function (s, k) { return s + (o[k] || 0); }, 0); }
+// Loja da rede (só contagem): aviso da carga e a contagem livre (bipa qualquer peça e abre a cor dela).
+function hRedeTopo() {
+  if (EST.modo != 'contagem') return '';
+  if (EST.parada) return '<div class="card"><div class="aviso er"><b>Contagem suspensa.</b> O sistema desta loja não manda dados para o app ' + (EST.carga_ate ? 'desde ' + dt(EST.carga_ate) : 'ainda') + '. Contar agora compararia com saldo velho. A contagem volta sozinha quando a carga voltar.</div></div>';
+  return '<div class="card"><h2>Contar outra peça</h2><div class="mu">Além da lista abaixo, você pode contar qualquer produto: bipe ou digite o código da etiqueta de uma peça e o app abre a contagem daquela cor.</div>'
+    + '<div class="lin"><button class="btn" data-livrecam="1">📷 Bipar etiqueta</button></div>'
+    + '<div class="lin"><input data-livre="1" inputmode="numeric" placeholder="ou digite o código"><button class="btn sec" data-livreok="1" style="flex:0 0 auto">Abrir contagem</button></div></div>';
+}
 function hContar() {
-  if (!EST.contar.length) return '<div class="card"><div class="vazio">Nenhuma contagem pendente.</div></div>';
-  return EST.contar.map(function (C) {
+  if (!EST.contar.length) return hRedeTopo() + (EST.parada ? '' : '<div class="card"><div class="vazio">Nenhuma contagem pendente.</div></div>');
+  return hRedeTopo() + EST.contar.map(function (C) {
     var p = progC(C), d = (C.grade[0] || {}).descricao || '', tf = somaObj(p.fis), te = somaObj(p.eti) + p.outros.length;
     var h = '<div class="card"><h2>Contar: ' + esc(d) + '</h2>' + (C.motivo ? '<div class="mu"><b>' + esc(C.motivo) + '</b></div>' : '') + '<div class="mu">Ref ' + esc(C.ref) + ' · ' + (C.etapa == 'cor' ? 'todos os tamanhos da cor ' + esc(C.cor) : 'a referência inteira, todas as cores') + '. Conte a loja e o estoque.</div>';
     if (p.passo == 1) {
       h += '<div class="aviso av" style="margin-top:10px"><b>Passo 1 de 2 · Contagem física.</b> Pegue cada peça e conte pela cor e pelo tamanho da própria roupa. Não bipe agora.</div>'
-        + '<div class="aviso ok"><b>Não abra saco de transferência já conferido.</b> O que já foi bipado e está no saco o app já sabe: conte só o que está fora dos sacos. Mercadoria que chegou de outra loja conta normalmente (marque "Recebido" na aba Receber).</div>'
+        + (EST.modo == 'contagem' ? '<div class="aviso ok"><b>Conte a loja e o estoque inteiros.</b> Só fica de fora caixa de mercadoria que chegou e ainda não teve a entrada lançada no sistema.</div>'
+          : '<div class="aviso ok"><b>Não abra saco de transferência já conferido.</b> O que já foi bipado e está no saco o app já sabe: conte só o que está fora dos sacos. Mercadoria que chegou de outra loja conta normalmente (marque "Recebido" na aba Receber).</div>')
         + C.grade.map(function (g) { var n = p.fis[g.sku] || 0; return '<div class="item"><div class="nm"><div class="ds">' + esc(g.cor) + '</div><span class="tam">' + esc(g.tamanho) + '</span></div><button class="btn sec pq" data-cm="' + C.id + '|' + g.sku + '">−</button><div class="ct" style="min-width:40px;text-align:center">' + n + '</div><button class="btn sec pq" data-cp="' + C.id + '|' + g.sku + '">+</button></div>'; }).join('')
         + '<div class="lin"><button class="btn" data-cfim="' + C.id + '">Concluir contagem física (' + tf + ' peças)</button></div>';
     } else if (p.passo == 4) {
@@ -391,6 +403,8 @@ $('conteudo').addEventListener('click', function (e) {
   if (d.desf) { if (!confirm('A mercadoria deste lote ainda está na loja? O lote volta para "esperando para sair".')) return; return acao('desfazSaida', { lote: d.desf }, 'Saída desfeita. O lote voltou para a lista de espera.'); }
   if (d.dif) { var ta = document.querySelector('[data-obs="' + d.dif + '"]'); ta.hidden = !b.checked; return; }
   if (d.rec) { var dif = document.querySelector('[data-dif="' + d.rec + '"]').checked; return acao('recebido', { lote: d.rec, data: document.querySelector('[data-recd="' + d.rec + '"]').value, diferente: dif, obs: document.querySelector('[data-obs="' + d.rec + '"]').value }, 'Recebimento registrado.'); }
+  if (d.livreok) { var cl = document.querySelector('[data-livre]').value.trim(); if (!cl) { toast('Bipe ou digite o código da etiqueta.', 'er'); return; } return acao('abrir', { codigo: cl }); }
+  if (d.livrecam) return abreScanner(function (c) { fechaScanner(); acao('abrir', { codigo: c }); });
   if (d.vbipar) { var Cv = contPorId(d.vbipar); return abreScanner(function (c) { lidoVenda(Cv, c); }); }
   if (d.cbipar) { var C = contPorId(d.cbipar); return abreScanner(function (c) { lidoContar(C, c); }); }
   if (d.bus) return buscar(document.querySelector('[data-busca]').value);
@@ -420,6 +434,7 @@ $('conteudo').addEventListener('click', function (e) {
 $('conteudo').addEventListener('keydown', function (e) {
   if (e.key != 'Enter') return; var t = e.target, v = t.value.trim(); if (!v) return;
   if (t.dataset.cod) { lidoSeparar(lotePorId(t.dataset.cod), v); t.value = ''; render(); var n = document.querySelector('[data-cod="' + t.dataset.cod + '"]'); n && n.focus(); }
+  if (t.dataset.livre) document.querySelector('[data-livreok]').click();
   if (t.dataset.vcod) { lidoVenda(contPorId(t.dataset.vcod), v); t.value = ''; render(); var mv = document.querySelector('[data-vcod="' + t.dataset.vcod + '"]'); mv && mv.focus(); }
   if (t.dataset.ccod) { lidoContar(contPorId(t.dataset.ccod), v); t.value = ''; render(); var m = document.querySelector('[data-ccod="' + t.dataset.ccod + '"]'); m && m.focus(); }
   if (t.dataset.rom) document.querySelector('[data-romok="' + t.dataset.rom + '"]').click();
@@ -432,14 +447,15 @@ var fbOrig = fb; fb = function (txt, sub, tipo) { fbOrig(txt, sub, tipo); if (!S
 var TIPO_DIV = { romaneio_nao_encontrado: 'Romaneio não encontrado', destino_errado: 'Destino errado', saida_diferente: 'Saída diferente', entrada_diferente: 'Entrada diferente', sem_entrada: 'Sem entrada no sistema', chegou_diferente: 'Chegou diferente' };
 var ST_LOTE = { separando: 'separando', de_acordo: 'conferido, falta lançar', romaneio: 'lançado, ainda na loja', enviado: 'saiu da loja', recebido: 'recebido', validado: 'validado', cancelado: 'cancelado' };
 function renderPainel() {
-  var p = PAINEL; $('titulo').textContent = 'Painel de transferências'; $('sub').textContent = 'Hoje, ' + dt(p.hoje); $('abas').hidden = true;
+  var p = PAINEL; document.querySelector('.marca').textContent = 'bb básico · transferências entre lojas'; $('titulo').textContent = 'Painel de transferências'; $('sub').textContent = 'Hoje, ' + dt(p.hoje); $('abas').hidden = true;
   var h = '';
   (p.alertas || []).forEach(function (a) { h += '<div class="aviso ' + (a.tipo == 'equivalencia' ? 'av' : 'er') + '">' + esc(a.detalhe) + '</div>'; });
-  h += '<div class="card"><div class="lin" style="margin-top:0"><button class="btn" id="rodar">Rodar a rotina agora</button><select id="vercomo"><option value="">Ver como loja…</option><option value="43">Flamboyant</option><option value="1097">Goiânia Shopping</option><option value="45">Terraço</option></select></div>'
+  h += '<div class="card"><div class="lin" style="margin-top:0"><button class="btn" id="rodar">Rodar a rotina agora</button><select id="vercomo"><option value="">Ver como loja…</option><option value="43">Flamboyant</option><option value="1097">Goiânia Shopping</option><option value="45">Terraço</option>' + (p.rede || []).map(function (x) { return '<option value="' + x.filial + '">' + esc(x.nome) + ' (bipador)</option>'; }).join('') + '</select></div>'
     + '<div class="lin"><button class="btn sec" id="simular">Simular remontagem dos lotes</button><button class="btn sec" id="remontar">Remontar lotes agora</button></div>'
     + '<div class="mu" style="margin-top:6px">Remontar desfaz os lotes ainda em separação (nenhuma peça conferida) e monta de novo pela prioridade e pelo tamanho de lote atuais. Simular mostra o resultado sem mudar nada.</div></div>';
   if (SIMUL) h += hSimulacao(SIMUL, p);
   h += hRetirada(p);
+  h += hRede(p);
   h += '<div class="card"><h2>Atrasos</h2>' + (p.atrasos.length ? '<div class="tabw"><table><tr><th>Etapa</th><th>Onde</th><th>Dias</th><th>Detalhe</th></tr>' + p.atrasos.map(function (a) { return '<tr><td><span class="pill er">' + esc(a.tipo) + '</span></td><td>' + esc(a.rota) + '</td><td>' + a.dias + '</td><td>' + esc(a.detalhe) + '</td></tr>'; }).join('') + '</table></div>' : '<div class="mu">Nenhum atraso.</div>') + '</div>';
   var cob = p.divergencias.filter(function (d) { return d.tipo == 'sem_entrada' || d.tipo == 'entrada_diferente'; });
   h += '<div class="card"><h2>Divergências</h2>' + (cob.length ? '<div class="aviso av">' + cob.length + ' para cobrar da Alterdata (entrada não lançada ou diferente).</div>' : '')
@@ -466,6 +482,8 @@ function renderPainel() {
   $('rodar').onclick = function () { acao('rodar', {}, 'Rotina executada.'); };
   $('simular').onclick = function () { acao('remontar', { simular: true }, 'Simulação pronta.').then(function (o) { if (o && o.rodada) { SIMUL = o.rodada; render(); } }); };
   $('remontar').onclick = function () { if (!confirm('Remontar os lotes que ainda estão em separação? As lojas passam a ver os lotes novos.')) return; acao('remontar', {}, 'Lotes remontados.').then(function (o) { if (o && o.rodada) { SIMUL = o.rodada; render(); } }); };
+  if ($('rodarrede')) $('rodarrede').onclick = function () { acao('rodarRede', {}, 'Fila das lojas da rede atualizada.'); };
+  if ($('verfranq')) $('verfranq').onchange = function () { if (!this.value) return; FRANQ_ADM = Number(this.value); api('estado').then(function (o) { FRANQ = o.franq; render(); }).catch(function (e) { FRANQ_ADM = null; toast(e.message, 'er'); }); };
   $('vercomo').onchange = function () { if (!this.value) return; LOJA_ADM = Number(this.value); ABA = null; api('estado').then(function (o) { EST = o.estado; render(); }).catch(function (e) { toast(e.message, 'er'); }); };
 }
 // v2.5 — Retirada: o que buscar e levar. Baixa lote a lote ("Peguei" = saiu com o Raphael); "Eu busco" avisa a loja.
@@ -483,6 +501,37 @@ function hRetirada(p) {
     }).join('');
   });
   return h + '</div>';
+}
+// v2.6 — Lojas da rede no modo só contagem: carga, fila por prioridade e andamento de cada loja.
+var NOME_CLASSE = { 1: 'Negativou na última carga', 2: 'Negativa e a cor vende', 3: 'Parada em cor que vende', 4: 'Negativa sem venda', 5: 'Parada há mais de 12 meses' };
+function hRede(p) {
+  var r = p.rede || []; if (!r.length) return '';
+  var c = function (x, k) { return x.parada ? '–' : ((x.resumo || {})[k] || 0); };
+  return '<div class="card"><h2>Lojas da rede: contagem</h2><div class="mu">Cores na fila por prioridade (1 a 5), contagens abertas e ajustes a lançar. A fila é refeita toda manhã às 6h.</div>'
+    + '<div class="tabw"><table><tr><th>Loja</th><th>Dados até</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>Abertas</th><th>Atrasadas</th><th>A conferir</th><th>Ajustes</th><th>Feitas 30 d</th></tr>'
+    + r.map(function (x) { return '<tr><td>' + esc(x.nome) + (x.parada ? ' <span class="pill er">carga parada</span>' : '') + '</td><td>' + (dt(x.carga_ate) || '–') + '</td><td>' + c(x, 'c1') + '</td><td>' + c(x, 'c2') + '</td><td>' + c(x, 'c3') + '</td><td>' + c(x, 'c4') + '</td><td>' + c(x, 'c5') + '</td><td>' + x.abertas + '</td><td>' + (x.atrasadas ? '<span class="pill er">' + x.atrasadas + '</span>' : 0) + '</td><td>' + x.conferir + '</td><td>' + (x.ajustes ? '<span class="pill av">' + x.ajustes + '</span>' : 0) + '</td><td>' + x.feitas30 + '</td></tr>'; }).join('')
+    + '</table></div><div class="mu" style="margin-top:6px">1 ' + NOME_CLASSE[1] + ' · 2 ' + NOME_CLASSE[2] + ' · 3 ' + NOME_CLASSE[3] + ' · 4 ' + NOME_CLASSE[4] + ' · 5 ' + NOME_CLASSE[5] + '.</div>'
+    + '<div class="lin"><button class="btn sec" id="rodarrede">Atualizar a fila agora</button><select id="verfranq"><option value="">Ver o painel do franqueado…</option>' + r.map(function (x) { return '<option value="' + x.filial + '">' + esc(x.nome) + '</option>'; }).join('') + '</select></div></div>';
+}
+// Painel do franqueado: só a loja dele. A fila não mostra o saldo do sistema (a contagem é cega).
+function renderFranq() {
+  var f = FRANQ; document.querySelector('.marca').textContent = 'bb básico · painel do franqueado'; $('titulo').textContent = f.nome + ' · contagem de estoque'; $('sub').textContent = 'Hoje, ' + dt(f.hoje) + (f.carga_ate ? ' · dados do sistema até ' + dt(f.carga_ate) : '');
+  $('abas').hidden = !FRANQ_ADM; if (FRANQ_ADM) $('abas').innerHTML = '<button data-ab="painel">← Painel</button>';
+  var h = '', rs = f.resumo || {};
+  if (f.parada) h += '<div class="aviso er"><b>Contagem suspensa.</b> O sistema da loja não manda dados para o app ' + (f.carga_ate ? 'desde ' + dt(f.carga_ate) : 'ainda') + '. Sem a carga, a contagem compararia com saldo velho.</div>';
+  h += '<div class="card"><h2>Como está a loja</h2><div class="tabw"><table><tr><th>Na fila para contar</th><th>Cores</th></tr>'
+    + [1, 2, 3, 4, 5].map(function (k) { return '<tr><td>' + k + '. ' + NOME_CLASSE[k] + '</td><td>' + (f.parada ? '–' : (rs['c' + k] || 0)) + '</td></tr>'; }).join('') + '</table></div>'
+    + '<div class="mu" style="margin-top:6px">Últimos 30 dias: ' + f.feitas30 + ' contagens concluídas (' + f.semDiferenca30 + ' sem diferença, ' + f.ajustadas30 + ' com ajuste já lançado).</div></div>';
+  h += '<div class="card"><h2>Ajustes a lançar no sistema: ' + f.ajustes.length + '</h2><div class="mu">Contagens que não bateram. Lance a diferença no sistema da loja (entrada quando o ajuste é positivo, saída quando é negativo). O app confere sozinho no dia seguinte e tira daqui.</div>'
+    + (f.ajustes.length ? f.ajustes.map(function (a) {
+      return '<h3>Ref ' + esc(a.ref) + ' · ' + esc(a.cor) + ' <span class="mu">contada em ' + dt(a.contada_em) + '</span></h3>' + (a.etiqueta ? '<div class="aviso av">Há peça com etiqueta trocada nesta cor: troque a etiqueta antes de lançar.</div>' : '')
+        + '<div class="tabw"><table><tr><th>Código</th><th>Produto</th><th>Tam.</th><th>Contado</th><th>Esperado</th><th>Ajuste</th></tr>' + a.linhas.map(function (l) { return '<tr><td>' + esc(l.sku) + '</td><td>' + esc(l.descricao + ' ' + l.cor) + '</td><td>' + esc(l.tamanho) + '</td><td>' + l.fisico + '</td><td>' + l.esperado + '</td><td><b>' + (l.ajuste > 0 ? '+' : '') + l.ajuste + '</b></td></tr>'; }).join('') + '</table></div>';
+    }).join('') : '<div class="mu" style="margin-top:8px">Nenhum ajuste pendente.</div>') + '</div>';
+  h += '<div class="card"><h2>Contagens abertas na loja: ' + f.abertas.length + '</h2>' + (f.abertas.length ? f.abertas.map(function (a) { return '<div class="item"><div class="nm"><div class="ds">Ref ' + esc(a.ref) + ' · ' + esc(a.cor) + '</div><div class="mu">Aberta em ' + dt(a.aberta_em) + (a.origem == 'livre' ? ' · aberta pela loja' : '') + '</div></div>' + (a.dias > 2 ? '<span class="pill er">' + a.dias + ' dias</span>' : '') + '</div>'; }).join('') : '<div class="mu">Nenhuma contagem aberta.</div>')
+    + (f.conferir.length ? '<div class="mu" style="margin-top:8px">' + f.conferir.length + ' contagem(ns) feita(s) aguardando a conferência com o sistema do dia seguinte.</div>' : '') + '</div>';
+  h += '<div class="card"><h2>Próximas da fila</h2><div class="mu">A loja recebe 10 de cada vez, nesta ordem. A quantidade do sistema não aparece: a contagem é cega.</div>'
+    + (f.fila.length ? '<div class="tabw"><table><tr><th>#</th><th>Produto</th><th>Cor</th><th>Por quê</th></tr>' + f.fila.map(function (x) { return '<tr><td>' + x.ordem + '</td><td>' + esc(x.ref + ' ' + x.descricao) + '</td><td>' + esc(x.cor) + '</td><td>' + esc(x.motivo) + '</td></tr>'; }).join('') + '</table></div>' : '<div class="mu" style="margin-top:8px">' + (f.parada ? 'Sem fila enquanto a carga estiver parada.' : 'Fila vazia.') + '</div>') + '</div>';
+  $('conteudo').innerHTML = h;
 }
 function hFretes(p) {
   var f = p.fretes || [];
@@ -522,7 +571,7 @@ $('conteudo').addEventListener('click', function (e) {
 
 function carrega() {
   if (!TOK) { $('titulo').textContent = 'Link incompleto'; $('conteudo').innerHTML = '<div class="card"><div class="vazio">Abra o link da sua loja.</div></div>'; return; }
-  api('estado').then(function (o) { EST = o.estado || null; PAINEL = o.painel || null; render(); })
+  api('estado').then(function (o) { EST = o.estado || null; PAINEL = o.painel || null; FRANQ = o.franq || null; render(); })
     .catch(function (e) { $('titulo').textContent = 'Não carregou'; $('conteudo').innerHTML = '<div class="card"><div class="aviso er">' + esc(e.message) + '</div><button class="btn" onclick="carrega()">Tentar de novo</button></div>'; });
 }
 document.addEventListener('visibilitychange', function () { if (!document.hidden && !SCAN && !OCUP) carrega(); });
