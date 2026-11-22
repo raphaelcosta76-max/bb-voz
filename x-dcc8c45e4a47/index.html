@@ -79,7 +79,7 @@ textarea{min-height:92px;resize:vertical}
 </head>
 <body>
 <div id="demo" style="display:block">TESTE — o que você gravar aqui fica numa área separada e não afeta as lojas.</div>
-<header><div><small id="loja">bb básico</small><b id="nome">Sua assistente de vendas</b></div><div class="hd"><button class="som" id="vozb" type="button">Voz ▾</button><button class="som on" id="som" type="button">🔊 Voz ligada</button></div></header>
+<header><div><small id="loja">bb básico</small><b id="nome">Sua assistente de vendas</b></div><div class="hd"><button class="som" id="homeb" type="button" title="Tela inicial" aria-label="Tela inicial">🏠</button><button class="som" id="vozb" type="button">Voz ▾</button><button class="som on" id="som" type="button">🔊 Voz ligada</button></div></header>
 <main>
 
 <section id="vozp" class="card" style="display:none">
@@ -631,7 +631,9 @@ function curta(q){return!!q&&!aberta(q)&&q.tipo!='basico'&&(!!(q.op&&q.op.length
 var $=function(i){return document.getElementById(i)};
 function ls(k,v){try{if(v===undefined)return localStorage.getItem(k+SUF);if(v===null)localStorage.removeItem(k+SUF);else localStorage.setItem(k+SUF,v)}catch(e){}return null}
 var tok=(function(){var m=/[#?&]t=([0-9a-f]{20,40})/.exec(location.hash+location.search);var t=m?m[1]:null;if(t)ls('bbvoz_t',t);else t=ls('bbvoz_t');return t})();
-var VQS=[];// v37u: carimbo de cada interpretação (linha da aba Voz) desta venda — vai na gravação para ligar a gravação à venda
+var VQS=[];
+// v37u (22/11): 🏠 volta à tela inicial (escolher o nome); avisa se há venda na tela ainda não salva
+document.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('#homeb');if(!b)return;e.preventDefault();try{if(typeof F!='undefined'&&F&&String(F.transcricao||'').trim()&&!confirm('Voltar à tela inicial? Esta venda ainda não foi salva.'))return}catch(x){}location.reload()});// v37u: carimbo de cada interpretação (linha da aba Voz) desta venda — vai na gravação para ligar a gravação à venda
 function api(b){b.tok=tok;if(TESTE)b.teste=1;if(EU&&Q.porLoja)b.vend=EU.nome;return fetch(URL_SCRIPT,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(b)}).then(function(r){return r.json()}).then(function(j){if(!j.ok)throw new Error(j.erro||'erro');if(b.voz=='interpretar'&&j.r&&j.r._vq&&VQS.indexOf(j.r._vq)<0)VQS.push(j.r._vq);return j.r})}
 function msg(id,t,cls){var e=$(id);e.innerHTML=t?'<div class="msg '+(cls||'')+'">'+t+'</div>':''}
 var SECS=['s0','s1','s2','s3','s4','s5','s6'];
