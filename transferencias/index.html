@@ -86,7 +86,7 @@ details summary{cursor:pointer;font-weight:600;padding:6px 0}
 <script>
 var EXEC = "https://script.google.com/macros/s/AKfycbyBi659H2-n8E2D-PRBoUz319O5oGC3IAdH-cI3wCLDn0rWJZcvbWyfJneH1jRHYGK2NQ/exec";
 var TOK = (location.hash.match(/t=([^&]+)/) || [])[1] || '';
-var EST = null, PAINEL = null, FRANQ = null, FRANQ_ADM = null, ABA = null, LOJA_ADM = null, OCUP = false, SIMUL = null, NAO = null, BUSCA = null;
+var EST = null, PAINEL = null, FRANQ = null, FRANQ_ADM = null, ABA = null, LOJA_ADM = null, OCUP = false, SIMUL = null, NAO = null, BUSCA = null, FORN_ADM = null;
 function $(i) { return document.getElementById(i); }
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 function dt(d) { d = String(d || '').slice(0, 10); return d ? d.slice(8, 10) + '/' + d.slice(5, 7) : ''; }
@@ -96,7 +96,7 @@ function lsGet(k) { try { return JSON.parse(localStorage.getItem('bbt_' + k) || 
 function lsSet(k, v) { try { if (v == null) localStorage.removeItem('bbt_' + k); else localStorage.setItem('bbt_' + k, JSON.stringify(v)); } catch (e) { } }
 function toast(m, tipo) { var t = $('toast'); t.textContent = m; t.style.display = 'block'; t.style.background = tipo == 'er' ? 'var(--er)' : (tipo == 'ok' ? 'var(--ok)' : '#333'); t.style.color = '#fff'; clearTimeout(toast.t); toast.t = setTimeout(function () { t.style.display = 'none'; }, tipo == 'er' ? 6000 : 3000); }
 function api(acao, dados) {
-  var b = Object.assign({ tok: TOK, acao: acao }, dados || {}); if (LOJA_ADM) b.loja = LOJA_ADM; if (FRANQ_ADM) b.franq = FRANQ_ADM;
+  var b = Object.assign({ tok: TOK, acao: acao }, dados || {}); if (LOJA_ADM) b.loja = LOJA_ADM; if (FRANQ_ADM) b.franq = FRANQ_ADM; if (FORN_ADM && !b.forn) b.forn = FORN_ADM;
   return fetch(EXEC, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(b) })
     .then(function (r) { return r.json(); }).then(function (o) { if (!o.ok) throw new Error(o.erro || 'erro'); return o; });
 }
@@ -148,8 +148,9 @@ function abasLoja() {
 }
 function render() {
   if (FRANQ && (FRANQ_ADM || !PAINEL)) return renderFranq();
-  if (PAINEL && !LOJA_ADM) return renderPainel();
+  if (PAINEL && !LOJA_ADM && !FORN_ADM) return renderPainel();
   if (!EST) return;
+  if (EST.modo == 'fornecedor') return renderForn(); // v2.8: link do fornecedor
   document.querySelector('.marca').textContent = EST.modo == 'contagem' ? 'bb básico · contagem de estoque' : 'bb básico · transferências entre lojas';
   $('titulo').textContent = EST.nome + (LOJA_ADM ? ' (vista do painel)' : '');
   $('sub').textContent = 'Hoje, ' + dt(EST.hoje);
@@ -161,7 +162,7 @@ function render() {
   h += { separar: hSeparar, lancar: hLancar, sair: hSaida, receber: hReceber, contar: hContar }[ABA]();
   $('conteudo').innerHTML = h;
 }
-$('abas').onclick = function (e) { var b = e.target.closest('[data-ab]'); if (!b) return; if (b.dataset.ab == 'painel') { LOJA_ADM = null; FRANQ_ADM = null; FRANQ = null; EST = null; ABA = null; $('abas').hidden = true; return carrega(); } ABA = b.dataset.ab; render(); };
+$('abas').onclick = function (e) { var b = e.target.closest('[data-ab]'); if (!b) return; if (b.dataset.ab == 'painel') { LOJA_ADM = null; FRANQ_ADM = null; FORN_ADM = null; FRANQ = null; EST = null; ABA = null; FABA = null; $('abas').hidden = true; return carrega(); } if (EST && EST.modo == 'fornecedor') FABA = b.dataset.ab; else ABA = b.dataset.ab; render(); };
 
 // ---------- Separar ----------
 function prog(L) { var p = lsGet('lote_' + L.id) || { cont: {}, bip: [] }; L.itens.forEach(function (i) { if (p.cont[i.id] > i.qtd) p.cont[i.id] = i.qtd; }); return p; }
@@ -460,6 +461,7 @@ function renderPainel() {
   if (SIMUL) h += hSimulacao(SIMUL, p);
   h += hRetirada(p);
   h += hAcomp(p);
+  h += hFornPainel(p);
   h += '<div class="card"><h2>Atrasos</h2>' + (p.atrasos.length ? '<div class="tabw"><table><tr><th>Etapa</th><th>Onde</th><th>Dias</th><th>Detalhe</th></tr>' + p.atrasos.map(function (a) { return '<tr><td><span class="pill er">' + esc(a.tipo) + '</span></td><td>' + esc(a.rota) + '</td><td>' + a.dias + '</td><td>' + esc(a.detalhe) + '</td></tr>'; }).join('') + '</table></div>' : '<div class="mu">Nenhum atraso.</div>') + '</div>';
   var cob = p.divergencias.filter(function (d) { return d.tipo == 'sem_entrada' || d.tipo == 'entrada_diferente'; });
   h += '<div class="card"><h2>Divergências</h2>' + (cob.length ? '<div class="aviso av">' + cob.length + ' para cobrar da Alterdata (entrada não lançada ou diferente).</div>' : '')
@@ -587,7 +589,9 @@ function hSimulacao(r, p) {
   return h + '</div>';
 }
 $('conteudo').addEventListener('click', function (e) {
-  if (!PAINEL || LOJA_ADM) return; var b = e.target.closest('button'); if (!b) return; var d = b.dataset;
+  if (!PAINEL || LOJA_ADM || FORN_ADM) return; var b = e.target.closest('button'); if (!b) return; var d = b.dataset;
+  if (d.festorn) { var ke = d.festorn.split('|'), mot = prompt('Motivo do estorno (fica registrado):'); if (!mot) return; return acao('estornar', { forn: ke[0], mov: ke[1], motivo: mot }, 'Movimento estornado.'); }
+  if (d.fver) { FORN_ADM = d.fver; FABA = null; return api('estado').then(function (o) { EST = o.estado; render(); }).catch(function (e) { FORN_ADM = null; toast(e.message, 'er'); }); }
   if (d.ps) acao('param', { chave: d.ps, valor: document.querySelector('[data-pv="' + d.ps + '"]').value }, 'Parâmetro salvo.');
   if (d.div) { var k = d.div.split('|'); acao('divergencia', { id: k[0], status: k[1] }); }
   if (d.ajust) acao('ajustado', { id: d.ajust });
@@ -596,6 +600,245 @@ $('conteudo').addEventListener('click', function (e) {
   if (d.fpago) { var kf = d.fpago.split('|'); acao('fretePago', { lote: kf[0], desfaz: !!kf[1] }, kf[1] ? 'Baixa do frete desfeita.' : 'Frete marcado como pago.'); }
   if (d.psalva) { var cp = b.closest('[data-prest]'); acao('prestador', { id: d.psalva == 'novo' ? '' : d.psalva, nome: cp.querySelector('[data-pnome]').value, pix: cp.querySelector('[data-ppix]').value }, 'Prestador salvo.'); }
 });
+
+// ---------- v2.8: link do fornecedor (estoque do fornecedor, parte 1) ----------
+// Contagem por referência (substitui o saldo), entrada da produção, saída por nota, devolução e "Meu estoque".
+// O que é bipado fica guardado no celular até concluir (sinal fraco no depósito não perde nada).
+var FABA = null, FGRADE = {}, FSTQ = null, FFILA = [], FPROC = false;
+var FTIPOS = { contagem: 'Contagem', entrada: 'Entrada da produção', saida: 'Saída por nota', devolucao: 'Devolução', estoque: 'Meu estoque' };
+function fQuem() { return lsGet('f_quem') || ''; }
+function fDev() { var d = lsGet('f_dev'); if (!d) { d = 'd' + Math.random().toString(36).slice(2, 10); lsSet('f_dev', d); } return d; }
+function fAtivos() { var a = lsGet('fat_' + EST.forn) || {}, ok = {}; EST.abertos.forEach(function (m) { ok[m.id] = 1; }); Object.keys(a).forEach(function (t) { if (!ok[a[t]]) { lsSet('fm_' + a[t], null); delete a[t]; } }); lsSet('fat_' + EST.forn, a); return a; }
+function fAtivo(tipo) { var id = fAtivos()[tipo]; return id ? EST.abertos.filter(function (m) { return m.id == id; })[0] : null; }
+function fSetAtivo(tipo, id) { var a = lsGet('fat_' + EST.forn) || {}; if (id) a[tipo] = id; else delete a[tipo]; lsSet('fat_' + EST.forn, a); }
+function fm(id) { var x = lsGet('fm_' + id) || {}; x.q = x.q || {}; x.outros = x.outros || {}; x.info = x.info || {}; return x; }
+function fmSet(id, x) { lsSet('fm_' + id, x); }
+function fTot(x) { return somaObj(x.q) + somaObj(x.outros); }
+function fNorm(c) { return String(c || '').replace(/\D/g, '').replace(/^0+/, ''); }
+function fProdCache() { return lsGet('fprod') || {}; }
+function fApi(acao_, dados) { return api(acao_, Object.assign({ quem: fQuem(), dev: fDev() }, dados || {})); }
+function fAcao(nome, dados, msgOk) { return acao(nome, Object.assign({ quem: fQuem(), dev: fDev() }, dados || {}), msgOk); }
+
+function abasForn() {
+  var n = function (t) { return EST.abertos.filter(function (m) { return m.tipo == t; }).length; };
+  return [['contagem', 'Contagem', n('contagem')], ['entrada', 'Entrada da produção', n('entrada')], ['saida', 'Saída por nota', n('saida')], ['devolucao', 'Devolução', n('devolucao')], ['estoque', 'Meu estoque', 0]];
+}
+function renderForn() {
+  document.querySelector('.marca').textContent = 'bb básico · estoque do fornecedor';
+  $('titulo').textContent = EST.nome + (FORN_ADM ? ' (vista do painel)' : '');
+  $('sub').textContent = 'Hoje, ' + dt(EST.hoje) + (fQuem() ? ' · quem bipa: ' + fQuem() : '');
+  if (!fQuem()) {
+    $('abas').hidden = true;
+    $('conteudo').innerHTML = '<div class="card"><h2>Quem está bipando?</h2><div class="mu">Fica registrado em cada movimento. Neste celular, pergunta só uma vez.</div><label>Seu nome</label><input data-fnome="1" maxlength="60" placeholder="nome"><div class="lin"><button class="btn" data-fnomeok="1">Continuar</button></div></div>';
+    return;
+  }
+  var ab = abasForn();
+  if (!FABA) { var at = fAtivos(); FABA = ['contagem', 'entrada', 'saida', 'devolucao'].filter(function (t) { return at[t]; })[0] || 'contagem'; }
+  $('abas').hidden = false;
+  $('abas').innerHTML = (FORN_ADM ? '<button data-ab="painel">← Painel</button>' : '') + ab.map(function (a) { return '<button data-ab="' + a[0] + '" class="' + (FABA == a[0] ? 'on' : '') + '">' + a[1] + (a[2] ? '<span class="n">' + a[2] + '</span>' : '') + '</button>'; }).join('');
+  var h = FABA == 'contagem' ? hFContagem() : (FABA == 'estoque' ? hFEstoque() : hFMov(FABA));
+  h += '<div class="mu" style="text-align:center;margin-top:8px">Não é ' + esc(fQuem()) + '? <button class="btn sec pq" data-ftroca="1">Trocar nome</button></div>';
+  $('conteudo').innerHTML = h;
+}
+
+// ----- Contagem por referência -----
+function fGrade(id) { if (FGRADE[id]) return FGRADE[id]; var g = lsGet('fg_' + id); if (g) FGRADE[id] = g; return g; }
+function hFContagem() {
+  var M = fAtivo('contagem');
+  if (M) {
+    var g = fGrade(M.id);
+    if (!g) { fApi('grade', { mov: M.id }).then(function (o) { FGRADE[M.id] = o.grade; lsSet('fg_' + M.id, o.grade); render(); }).catch(function (e) { toast(e.message, 'er'); }); return '<div class="card"><div class="vazio">Carregando a grade…</div></div>'; }
+    var x = fm(M.id), tot = fTot(x), d = (g[0] || {}).descricao || '';
+    var outrosCel = (M.enviados || []).filter(function (e) { return e.pecas; });
+    var h = '<div class="card"><h2>Contando a referência ' + esc(M.ref) + '</h2><div class="mu">' + esc(d) + ' · aberta por ' + esc(M.aberto_por) + ' em ' + dt(M.aberto_em) + ' ' + esc(String(M.aberto_em).slice(11, 16)) + '</div>'
+      + '<div class="aviso av" style="margin-top:10px"><b>Conte a referência inteira:</b> todas as cores e tamanhos, em todo o depósito. Bipe uma peça e digite quantas há no pacote. Cor ou tamanho sem peça fica com saldo 0. Enquanto a contagem estiver aberta, ninguém dá entrada nem saída desta referência.</div>'
+      + (outrosCel.length ? '<div class="aviso ok">Outros celulares já mandaram: ' + outrosCel.map(function (e) { return esc(e.quem) + ' (' + e.pecas + ' peças)'; }).join(', ') + '. Quem concluir soma tudo.</div>' : '')
+      + '<div class="lin"><button class="btn" data-fbipar="contagem">📷 Bipar etiqueta</button></div>'
+      + '<div class="lin"><input data-fcod="contagem" inputmode="numeric" placeholder="ou digite o código e Enter"></div>'
+      + g.map(function (it) { var k = fNorm(it.sku), n = x.q[k] || 0; return '<div class="item"><div class="nm"><div class="ds">' + esc(it.cor) + '</div><span class="tam">' + esc(it.tamanho) + '</span></div><button class="btn sec pq" data-fcm="' + k + '">−</button><input data-fqtd="' + k + '" inputmode="numeric" value="' + n + '" style="width:76px;min-height:40px;text-align:center;font-weight:700"><button class="btn sec pq" data-fcp="' + k + '">+</button></div>'; }).join('')
+      + (Object.keys(x.outros).length ? '<h3>Códigos sem cadastro</h3><div class="mu">Ficam registrados à parte, com a marca.</div>' + Object.keys(x.outros).map(function (k) { return '<div class="item"><div class="nm"><div class="ds">' + esc(k) + '</div></div><button class="btn sec pq" data-fom="' + k + '">− 1</button><div class="ct">' + x.outros[k] + '</div></div>'; }).join('') : '')
+      + '<div class="mu" style="margin-top:8px"><b>Total contado neste celular: ' + tot + (tot == 1 ? ' peça' : ' peças') + '</b></div>'
+      + '<div class="lin"><button class="btn ok" data-fconcluir="contagem">Concluir contagem</button></div>'
+      + '<div class="lin"><button class="btn sec" data-fparte="contagem">Enviar o que contei (outra pessoa conclui)</button><button class="btn sec" data-fcancel="contagem" style="flex:0 0 auto">Cancelar</button></div></div>';
+    return h;
+  }
+  var ab = EST.abertos.filter(function (m) { return m.tipo == 'contagem'; });
+  var h2 = '<div class="card"><h2>Contar uma referência</h2><div class="mu">Conte uma referência inteira de cada vez. A contagem vira o saldo da referência: o que entrou ou saiu antes fica só como histórico.</div>'
+    + '<label>Referência</label><div class="lin" style="margin-top:0"><input data-fref="1" placeholder="ex.: 0395"><button class="btn" data-fabrirc="1" style="flex:0 0 auto">Abrir contagem</button></div>'
+    + '<div class="lin"><button class="btn sec" data-fabrircam="1">📷 Ou bipe uma peça da referência</button></div></div>';
+  if (ab.length) h2 += '<div class="card"><h2>Contagens abertas</h2>' + ab.map(function (m) { return '<div class="item"><div class="nm"><div class="ds">Referência ' + esc(m.ref) + '</div><div class="mu">Aberta por ' + esc(m.aberto_por) + ' em ' + dt(m.aberto_em) + '</div></div><button class="btn sec pq" data-fadota="contagem|' + m.id + '">Contar neste celular</button></div>'; }).join('') + '</div>';
+  h2 += hFUltimos();
+  return h2;
+}
+function fAbrirContagem(dados) {
+  return fAcao('abrir', Object.assign({ tipo: 'contagem' }, dados)).then(function (o) { if (!o || !o.mov) return; FGRADE[o.mov.id] = o.grade; lsSet('fg_' + o.mov.id, o.grade); fSetAtivo('contagem', o.mov.id); render(); });
+}
+function lidoFContagem(code) {
+  var M = fAtivo('contagem'); if (!M) return; var g = fGrade(M.id) || [], x = fm(M.id);
+  var it = g.filter(function (i) { return casa(code, i.sku); })[0];
+  if (it) { var k = fNorm(it.sku); x.q[k] = (x.q[k] || 0) + 1; fmSet(M.id, x); bip(true); fb('+1 · ' + it.cor + ' ' + it.tamanho, 'Agora: ' + x.q[k] + '. Digite a quantidade do pacote se for o caso.', 'ok'); if (!SCAN) { render(); var inp = document.querySelector('[data-fqtd="' + k + '"]'); inp && inp.select(); } return; }
+  fb('Consultando…', '', '');
+  fProduto(code).then(function (p) {
+    if (p.achou) { bip(false); fb('NÃO É DESTA REFERÊNCIA', p.descricao + ' ' + p.cor + ' ' + p.tamanho + ' é da referência ' + p.ref + ': não entra nesta contagem.', 'er'); return; }
+    var c = fNorm(code), y = fm(M.id); y.outros[c] = (y.outros[c] || 0) + 1; fmSet(M.id, y); bip(false); fb('CÓDIGO SEM CADASTRO', 'Registrado à parte, com a marca. Separe a peça.', 'av'); if (!SCAN) render();
+  });
+}
+
+// ----- Entrada, saída e devolução (peça a peça) -----
+var DICA_F = { entrada: 'Bipe cada peça que chegou da produção, já etiquetada.', saida: 'Bipe cada peça que vai na nota. No fim, digite o número da nota.', devolucao: 'Bipe só peça boa, apta para venda. Peça com defeito não entra.' };
+function hFMov(tipo) {
+  var M = fAtivo(tipo);
+  if (!M) {
+    var ab = EST.abertos.filter(function (m) { return m.tipo == tipo; });
+    var lojas = EST.lojas.map(function (l) { return '<option value="' + l.filial + '">' + esc(l.nome) + '</option>'; }).join('');
+    var h = '<div class="card"><h2>' + FTIPOS[tipo] + '</h2><div class="mu">' + DICA_F[tipo] + '</div>'
+      + (tipo == 'saida' ? '<label>Loja de destino</label><select data-fdest="1"><option value="">Escolha…</option>' + lojas + '</select>' : '')
+      + (tipo == 'devolucao' ? '<label>Voltou de qual loja? (opcional)</label><select data-fdest="1"><option value="">Não sei / não informar</option>' + lojas + '</select>' : '')
+      + '<div class="lin"><button class="btn" data-fabrir="' + tipo + '">Começar</button></div></div>';
+    if (ab.length) h += '<div class="card"><h2>Abertas</h2><div class="mu">As peças bipadas em outro celular ficam naquele celular.</div>' + ab.map(function (m) { return '<div class="item"><div class="nm"><div class="ds">' + FTIPOS[tipo] + (m.destino_nome ? ' · ' + esc(m.destino_nome) : '') + '</div><div class="mu">Aberta por ' + esc(m.aberto_por) + ' em ' + dt(m.aberto_em) + ' ' + esc(String(m.aberto_em).slice(11, 16)) + '</div></div><button class="btn sec pq" data-fadota="' + tipo + '|' + m.id + '">Continuar aqui</button></div>'; }).join('') + '</div>';
+    return h + hFUltimos();
+  }
+  var x = fm(M.id), tot = fTot(x), grupos = {};
+  Object.keys(x.q).forEach(function (k) { var i = x.info[k] || {}; var gk = i.ref || '?'; (grupos[gk] = grupos[gk] || []).push(k); });
+  var h2 = '<div class="card"><h2>' + FTIPOS[tipo] + (M.destino_nome ? (tipo == 'saida' ? ' para ' : ' de ') + esc(M.destino_nome) : '') + '</h2><div class="mu">' + DICA_F[tipo] + '</div>'
+    + (EST.travadas.length ? '<div class="aviso av" style="margin-top:8px">Em contagem agora (não bipe): referência ' + EST.travadas.map(esc).join(', ') + '.</div>' : '')
+    + '<div class="lin"><button class="btn" data-fbipar="' + tipo + '">📷 Bipar peças</button></div>'
+    + '<div class="lin"><input data-fcod="' + tipo + '" inputmode="numeric" placeholder="ou digite o código e Enter"></div>'
+    + '<div class="mu" style="margin-top:8px"><b>' + tot + (tot == 1 ? ' peça bipada' : ' peças bipadas') + '</b></div>'
+    + Object.keys(grupos).sort().map(function (r) {
+      return '<h3>Ref ' + esc(r) + ' · ' + esc((x.info[grupos[r][0]] || {}).d || '') + '</h3>' + grupos[r].sort(function (a, b) { var ia = x.info[a] || {}, ib = x.info[b] || {}; return (ia.c + ordTamF(ia.t)) < (ib.c + ordTamF(ib.t)) ? -1 : 1; }).map(function (k) {
+        var i = x.info[k] || {};
+        return '<div class="item"><div class="nm"><div class="ds">' + esc(i.c) + (i.sit == 'outro' ? ' <span class="pill av">outro fornecedor</span>' : '') + '</div><span class="tam">' + esc(i.t) + '</span></div><button class="btn sec pq" data-fmenos="' + k + '">− 1</button><div class="ct">' + x.q[k] + '</div></div>';
+      }).join('');
+    }).join('')
+    + (Object.keys(x.outros).length ? '<h3>Códigos sem cadastro</h3>' + Object.keys(x.outros).map(function (k) { return '<div class="item"><div class="nm"><div class="ds">' + esc(k) + '</div><span class="pill av">sem cadastro</span></div><button class="btn sec pq" data-fom="' + k + '">− 1</button><div class="ct">' + x.outros[k] + '</div></div>'; }).join('') : '')
+    + (tipo == 'saida' ? '<label>Número da nota fiscal</label><input data-fnf="1" inputmode="numeric" placeholder="número da nota">' : '')
+    + (tipo == 'devolucao' ? '<label>Nota de devolução (se houver)</label><input data-fnf="1" inputmode="numeric" placeholder="opcional">' : '')
+    + '<div class="lin"><button class="btn ok" data-fconcluir="' + tipo + '"' + (tot ? '' : ' disabled') + '>Concluir</button><button class="btn sec" data-fcancel="' + tipo + '" style="flex:0 0 auto">Cancelar</button></div></div>';
+  return h2;
+}
+function ordTamF(t) { return typeof ordTam === 'function' ? ordTam(t) : ['RN', 'PP', 'P', 'M', 'G', 'GG', '01', '02', '03', '04', '06', '08', '10', '12', '14', '16', 'U'].indexOf(String(t).toUpperCase()) + 100 + String(t); }
+// Consulta do produto pelo código: guarda no celular (a mesma peça bipada de novo não consulta outra vez).
+function fProduto(code) {
+  var k = fNorm(code), c = fProdCache();
+  if (c[k]) return Promise.resolve(c[k]);
+  return fApi('produto', { codigo: code }).then(function (o) { var p = o.produto || { achou: false }; c = fProdCache(); c[k] = p; if (p.achou) c[fNorm(p.sku)] = p; lsSet('fprod', c); return p; })
+    .catch(function (e) { return { erro: e.message }; });
+}
+// Leitor rápido (Bluetooth/USB) bipa mais rápido do que a consulta: fila, uma peça de cada vez, na ordem.
+function lidoFMov(tipo, code) { FFILA.push([tipo, code]); fProcessa(); }
+function fProcessa() {
+  if (FPROC || !FFILA.length) return; FPROC = true;
+  var it = FFILA.shift(), tipo = it[0], code = it[1], M = fAtivo(tipo);
+  if (!M) { FPROC = false; return fProcessa(); }
+  fProduto(code).then(function (p) {
+    var x = fm(M.id);
+    if (p.erro) { bip(false); fb('NÃO CONSEGUI CONSULTAR', 'Sem conexão? Bipe esta peça de novo. (' + p.erro + ')', 'er'); }
+    else if (!p.achou) { var c = fNorm(code); x.outros[c] = (x.outros[c] || 0) + 1; fmSet(M.id, x); bip(false); fb('CÓDIGO SEM CADASTRO', 'Registrado com a marca: ' + c + '.', 'av'); }
+    else if (EST.travadas.indexOf(String(p.ref)) >= 0) { bip(false); fb('REFERÊNCIA EM CONTAGEM', 'A ' + p.ref + ' está sendo contada: separe esta peça e bipe depois que a contagem acabar.', 'er'); }
+    else {
+      var k = fNorm(p.sku); x.q[k] = (x.q[k] || 0) + 1; x.info[k] = { ref: p.ref, d: p.descricao, c: p.cor, t: p.tamanho, sit: p.do_fornecedor === false ? 'outro' : 'ok' }; fmSet(M.id, x);
+      if (p.do_fornecedor === false) { bip(false); fb('PEÇA DE OUTRO FORNECEDOR', p.descricao + ' ' + p.cor + ' ' + p.tamanho + ': registrada com a marca.', 'av'); }
+      else { bip(true); fb('OK · ' + p.tamanho, p.descricao + ' ' + p.cor + ' — ' + x.q[k] + (x.q[k] == 1 ? ' peça' : ' peças'), 'ok'); }
+    }
+    FPROC = false; if (!SCAN && !FFILA.length) render(); fProcessa();
+  });
+}
+
+// ----- Meu estoque -----
+function hFEstoque() {
+  var r = EST.resumo || {};
+  var h = '<div class="card"><h2>Meu estoque</h2><div class="mu">' + pl(r.pecas, 'peça', 'peças') + ' em ' + pl(r.skus, 'código', 'códigos') + ', ' + (r.refs == 1 ? 'na referência já contada' : 'nas ' + r.refs + ' referências já contadas') + '.' + (r.refsSem ? ' ' + pl(r.refsSem, 'referência', 'referências') + ' com movimento e ainda sem contagem.' : '') + '</div>'
+    + '<label>Referência</label><div class="lin" style="margin-top:0"><input data-fbusca="1" placeholder="referência ou código" value="' + esc(FSTQ ? FSTQ.ref : '') + '"><button class="btn" data-fbus="1" style="flex:0 0 auto">Ver</button><button class="btn sec" data-fbuscam="1" style="flex:0 0 auto">📷</button></div></div>';
+  if (FSTQ) {
+    if (!FSTQ.achou) h += '<div class="card"><div class="aviso er">Referência ' + esc(FSTQ.ref) + ' não encontrada.</div></div>';
+    else {
+      var cores = [], tams = [], cel = {};
+      FSTQ.linhas.forEach(function (l) { if (cores.indexOf(l.cor) < 0) cores.push(l.cor); if (tams.indexOf(l.tamanho) < 0) tams.push(l.tamanho); cel[l.cor + '|' + l.tamanho] = l; });
+      tams.sort(function (a, b) { return ordTamF(a) < ordTamF(b) ? -1 : 1; });
+      h += '<div class="card"><h2>Ref ' + esc(FSTQ.ref) + ' · ' + esc(FSTQ.descricao) + '</h2>'
+        + (FSTQ.em_contagem ? '<div class="aviso av">Em contagem agora.</div>' : '')
+        + (FSTQ.sem_saldo_inicial ? '<div class="aviso er"><b>Sem saldo inicial</b> em parte da grade: conte a referência para o saldo valer. Os números "—" ainda não têm contagem.</div>' : '<div class="mu">Contada em ' + dt(FSTQ.contada_em) + '.</div>')
+        + '<div class="tabw"><table><tr><th>Cor</th>' + tams.map(function (t) { return '<th>' + esc(t) + '</th>'; }).join('') + '</tr>'
+        + cores.map(function (c) { return '<tr><td>' + esc(c) + '</td>' + tams.map(function (t) { var l = cel[c + '|' + t]; return '<td>' + (!l ? '' : (l.saldo == null ? '—' : (l.saldo < 0 ? '<span class="pill er">' + l.saldo + '</span>' : '<b>' + l.saldo + '</b>'))) + '</td>'; }).join('') + '</tr>'; }).join('') + '</table></div>'
+        + (FSTQ.historico.length ? '<h3>Movimentos dos últimos 30 dias</h3><div class="tabw"><table><tr><th>Data</th><th>Movimento</th><th>Cor · tam.</th><th>Qtd</th></tr>' + FSTQ.historico.map(function (m) {
+          return '<tr><td>' + dt(m.quando) + '</td><td>' + esc(m.rotulo) + (m.nf ? ' · NF ' + esc(m.nf) : '') + (m.destino ? ' · ' + esc(m.destino) : '') + (m.estornado ? ' <span class="pill av">estornado</span>' : '') + '</td><td>' + esc(m.cor + ' ' + m.tamanho) + '</td><td>' + (m.tipo == 'contagem' ? '= ' : (m.qtd > 0 ? '+' : '')) + m.qtd + '</td></tr>'; }).join('') + '</table></div>' : '')
+        + '</div>';
+    }
+  }
+  return h + hFUltimos();
+}
+function fBuscar(txt) { txt = String(txt || '').trim(); if (!txt) return; var dig = txt.replace(/\D/g, ''); var d = dig.length >= 8 ? { codigo: txt } : { ref: txt }; return fApi('estoque', d).then(function (o) { FSTQ = o.estoque; render(); }).catch(function (e) { toast(e.message, 'er'); }); }
+function hFUltimos() {
+  var u = EST.ultimos || []; if (!u.length) return '';
+  return '<div class="card"><details><summary>Últimos movimentos concluídos</summary><div class="tabw"><table><tr><th>Quando</th><th>Movimento</th><th>Peças</th><th>Quem</th></tr>' + u.map(function (m) {
+    return '<tr><td>' + dt(m.concluido_em) + ' ' + esc(String(m.concluido_em).slice(11, 16)) + '</td><td>' + esc(m.rotulo) + (m.ref ? ' · ref ' + esc(m.ref) : '') + (m.nf ? ' · NF ' + esc(m.nf) : '') + (m.destino_nome ? ' · ' + esc(m.destino_nome) : '') + '</td><td>' + m.pecas + '</td><td>' + esc(m.quem) + '</td></tr>'; }).join('') + '</table></div></details></div>';
+}
+
+// ----- cliques e teclas do fornecedor -----
+$('conteudo').addEventListener('click', function (e) {
+  if (!EST || EST.modo != 'fornecedor') return; var b = e.target.closest('button'); if (!b) return; var d = b.dataset;
+  if (d.fnomeok) { var nm = document.querySelector('[data-fnome]').value.trim(); if (!nm) { toast('Digite seu nome.', 'er'); return; } lsSet('f_quem', nm); return render(); }
+  if (d.ftroca) { lsSet('f_quem', null); return render(); }
+  if (d.fabrirc) { var rf = document.querySelector('[data-fref]').value.trim(); if (!rf) { toast('Digite a referência.', 'er'); return; } return fAbrirContagem({ ref: rf }); }
+  if (d.fabrircam) return abreScanner(function (c) { fechaScanner(); fAbrirContagem({ codigo: c }); });
+  if (d.fadota) { var ka = d.fadota.split('|'); fSetAtivo(ka[0], ka[1]); return render(); }
+  if (d.fabrir) { var ds = document.querySelector('[data-fdest]'), dv = ds ? ds.value : ''; if (d.fabrir == 'saida' && !dv) { toast('Escolha a loja de destino.', 'er'); return; } return fAcao('abrir', { tipo: d.fabrir, destino: dv }).then(function (o) { if (o && o.mov) { fSetAtivo(d.fabrir, o.mov.id); render(); } }); }
+  if (d.fbipar) { var tp = d.fbipar; return abreScanner(function (c) { if (tp == 'contagem') lidoFContagem(c); else lidoFMov(tp, c); }); }
+  if (d.fcp || d.fcm) { var Mc = fAtivo('contagem'), xc = fm(Mc.id), kc = d.fcp || d.fcm; xc.q[kc] = Math.max(0, (xc.q[kc] || 0) + (d.fcp ? 1 : -1)); if (!xc.q[kc]) delete xc.q[kc]; fmSet(Mc.id, xc); return render(); }
+  if (d.fmenos || d.fom) { var tpm = FABA, Mm = fAtivo(tpm), xm = fm(Mm.id), campo = d.fmenos ? 'q' : 'outros', km = d.fmenos || d.fom; xm[campo][km] = (xm[campo][km] || 0) - 1; if (xm[campo][km] <= 0) delete xm[campo][km]; fmSet(Mm.id, xm); return render(); }
+  if (d.fparte) { var Mp = fAtivo('contagem'), xp = fm(Mp.id); return fAcao('parte', { mov: Mp.id, q: xp.q, outros: xp.outros }); }
+  if (d.fcancel) {
+    var Mx = fAtivo(d.fcancel); if (!Mx) return;
+    if (!confirm('Cancelar? O que foi bipado neste movimento é descartado e nada entra no estoque.')) return;
+    return fAcao('cancelar', { mov: Mx.id }).then(function (o) { if (o) { lsSet('fm_' + Mx.id, null); lsSet('fg_' + Mx.id, null); fSetAtivo(d.fcancel, null); render(); } });
+  }
+  if (d.fconcluir) {
+    var tc = d.fconcluir, Mf = fAtivo(tc), xf = fm(Mf.id), nfi = document.querySelector('[data-fnf]'), nf = nfi ? nfi.value.trim() : '';
+    if (tc == 'saida' && !nf) { toast('Digite o número da nota fiscal.', 'er'); nfi && nfi.focus(); return; }
+    var pergunta = tc == 'contagem' ? 'Concluir a contagem da referência ' + Mf.ref + '? O saldo da referência passa a ser o contado' + (Mf.enviados && Mf.enviados.length ? ' (somando o que os outros celulares mandaram)' : '') + '. Cor ou tamanho sem peça fica com saldo 0.'
+      : 'Concluir ' + FTIPOS[tc].toLowerCase() + ' com ' + fTot(xf) + ' peça(s)' + (nf ? ' na nota ' + nf : '') + '?';
+    if (!confirm(pergunta)) return;
+    return fAcao('concluir', { mov: Mf.id, q: xf.q, outros: xf.outros, nf: nf }).then(function (o) { if (o) { lsSet('fm_' + Mf.id, null); lsSet('fg_' + Mf.id, null); fSetAtivo(tc, null); FSTQ = null; render(); } });
+  }
+  if (d.fbus) return fBuscar(document.querySelector('[data-fbusca]').value);
+  if (d.fbuscam) return abreScanner(function (c) { fechaScanner(); fBuscar(c); });
+});
+$('conteudo').addEventListener('change', function (e) {
+  if (!EST || EST.modo != 'fornecedor') return; var t = e.target;
+  if (t.dataset.fqtd) { var M = fAtivo('contagem'), x = fm(M.id), n = Math.max(0, parseInt(t.value, 10) || 0); if (n) x.q[t.dataset.fqtd] = n; else delete x.q[t.dataset.fqtd]; fmSet(M.id, x); render(); }
+});
+$('conteudo').addEventListener('keydown', function (e) {
+  if (!EST || EST.modo != 'fornecedor' || e.key != 'Enter') return; var t = e.target, v = t.value.trim(); if (!v) return;
+  if (t.dataset.fcod) { if (t.dataset.fcod == 'contagem') lidoFContagem(v); else lidoFMov(t.dataset.fcod, v); t.value = ''; var k = t.dataset.fcod; setTimeout(function () { var n = document.querySelector('[data-fcod="' + k + '"]'); n && n.focus(); }, 0); }
+  if (t.dataset.fqtd) t.blur();
+  if (t.dataset.fref) document.querySelector('[data-fabrirc]').click();
+  if (t.dataset.fbusca) fBuscar(v);
+  if (t.dataset.fnome) document.querySelector('[data-fnomeok]').click();
+});
+
+// ----- Quadro "Estoque do fornecedor" no painel do Raphael -----
+function pl(n, s, p) { return n + ' ' + (n == 1 ? s : p); }
+function hFornPainel(p) {
+  return (p.fornecedores || []).map(function (F) {
+    var r = F.resumo || {}, fx = F.fluxo || {};
+    var h = '<div class="card"><h2>Estoque da ' + esc(F.nome) + '</h2>'
+      + (F.semMovimento ? '<div class="aviso er">Sem movimento há 7 dias ou mais' + (F.ultimo ? ' (último em ' + dt(F.ultimo) + ')' : '') + '. A MX está bipando?</div>' : '')
+      + '<div class="mu">' + pl(r.pecas, 'peça', 'peças') + ' em ' + pl(r.skus, 'código', 'códigos') + ' · ' + pl(r.refs, 'referência contada', 'referências contadas') + ' · ' + pl(r.refsSem, 'com movimento e ainda sem contagem', 'com movimento e ainda sem contagem') + (F.ultimo ? ' · último movimento ' + dt(F.ultimo) : '') + '.</div>'
+      + '<div class="mu">Entradas: ' + fx.entradas7 + ' peças em 7 dias, ' + fx.entradas30 + ' em 30 · Saídas: ' + fx.saidas7 + ' em 7 dias, ' + fx.saidas30 + ' em 30 · Devoluções 30 dias: ' + fx.devolucoes30 + '.</div>'
+      + '<div class="lin"><button class="btn sec" data-fver="' + esc(F.id) + '">Ver como a ' + esc(F.nome) + '</button><a class="btn sec" href="' + esc(F.planilha) + '" target="_blank">Planilha</a></div>';
+    if (F.abertos.length) h += '<h3>Abertos agora</h3>' + F.abertos.map(function (m) { return '<div class="mu" style="padding:3px 0">' + esc(m.rotulo) + (m.ref ? ' ref ' + esc(m.ref) : '') + (m.destino_nome ? ' · ' + esc(m.destino_nome) : '') + ' · ' + esc(m.aberto_por) + ' · desde ' + dt(m.aberto_em) + (m.parado ? ' <span class="pill er">parado há ' + m.dias + ' dias</span>' : '') + '</div>'; }).join('');
+    var al = '';
+    if (F.negativos.length) al += '<details open><summary><span class="pill er">' + F.negativos.length + '</span> código(s) com saldo negativo</summary><div class="mu">Saiu mais do que foi contado: conte a referência de novo.</div>' + F.negativos.map(function (x) { return '<div class="mu">Ref ' + esc(x.ref) + ' ' + esc(x.descricao + ' ' + x.cor + ' ' + x.tamanho) + ': ' + x.saldo + '</div>'; }).join('') + '</details>';
+    if (F.semCadastro.length) al += '<details><summary><span class="pill av">' + F.semCadastro.length + '</span> código(s) sem cadastro</summary><div class="mu">Peça bipada que o cadastro não conhece: cadastrar ou corrigir a etiqueta.</div>' + F.semCadastro.map(function (x) { return '<div class="mu">' + esc(x.codigo) + (x.saldo != null ? ' · contado ' + x.saldo : '') + (x.entradas ? ' · entrou ' + x.entradas : '') + (x.saidas ? ' · saiu ' + x.saidas : '') + '</div>'; }).join('') + '</details>';
+    if (F.outroFornecedor.length) al += '<details><summary><span class="pill av">' + F.outroFornecedor.length + '</span> peça(s) de outro fornecedor</summary>' + F.outroFornecedor.map(function (x) { return '<div class="mu">' + esc(x.sku) + ' · ref ' + esc(x.ref) + ' ' + esc(x.descricao + ' ' + x.cor + ' ' + x.tamanho) + '</div>'; }).join('') + '</details>';
+    h += al ? '<h3>Alertas</h3>' + al : '';
+    h += '<details><summary>Movimentos dos últimos 30 dias (' + F.movimentos.length + ')</summary><div class="tabw"><table><tr><th>Quando</th><th>Movimento</th><th>Peças</th><th></th></tr>' + F.movimentos.map(function (m) {
+      return '<tr><td>' + dt(m.concluido_em) + '</td><td>' + esc(m.rotulo) + (m.ref ? ' ref ' + esc(m.ref) : '') + (m.nf ? ' · NF ' + esc(m.nf) : '') + (m.destino_nome ? ' · ' + esc(m.destino_nome) : '') + '<div class="mu">' + esc(m.quem) + '</div>' + (m.situacao == 'estornado' ? '<div class="mu">' + esc(m.obs) + '</div>' : '') + '</td><td>' + m.pecas + '</td><td>'
+        + (m.situacao == 'estornado' ? '<span class="pill av">estornado</span>' : (m.tipo != 'contagem' ? '<button class="btn sec pq" data-festorn="' + esc(F.id) + '|' + m.id + '">Estornar</button>' : '')) + '</td></tr>'; }).join('') + '</table></div></details></div>';
+    return h;
+  }).join('');
+}
 
 function carrega() {
   if (!TOK) { $('titulo').textContent = 'Link incompleto'; $('conteudo').innerHTML = '<div class="card"><div class="vazio">Abra o link da sua loja.</div></div>'; return; }
