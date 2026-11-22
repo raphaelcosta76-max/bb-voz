@@ -648,9 +648,10 @@ function hFContagem() {
   if (M) {
     var g = fGrade(M.id);
     if (!g) { fApi('grade', { mov: M.id }).then(function (o) { FGRADE[M.id] = o.grade; lsSet('fg_' + M.id, o.grade); render(); }).catch(function (e) { toast(e.message, 'er'); }); return '<div class="card"><div class="vazio">Carregando a grade…</div></div>'; }
+    if (M.modo == 'dupla') return hFDupla(M, g);
     var x = fm(M.id), tot = fTot(x), d = (g[0] || {}).descricao || '';
     var outrosCel = (M.enviados || []).filter(function (e) { return e.pecas; });
-    var h = '<div class="card"><h2>Contando a referência ' + esc(M.ref) + '</h2><div class="mu">' + esc(d) + ' · aberta por ' + esc(M.aberto_por) + ' em ' + dt(M.aberto_em) + ' ' + esc(String(M.aberto_em).slice(11, 16)) + '</div>'
+    var h = '<div class="card"><h2>Contando a referência ' + esc(M.ref) + ' <span class="pill">rápida</span></h2><div class="mu">' + esc(d) + ' · aberta por ' + esc(M.aberto_por) + ' em ' + dt(M.aberto_em) + ' ' + esc(String(M.aberto_em).slice(11, 16)) + '</div>'
       + '<div class="aviso av" style="margin-top:10px"><b>Conte a referência inteira:</b> todas as cores e tamanhos, em todo o depósito. Bipe uma peça e digite quantas há no pacote. Cor ou tamanho sem peça fica com saldo 0. Enquanto a contagem estiver aberta, ninguém dá entrada nem saída desta referência.</div>'
       + (outrosCel.length ? '<div class="aviso ok">Outros celulares já mandaram: ' + outrosCel.map(function (e) { return esc(e.quem) + ' (' + e.pecas + ' peças)'; }).join(', ') + '. Quem concluir soma tudo.</div>' : '')
       + '<div class="lin"><button class="btn" data-fbipar="contagem">📷 Bipar etiqueta</button></div>'
@@ -664,17 +665,71 @@ function hFContagem() {
   }
   var ab = EST.abertos.filter(function (m) { return m.tipo == 'contagem'; });
   var h2 = '<div class="card"><h2>Contar uma referência</h2><div class="mu">Conte uma referência inteira de cada vez. A contagem vira o saldo da referência: o que entrou ou saiu antes fica só como histórico.</div>'
+    + '<label>Como contar</label>'
+    + '<label style="display:flex;gap:8px;align-items:flex-start;color:var(--tx);margin:6px 0"><input type="radio" name="fmodo" value="dupla" checked style="width:22px;min-height:22px;margin-top:2px"><span><b>Dupla (recomendada)</b><br><span class="mu">Conta pela peça e digita a quantidade de cada cor e tamanho; depois bipa a etiqueta de cada peça. O que não bater volta para recontar.</span></span></label>'
+    + '<label style="display:flex;gap:8px;align-items:flex-start;color:var(--tx);margin:6px 0"><input type="radio" name="fmodo" value="rapida" style="width:22px;min-height:22px;margin-top:2px"><span><b>Rápida</b><br><span class="mu">Bipa uma peça e digita a quantidade do pacote. Para pacote fechado de fábrica.</span></span></label>'
     + '<label>Referência</label><div class="lin" style="margin-top:0"><input data-fref="1" placeholder="ex.: 0395"><button class="btn" data-fabrirc="1" style="flex:0 0 auto">Abrir contagem</button></div>'
     + '<div class="lin"><button class="btn sec" data-fabrircam="1">📷 Ou bipe uma peça da referência</button></div></div>';
-  if (ab.length) h2 += '<div class="card"><h2>Contagens abertas</h2>' + ab.map(function (m) { return '<div class="item"><div class="nm"><div class="ds">Referência ' + esc(m.ref) + '</div><div class="mu">Aberta por ' + esc(m.aberto_por) + ' em ' + dt(m.aberto_em) + '</div></div><button class="btn sec pq" data-fadota="contagem|' + m.id + '">Contar neste celular</button></div>'; }).join('') + '</div>';
+  if (ab.length) h2 += '<div class="card"><h2>Contagens abertas</h2>' + ab.map(function (m) { return '<div class="item"><div class="nm"><div class="ds">Referência ' + esc(m.ref) + ' <span class="pill">' + (m.modo == 'dupla' ? 'dupla' : 'rápida') + '</span></div><div class="mu">Aberta por ' + esc(m.aberto_por) + ' em ' + dt(m.aberto_em) + '</div></div><button class="btn sec pq" data-fadota="contagem|' + m.id + '">Contar neste celular</button></div>'; }).join('') + '</div>';
   h2 += hFUltimos();
   return h2;
 }
+function fModo() { var r = document.querySelector('input[name=fmodo]:checked'); return r ? r.value : 'dupla'; }
 function fAbrirContagem(dados) {
-  return fAcao('abrir', Object.assign({ tipo: 'contagem' }, dados)).then(function (o) { if (!o || !o.mov) return; FGRADE[o.mov.id] = o.grade; lsSet('fg_' + o.mov.id, o.grade); fSetAtivo('contagem', o.mov.id); render(); });
+  return fAcao('abrir', Object.assign({ tipo: 'contagem', modo: fModo() }, dados)).then(function (o) { if (!o || !o.mov) return; FGRADE[o.mov.id] = o.grade; lsSet('fg_' + o.mov.id, o.grade); fSetAtivo('contagem', o.mov.id); render(); });
+}
+// v2.9 — contagem dupla (como nas lojas): passo 1 pela peça (digita), passo 2 bipa cada etiqueta, passo 3 reconta só o que não bateu.
+function fDif(g, x) { return g.filter(function (it) { var k = fNorm(it.sku); return (x.q[k] || 0) != ((x.eti || {})[k] || 0); }); }
+function hFDupla(M, g) {
+  var x = fm(M.id); x.eti = x.eti || {}; x.etiOutros = x.etiOutros || {}; var passo = x.passo || 1;
+  var tf = somaObj(x.q), te = somaObj(x.eti) + somaObj(x.etiOutros), d = (g[0] || {}).descricao || '';
+  var outrosCel = (M.enviados || []).filter(function (e) { return e.pecas; });
+  var linhaFis = function (it) { var k = fNorm(it.sku), n = x.q[k] || 0; return '<div class="item"><div class="nm"><div class="ds">' + esc(it.cor) + '</div><span class="tam">' + esc(it.tamanho) + '</span></div><button class="btn sec pq" data-fcm="' + k + '">−</button><input data-fqtd="' + k + '" inputmode="numeric" value="' + n + '" style="width:76px;min-height:40px;text-align:center;font-weight:700"><button class="btn sec pq" data-fcp="' + k + '">+</button></div>'; };
+  var linhaEti = function (it, recontar) {
+    var k = fNorm(it.sku), n = x.q[k] || 0, ne = x.eti[k] || 0, ok = n == ne;
+    return '<div class="item' + (ok && ne ? ' ok' : '') + '"><div class="nm"><div class="ds">' + esc(it.cor) + '</div><span class="tam">' + esc(it.tamanho) + '</span>'
+      + (recontar ? '<div class="lin" style="margin-top:6px"><span class="mu">Pela peça:</span><button class="btn sec pq" data-fcm="' + k + '">−</button><b>' + n + '</b><button class="btn sec pq" data-fcp="' + k + '">+</button></div>' : '<div class="mu">Pela peça: ' + n + '</div>')
+      + '</div>' + (ne ? '<button class="btn sec pq" data-fem="' + k + '">− 1</button>' : '') + '<div class="ct">' + ne + '</div></div>';
+  };
+  var h = '<div class="card"><h2>Contando a referência ' + esc(M.ref) + ' <span class="pill">dupla</span></h2><div class="mu">' + esc(d) + ' · aberta por ' + esc(M.aberto_por) + ' em ' + dt(M.aberto_em) + ' ' + esc(String(M.aberto_em).slice(11, 16)) + '. Conte a referência inteira, em todo o depósito. Enquanto a contagem estiver aberta, ninguém dá entrada nem saída desta referência.</div>'
+    + (outrosCel.length ? '<div class="aviso ok" style="margin-top:8px">Outros celulares já mandaram: ' + outrosCel.map(function (e) { return esc(e.quem) + ' (' + e.pecas + ')'; }).join(', ') + '. Quem concluir soma tudo.</div>' : '');
+  if (passo == 1) {
+    h += '<div class="aviso av" style="margin-top:10px"><b>Passo 1 de 2 · Contagem pela peça.</b> Pegue cada peça, olhe a cor e o tamanho da própria roupa e digite quantas tem de cada. <b>Não bipe agora.</b> Cor ou tamanho sem peça fica com 0.</div>'
+      + g.map(linhaFis).join('')
+      + '<div class="lin"><button class="btn" data-fpasso2="1">Concluir a contagem pela peça (' + tf + (tf == 1 ? ' peça' : ' peças') + ')</button></div>';
+  } else if (passo == 3) {
+    var dv = fDif(g, x);
+    h += '<div class="aviso er" style="margin-top:10px"><b>Conferir antes de registrar.</b> A contagem pela peça e as etiquetas não bateram nos tamanhos abaixo. Reconte só esses: olhe o tamanho na roupa e na etiqueta e corrija.</div>'
+      + dv.map(function (it) { return linhaEti(it, true); }).join('')
+      + hFEtiOutros(x)
+      + '<div class="lin"><button class="btn" data-fbipar="contagem">📷 Bipar etiqueta</button></div>'
+      + '<div class="lin"><input data-fcod="contagem" inputmode="numeric" placeholder="ou digite o código e Enter"></div>'
+      + (dv.length ? '<div class="aviso av" style="margin-top:8px">Se a diferença continuar, a peça está com a etiqueta errada: separe essas peças para trocar a etiqueta e registre assim mesmo. O saldo fica o contado pela peça.</div>' : '<div class="aviso ok" style="margin-top:8px">Agora bateu tudo.</div>')
+      + '<div class="lin"><button class="btn ok" data-freg="1">Registrar contagem</button></div>';
+  } else {
+    h += '<div class="aviso ok" style="margin-top:10px">Passo 1 concluído: ' + tf + (tf == 1 ? ' peça contada.' : ' peças contadas.') + '</div><div class="aviso av"><b>Passo 2 de 2 · Bipagem.</b> Agora bipe a etiqueta de cada peça contada, uma a uma.</div>'
+      + '<div class="lin"><button class="btn" data-fbipar="contagem">📷 Bipar etiquetas</button></div>'
+      + '<div class="lin"><input data-fcod="contagem" inputmode="numeric" placeholder="ou digite o código e Enter"></div>'
+      + g.map(function (it) { return linhaEti(it, false); }).join('')
+      + hFEtiOutros(x)
+      + '<div class="mu" style="margin-top:8px">Contadas no passo 1: ' + tf + ' · etiquetas bipadas: ' + te + '</div>'
+      + '<div class="lin"><button class="btn ok" data-freg="1">Registrar contagem</button><button class="btn sec" data-fvolta1="1" style="flex:0 0 auto">Voltar ao passo 1</button></div>';
+  }
+  return h + '<div class="lin"><button class="btn sec" data-fparte="contagem">Enviar o que contei (outra pessoa conclui)</button><button class="btn sec" data-fcancel="contagem" style="flex:0 0 auto">Cancelar</button></div></div>';
+}
+function hFEtiOutros(x) {
+  var k = Object.keys(x.etiOutros || {}); if (!k.length) return '';
+  return '<h3>Etiquetas de outros produtos</h3><div class="mu">Pode ser etiqueta trocada: separe essas peças.</div>' + k.map(function (c) { return '<div class="item"><div class="nm"><div class="ds">' + esc(c) + '</div></div><button class="btn sec pq" data-feo="' + c + '">− 1</button><div class="ct">' + x.etiOutros[c] + '</div></div>'; }).join('');
 }
 function lidoFContagem(code) {
   var M = fAtivo('contagem'); if (!M) return; var g = fGrade(M.id) || [], x = fm(M.id);
+  if (M.modo == 'dupla') {
+    x.eti = x.eti || {}; x.etiOutros = x.etiOutros || {};
+    if ((x.passo || 1) == 1) { bip(false); fb('PASSO 1: NÃO BIPE', 'Primeiro conte pela peça e digite as quantidades. A bipagem é o passo 2.', 'av'); return; }
+    var e = g.filter(function (i) { return casa(code, i.sku); })[0];
+    if (e) { var ke = fNorm(e.sku); x.eti[ke] = (x.eti[ke] || 0) + 1; fmSet(M.id, x); var ok = x.eti[ke] <= (x.q[ke] || 0); bip(ok); fb((ok ? '+1 · ' : 'A MAIS · ') + e.cor + ' ' + e.tamanho, 'Etiquetas: ' + x.eti[ke] + ' de ' + (x.q[ke] || 0) + ' contadas pela peça.', ok ? 'ok' : 'av'); if (!SCAN) render(); return; }
+    var c0 = fNorm(code); x.etiOutros[c0] = (x.etiOutros[c0] || 0) + 1; fmSet(M.id, x); bip(false); fb('ETIQUETA DE OUTRO PRODUTO', 'Registrada. Pode ser etiqueta trocada: separe a peça.', 'av'); if (!SCAN) render(); return;
+  }
   var it = g.filter(function (i) { return casa(code, i.sku); })[0];
   if (it) { var k = fNorm(it.sku); x.q[k] = (x.q[k] || 0) + 1; fmSet(M.id, x); bip(true); fb('+1 · ' + it.cor + ' ' + it.tamanho, 'Agora: ' + x.q[k] + '. Digite a quantidade do pacote se for o caso.', 'ok'); if (!SCAN) { render(); var inp = document.querySelector('[data-fqtd="' + k + '"]'); inp && inp.select(); } return; }
   fb('Consultando…', '', '');
@@ -787,7 +842,18 @@ $('conteudo').addEventListener('click', function (e) {
   if (d.fbipar) { var tp = d.fbipar; return abreScanner(function (c) { if (tp == 'contagem') lidoFContagem(c); else lidoFMov(tp, c); }); }
   if (d.fcp || d.fcm) { var Mc = fAtivo('contagem'), xc = fm(Mc.id), kc = d.fcp || d.fcm; xc.q[kc] = Math.max(0, (xc.q[kc] || 0) + (d.fcp ? 1 : -1)); if (!xc.q[kc]) delete xc.q[kc]; fmSet(Mc.id, xc); return render(); }
   if (d.fmenos || d.fom) { var tpm = FABA, Mm = fAtivo(tpm), xm = fm(Mm.id), campo = d.fmenos ? 'q' : 'outros', km = d.fmenos || d.fom; xm[campo][km] = (xm[campo][km] || 0) - 1; if (xm[campo][km] <= 0) delete xm[campo][km]; fmSet(Mm.id, xm); return render(); }
-  if (d.fparte) { var Mp = fAtivo('contagem'), xp = fm(Mp.id); return fAcao('parte', { mov: Mp.id, q: xp.q, outros: xp.outros }); }
+  if (d.fparte) { var Mp = fAtivo('contagem'), xp = fm(Mp.id); return fAcao('parte', { mov: Mp.id, q: xp.q, outros: xp.outros, eti: xp.eti || {}, etiOutros: xp.etiOutros || {} }); }
+  if (d.fpasso2) { var M2 = fAtivo('contagem'), x2 = fm(M2.id); if (!confirm('Concluir a contagem pela peça com ' + somaObj(x2.q) + ' peça(s)? Depois você vai bipar as etiquetas.')) return; x2.passo = 2; fmSet(M2.id, x2); window.scrollTo(0, 0); return render(); }
+  if (d.fvolta1) { var M1 = fAtivo('contagem'), x1 = fm(M1.id); x1.passo = 1; fmSet(M1.id, x1); return render(); }
+  if (d.fem || d.feo) { var Me = fAtivo('contagem'), xe = fm(Me.id), ce = d.fem ? 'eti' : 'etiOutros', ke2 = d.fem || d.feo; xe[ce] = xe[ce] || {}; xe[ce][ke2] = (xe[ce][ke2] || 0) - 1; if (xe[ce][ke2] <= 0) delete xe[ce][ke2]; fmSet(Me.id, xe); return render(); }
+  if (d.freg) {
+    var Mr = fAtivo('contagem'), xr = fm(Mr.id), gr = fGrade(Mr.id) || [], dvr = fDif(gr, xr), passo = xr.passo || 1;
+    if (dvr.length && passo == 2) { xr.passo = 3; fmSet(Mr.id, xr); window.scrollTo(0, 0); return render(); } // uma rodada de recontagem
+    var oe = somaObj(xr.etiOutros || {});
+    if ((dvr.length || oe) && !confirm('Ainda há diferença entre a peça e a etiqueta' + (dvr.length ? ' em ' + dvr.map(function (i) { return i.cor + ' ' + i.tamanho; }).join(', ') : '') + (oe ? ' e ' + oe + ' etiqueta(s) de outro produto' : '') + '. Registrar assim? O saldo fica o contado pela peça; separe as peças para trocar a etiqueta.')) return;
+    if (!dvr.length && !oe && !confirm('Concluir a contagem da referência ' + Mr.ref + '? O saldo da referência passa a ser o contado.')) return;
+    return fAcao('concluir', { mov: Mr.id, q: xr.q, outros: {}, eti: xr.eti || {}, etiOutros: xr.etiOutros || {} }).then(function (o) { if (o) { lsSet('fm_' + Mr.id, null); lsSet('fg_' + Mr.id, null); fSetAtivo('contagem', null); FSTQ = null; render(); } });
+  }
   if (d.fcancel) {
     var Mx = fAtivo(d.fcancel); if (!Mx) return;
     if (!confirm('Cancelar? O que foi bipado neste movimento é descartado e nada entra no estoque.')) return;
@@ -824,17 +890,18 @@ function hFornPainel(p) {
     var r = F.resumo || {}, fx = F.fluxo || {};
     var h = '<div class="card"><h2>Estoque da ' + esc(F.nome) + '</h2>'
       + (F.semMovimento ? '<div class="aviso er">Sem movimento há 7 dias ou mais' + (F.ultimo ? ' (último em ' + dt(F.ultimo) + ')' : '') + '. A MX está bipando?</div>' : '')
-      + '<div class="mu">' + pl(r.pecas, 'peça', 'peças') + ' em ' + pl(r.skus, 'código', 'códigos') + ' · ' + pl(r.refs, 'referência contada', 'referências contadas') + ' · ' + pl(r.refsSem, 'com movimento e ainda sem contagem', 'com movimento e ainda sem contagem') + (F.ultimo ? ' · último movimento ' + dt(F.ultimo) : '') + '.</div>'
+      + '<div class="mu">' + pl(r.pecas, 'peça', 'peças') + ' em ' + pl(r.skus, 'código', 'códigos') + ' · ' + pl(r.refs, 'referência contada', 'referências contadas') + ' · ' + pl(r.refsSem, 'com movimento e ainda sem contagem', 'com movimento e ainda sem contagem') + (F.ultimo ? ' · último movimento ' + dt(F.ultimo) : '') + '.' + (r.pecas ? ' Das ' + pl(r.pecas, 'peça', 'peças') + ', ' + (r.pecasDupla || 0) + ' vêm de contagem dupla (conferida pela bipagem).' : '') + '</div>'
       + '<div class="mu">Entradas: ' + fx.entradas7 + ' peças em 7 dias, ' + fx.entradas30 + ' em 30 · Saídas: ' + fx.saidas7 + ' em 7 dias, ' + fx.saidas30 + ' em 30 · Devoluções 30 dias: ' + fx.devolucoes30 + '.</div>'
       + '<div class="lin"><button class="btn sec" data-fver="' + esc(F.id) + '">Ver como a ' + esc(F.nome) + '</button><a class="btn sec" href="' + esc(F.planilha) + '" target="_blank">Planilha</a></div>';
     if (F.abertos.length) h += '<h3>Abertos agora</h3>' + F.abertos.map(function (m) { return '<div class="mu" style="padding:3px 0">' + esc(m.rotulo) + (m.ref ? ' ref ' + esc(m.ref) : '') + (m.destino_nome ? ' · ' + esc(m.destino_nome) : '') + ' · ' + esc(m.aberto_por) + ' · desde ' + dt(m.aberto_em) + (m.parado ? ' <span class="pill er">parado há ' + m.dias + ' dias</span>' : '') + '</div>'; }).join('');
     var al = '';
     if (F.negativos.length) al += '<details open><summary><span class="pill er">' + F.negativos.length + '</span> código(s) com saldo negativo</summary><div class="mu">Saiu mais do que foi contado: conte a referência de novo.</div>' + F.negativos.map(function (x) { return '<div class="mu">Ref ' + esc(x.ref) + ' ' + esc(x.descricao + ' ' + x.cor + ' ' + x.tamanho) + ': ' + x.saldo + '</div>'; }).join('') + '</details>';
     if (F.semCadastro.length) al += '<details><summary><span class="pill av">' + F.semCadastro.length + '</span> código(s) sem cadastro</summary><div class="mu">Peça bipada que o cadastro não conhece: cadastrar ou corrigir a etiqueta.</div>' + F.semCadastro.map(function (x) { return '<div class="mu">' + esc(x.codigo) + (x.saldo != null ? ' · contado ' + x.saldo : '') + (x.entradas ? ' · entrou ' + x.entradas : '') + (x.saidas ? ' · saiu ' + x.saidas : '') + '</div>'; }).join('') + '</details>';
+    if ((F.etiquetaTrocar || []).length) al += '<details open><summary><span class="pill er">' + F.etiquetaTrocar.length + '</span> tamanho(s) com etiqueta a trocar</summary><div class="mu">Na contagem dupla, a peça e a etiqueta não bateram nem na recontagem. O saldo ficou o contado pela peça; a MX deve trocar a etiqueta e recontar a referência.</div>' + F.etiquetaTrocar.map(function (x) { return '<div class="mu">Ref ' + esc(x.ref) + ' ' + esc(x.descricao + ' ' + x.cor + ' ' + x.tamanho) + ' · contada em ' + dt(x.contada_em) + '</div>'; }).join('') + '</details>';
     if (F.outroFornecedor.length) al += '<details><summary><span class="pill av">' + F.outroFornecedor.length + '</span> peça(s) de outro fornecedor</summary>' + F.outroFornecedor.map(function (x) { return '<div class="mu">' + esc(x.sku) + ' · ref ' + esc(x.ref) + ' ' + esc(x.descricao + ' ' + x.cor + ' ' + x.tamanho) + '</div>'; }).join('') + '</details>';
     h += al ? '<h3>Alertas</h3>' + al : '';
     h += '<details><summary>Movimentos dos últimos 30 dias (' + F.movimentos.length + ')</summary><div class="tabw"><table><tr><th>Quando</th><th>Movimento</th><th>Peças</th><th></th></tr>' + F.movimentos.map(function (m) {
-      return '<tr><td>' + dt(m.concluido_em) + '</td><td>' + esc(m.rotulo) + (m.ref ? ' ref ' + esc(m.ref) : '') + (m.nf ? ' · NF ' + esc(m.nf) : '') + (m.destino_nome ? ' · ' + esc(m.destino_nome) : '') + '<div class="mu">' + esc(m.quem) + '</div>' + (m.situacao == 'estornado' ? '<div class="mu">' + esc(m.obs) + '</div>' : '') + '</td><td>' + m.pecas + '</td><td>'
+      return '<tr><td>' + dt(m.concluido_em) + '</td><td>' + esc(m.rotulo) + (m.ref ? ' ref ' + esc(m.ref) : '') + (m.modo ? ' <span class="pill">' + (m.modo == 'dupla' ? 'dupla' : 'rápida') + '</span>' : '') + (m.difEtiqueta ? ' <span class="pill er">' + m.difEtiqueta + ' etiqueta(s) a trocar</span>' : '') + (m.etiOutras ? ' <span class="pill av">' + m.etiOutras + ' etiqueta(s) de outro produto</span>' : '') + (m.nf ? ' · NF ' + esc(m.nf) : '') + (m.destino_nome ? ' · ' + esc(m.destino_nome) : '') + '<div class="mu">' + esc(m.quem) + '</div>' + (m.situacao == 'estornado' ? '<div class="mu">' + esc(m.obs) + '</div>' : '') + '</td><td>' + m.pecas + '</td><td>'
         + (m.situacao == 'estornado' ? '<span class="pill av">estornado</span>' : (m.tipo != 'contagem' ? '<button class="btn sec pq" data-festorn="' + esc(F.id) + '|' + m.id + '">Estornar</button>' : '')) + '</td></tr>'; }).join('') + '</table></div></details></div>';
     return h;
   }).join('');
