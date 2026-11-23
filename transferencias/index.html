@@ -708,7 +708,7 @@ $('conteudo').addEventListener('click', function (e) {
 // Contagem por referência (substitui o saldo), entrada da produção, saída por nota, devolução e "Meu estoque".
 // O que é bipado fica guardado no celular até concluir (sinal fraco no depósito não perde nada).
 var FABA = null, FGRADE = {}, FSTQ = null, FFILA = [], FPROC = false;
-var FTIPOS = { contagem: 'Contagem', entrada: 'Entrada da produção', saida: 'Saída por nota', devolucao: 'Devolução', estoque: 'Meu estoque' };
+var FTIPOS = { inicio: 'Início', contagem: 'Contagem', entrada: 'Entrada da produção', saida: 'Saída por nota', devolucao: 'Devolução', estoque: 'Meu estoque', pedidos: 'Separar pedido' };
 function fQuem() { return lsGet('f_quem') || ''; }
 function fDev() { var d = lsGet('f_dev'); if (!d) { d = 'd' + Math.random().toString(36).slice(2, 10); lsSet('f_dev', d); } return d; }
 function fAtivos() { var a = lsGet('fat_' + EST.forn) || {}, ok = {}; EST.abertos.forEach(function (m) { ok[m.id] = 1; }); Object.keys(a).forEach(function (t) { if (!ok[a[t]]) { lsSet('fm_' + a[t], null); delete a[t]; } }); lsSet('fat_' + EST.forn, a); return a; }
@@ -724,7 +724,9 @@ function fAcao(nome, dados, msgOk) { return acao(nome, Object.assign({ quem: fQu
 
 function abasForn() {
   var n = function (t) { return EST.abertos.filter(function (m) { return m.tipo == t; }).length; };
-  return [['contagem', 'Contagem', n('contagem')], ['entrada', 'Entrada da produção', n('entrada')], ['saida', 'Saída por nota', n('saida')], ['devolucao', 'Devolução', n('devolucao')], ['estoque', 'Meu estoque', 0]];
+  // v2.12: a saída avulsa saiu; toda saída é pela aba "Separar pedido"
+  // v2.12: "Início" mostra o que está em andamento e os pedidos para separar; o app sempre abre nele
+  return [['inicio', 'Início', EST.abertos.length], ['contagem', 'Contagem', n('contagem')], ['entrada', 'Entrada da produção', n('entrada')], ['pedidos', 'Separar pedido', (EST.pedidos || []).length], ['devolucao', 'Devolução', n('devolucao')], ['estoque', 'Meu estoque', 0]];
 }
 function renderForn() {
   document.querySelector('.marca').textContent = 'bb básico · estoque do fornecedor';
@@ -736,10 +738,14 @@ function renderForn() {
     return;
   }
   var ab = abasForn();
-  if (!FABA) { var at = fAtivos(); FABA = ['contagem', 'entrada', 'saida', 'devolucao'].filter(function (t) { return at[t]; })[0] || 'contagem'; }
+  if (FABA == 'saida') FABA = 'pedidos';
+  if (!FABA) FABA = 'inicio';
   $('abas').hidden = false;
   $('abas').innerHTML = (FORN_ADM ? '<button data-ab="painel">← Painel</button>' : '') + ab.map(function (a) { return '<button data-ab="' + a[0] + '" class="' + (FABA == a[0] ? 'on' : '') + '">' + a[1] + (a[2] ? '<span class="n">' + a[2] + '</span>' : '') + '</button>'; }).join('');
-  var h = FABA == 'contagem' ? hFContagem() : (FABA == 'estoque' ? hFEstoque() : hFMov(FABA));
+  var h = FABA == 'inicio' ? hFInicio() : (FABA == 'contagem' ? hFContagem() : (FABA == 'estoque' ? hFEstoque() : (FABA == 'pedidos' ? hFPedidos() : hFMov(FABA))));
+  // em toda tela de algo aberto, um caminho de volta ao Início (não cancela nada; o bipado fica guardado)
+  var emAberto = ['contagem', 'entrada', 'devolucao'].indexOf(FABA) >= 0 ? fAtivo(FABA) : (FABA == 'pedidos' && FPV.ped ? fpSep(FPV.ped) : null);
+  if (emAberto) h = '<div class="lin" style="margin:0 0 8px;align-items:center"><button class="btn sec pq" data-fini0="1" style="flex:0 0 auto">← Início</button><span class="mu">Sai sem cancelar: o que foi bipado fica guardado.</span></div>' + h;
   h += '<div class="mu" style="text-align:center;margin-top:8px">Não é ' + esc(fQuem()) + '? <button class="btn sec pq" data-ftroca="1">Trocar nome</button></div>';
   $('conteudo').innerHTML = h;
 }
@@ -933,6 +939,140 @@ function hFUltimos() {
     return '<tr><td>' + dt(m.concluido_em) + ' ' + esc(String(m.concluido_em).slice(11, 16)) + '</td><td>' + esc(m.rotulo) + (m.ref ? ' · ref ' + esc(m.ref) : '') + (m.nf ? ' · NF ' + esc(m.nf) : '') + (m.destino_nome ? ' · ' + esc(m.destino_nome) : '') + '</td><td>' + m.pecas + '</td><td>' + esc(m.quem) + '</td></tr>'; }).join('') + '</table></div></details></div>';
 }
 
+// ----- v2.12: Início -----
+function fRotuloMov(m) {
+  if (m.tipo == 'contagem') return 'Contagem da referência ' + esc(m.ref) + ' <span class="pill">' + (m.modo == 'dupla' ? 'dupla' : 'rápida') + '</span>';
+  if (m.tipo == 'saida') return m.pedido ? 'Separação do pedido ' + esc(m.pedido) + ' · ' + esc(m.destino_nome) : 'Saída sem pedido (versão antiga) · ' + esc(m.destino_nome);
+  return FTIPOS[m.tipo] + (m.destino_nome ? ' · ' + esc(m.destino_nome) : '');
+}
+function fChaveMov(m) { return m.tipo == 'saida' && m.pedido ? 'p' + m.pedido : m.tipo; }
+function hFInicio() {
+  var at = fAtivos(), ab = EST.abertos.slice().sort(function (a, b) { return a.aberto_em < b.aberto_em ? -1 : 1; }), ps = EST.pedidos || [];
+  var h = '<div class="card"><h2>Em andamento</h2>' + (ab.length ? '<div class="mu">Continue de onde parou ou cancele o que não vai mais fazer. Cancelar descarta o que foi bipado; nada muda no estoque.</div>' + ab.map(function (m) {
+    return '<div class="item"><div class="nm"><div class="ds">' + fRotuloMov(m) + '</div><div class="mu">Aberta por ' + esc(m.aberto_por) + ' em ' + dt(m.aberto_em) + ' ' + esc(String(m.aberto_em).slice(11, 16)) + (at[fChaveMov(m)] == m.id ? ' · <b>neste celular</b>' : '') + '</div></div>'
+      + '<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="btn pq" data-fini="' + m.id + '">Continuar</button><button class="btn sec pq" data-finic="' + m.id + '">Cancelar</button></div></div>';
+  }).join('') : '<div class="vazio">Nada em andamento.</div>') + '</div>';
+  var pend = ps.reduce(function (s, p) { return s + p.pendente; }, 0), lj = {}; ps.forEach(function (p) { lj[p.filial] = 1; });
+  return h + '<div class="card"><h2>Pedidos para separar</h2>' + (ps.length ? '<div class="mu">' + pl(ps.length, 'pedido', 'pedidos') + ' de ' + pl(Object.keys(lj).length, 'loja', 'lojas') + ' · ' + pl(pend, 'peça pendente', 'peças pendentes') + '</div><div class="lin"><button class="btn" data-fiped="1">Separar pedido</button></div>' : '<div class="vazio">Nenhum pedido pendente agora.</div>') + '</div>';
+}
+
+// ----- v2.12: Separar pedido -----
+// A MX escolhe a loja, entra num pedido (do mais antigo para o mais novo) e bipa contra ele: peça fora do pedido ou a mais é recusada.
+// O que não sai fica pendente no próprio pedido, marcado "não tenho" ou "não vou entregar" (com motivo). Vários pedidos podem estar
+// em separação ao mesmo tempo; o bipado fica no celular e no servidor (uma cópia só) até concluir, mesmo que leve dias.
+var FPV = lsGet('fpv') || { loja: null, ped: null, conc: false }, FPL = {}, FPT = null; // onde a MX estava (sobrevive a recarregar a página)
+function fpLinhas(ped) { if (FPL[ped]) return FPL[ped]; var c = lsGet('fpl_' + ped); if (c) FPL[ped] = c; return c; }
+function fpGuarda(ped, P, movId) {
+  FPL[ped] = P; lsSet('fpl_' + ped, P);
+  if (movId && P.sep && P.sep.id == movId) { var x = fm(movId); if (!Object.keys(x.q).length && Object.keys(P.sep.q || {}).length) { x.q = P.sep.q; fmSet(movId, x); } } // outro celular: retoma o que estava guardado
+}
+function fpSep(ped) { return fAtivo('p' + ped); }
+function fpLimpa(ped, movId) { if (movId) lsSet('fm_' + movId, null); fSetAtivo('p' + ped, null); FPL[ped] = null; lsSet('fpl_' + ped, null); FPV.ped = null; FPV.conc = false; }
+function fpAgenda(movId) { clearTimeout(FPT); FPT = setTimeout(function () { fApi('parte', { mov: movId, q: fm(movId).q }).catch(function () { }); }, 8000); }
+function fpMarca(x, l) {
+  x.marcas = x.marcas || {}; var k = fNorm(l.sku); if (x.marcas[k]) return x.marcas[k];
+  var mot = l.motivo || '', base = '', txt = '';
+  if (l.marca == 'nao_entrega') { base = (EST.motivos || []).filter(function (o) { return mot == o || mot.indexOf(o + ':') == 0; })[0] || (mot ? 'Outro' : ''); txt = base == 'Outro' ? mot.replace(/^Outro:\s*/, '') : ''; }
+  return { m: l.marca || 'nao_tenho', base: base, txt: txt };
+}
+function fpMotivo(m) { return m.m != 'nao_entrega' ? '' : (m.base == 'Outro' ? 'Outro' + (m.txt ? ': ' + m.txt : '') : m.base); }
+function fpResta(L, x) { return L.linhas.filter(function (l) { return l.pendente - (x.q[fNorm(l.sku)] || 0) > 0; }); }
+function hFPedidos() { var r = hFPedidos0(); lsSet('fpv', FPV); return r; }
+function hFPedidos0() {
+  var h = '', leg = EST.abertos.filter(function (m) { return m.tipo == 'saida' && !m.pedido; });
+  if (leg.length) h += '<div class="card"><div class="aviso av"><b>Saída aberta antes da versão nova.</b> Agora toda saída é por pedido: cancele esta saída e separe pelo pedido da loja.</div>' + leg.map(function (m) { return '<div class="item"><div class="nm"><div class="ds">Saída para ' + esc(m.destino_nome) + '</div><div class="mu">Aberta por ' + esc(m.aberto_por) + ' em ' + dt(m.aberto_em) + '</div></div><button class="btn sec pq" data-fpleg="' + m.id + '">Cancelar</button></div>'; }).join('') + '</div>';
+  if (FPV.ped) return h + hFSep(FPV.ped);
+  var ps = EST.pedidos || [];
+  if (!ps.length) return h + '<div class="card"><h2>Separar pedido</h2><div class="vazio">Nenhum pedido pendente agora.</div></div>' + hFUltimos();
+  if (FPV.loja != null && !ps.some(function (p) { return p.filial == FPV.loja; })) FPV.loja = null;
+  if (FPV.loja == null) {
+    var lj = {}, ord = [];
+    ps.forEach(function (p) { var l = lj[p.filial]; if (!l) { l = lj[p.filial] = { filial: p.filial, loja: p.loja, n: 0, pend: 0, desde: p.criado_em, nt: 0, ne: 0, sep: 0 }; ord.push(l); } l.n++; l.pend += p.pendente; if (p.criado_em < l.desde) l.desde = p.criado_em; l.nt += p.nao_tenho; l.ne += p.nao_entrega; if (p.sep) l.sep++; });
+    ord.sort(function (a, b) { return a.desde < b.desde ? -1 : 1; });
+    return h + '<div class="card"><h2>Separar pedido</h2><div class="mu">Escolha a loja. Dentro dela, os pedidos aparecem do mais antigo para o mais novo: resolva sempre o mais antigo primeiro.</div>' + ord.map(function (l) {
+      return '<div class="item"><div class="nm"><div class="ds">' + esc(l.loja) + '</div><div class="mu">' + pl(l.n, 'pedido', 'pedidos') + ' · ' + pl(l.pend, 'peça pendente', 'peças pendentes') + ' · mais antigo de ' + dt(l.desde) + '</div>'
+        + (l.sep ? '<span class="pill av">' + l.sep + ' em separação</span> ' : '') + (l.nt ? '<span class="pill">' + l.nt + ' "não tenho"</span> ' : '') + (l.ne ? '<span class="pill er">' + l.ne + ' "não vou entregar"</span>' : '')
+        + '</div><button class="btn pq" data-fploja="' + l.filial + '">Abrir</button></div>';
+    }).join('') + '</div>' + hFUltimos();
+  }
+  var meus = ps.filter(function (p) { return p.filial == FPV.loja; });
+  h += '<div class="card"><div class="lin" style="margin-top:0"><button class="btn sec pq" data-fpvolta="lojas" style="flex:0 0 auto">← Lojas</button></div><h2 style="margin-top:8px">' + esc(meus[0].loja) + '</h2><div class="mu">Do mais antigo para o mais novo. Entre num pedido e bipe só o que é dele.</div></div>';
+  return h + meus.map(function (p, i) {
+    var pend = p.pend_nota ? 'Pendente da nota ' + esc(p.ultima_nf) + ' (' + dt(p.ultima_nf_em) + '): ' + pl(p.pend_nota, 'linha', 'linhas') : (p.nao_tenho || p.nao_entrega ? 'Marcado sem nota' : '');
+    var mk = [p.nao_tenho ? p.nao_tenho + ' "não tenho"' : '', p.nao_entrega ? p.nao_entrega + ' "não vou entregar"' : ''].filter(Boolean).join(' · ');
+    return '<div class="card"><h2>Pedido ' + esc(p.pedido) + (i == 0 && meus.length > 1 ? ' <span class="pill">mais antigo</span>' : '') + '</h2><div class="mu">' + (p.nome ? esc(p.nome) + ' · ' : '') + 'de ' + dt(p.criado_em) + ' · ' + p.pendente + ' de ' + p.qtd + ' peças pendentes</div>'
+      + (pend ? '<div class="aviso av" style="margin-top:8px">' + pend + (mk ? ' · ' + mk : '') + '</div>' : '')
+      + (p.sep ? '<div class="mu" style="margin-top:6px">Em separação: aberta por ' + esc(p.sep.aberto_por) + ' em ' + dt(p.sep.aberto_em) + '.</div>' : '')
+      + '<div class="lin"><button class="btn" data-fpsep="' + esc(p.pedido) + '">' + (p.sep ? 'Continuar a separação' : 'Separar este pedido') + '</button></div></div>';
+  }).join('');
+}
+function hFSep(ped) {
+  var L = fpLinhas(ped), M = fpSep(ped), topo = '<div class="lin" style="margin-top:0"><button class="btn sec pq" data-fpvolta="loja" style="flex:0 0 auto">← Pedidos da loja</button></div>';
+  if (!M) return '<div class="card">' + topo + '<div class="aviso av" style="margin-top:8px">A separação do pedido ' + esc(ped) + ' não está mais aberta (concluída ou cancelada em outro celular).</div></div>';
+  if (!L) { fApi('pedido', { pedido: ped }).then(function (o) { fpGuarda(ped, o.ped, M.id); render(); }).catch(function (e) { toast(e.message, 'er'); }); return '<div class="card">' + topo + '<div class="vazio">Carregando o pedido…</div></div>'; }
+  var x = fm(M.id), tot = 0, pend = 0, cab = L.pedido;
+  L.linhas.forEach(function (l) { tot += Math.min(x.q[fNorm(l.sku)] || 0, l.pendente); pend += l.pendente; });
+  var h = '<div class="card">' + topo + '<h2 style="margin-top:8px">Pedido ' + esc(ped) + ' para ' + esc(cab.loja) + '</h2><div class="mu">' + (cab.nome ? esc(cab.nome) + ' · ' : '') + 'de ' + dt(cab.criado_em) + ' · separação aberta por ' + esc(M.aberto_por) + ' em ' + dt(M.aberto_em) + '. Bipe só o que está neste pedido: peça de fora ou a mais é recusada.</div>'
+    + '<div class="barra"><i style="width:' + (pend ? Math.round(100 * tot / pend) : 0) + '%"></i></div><div class="mu">' + tot + ' de ' + pend + ' peças pendentes bipadas</div>'
+    + (EST.travadas.length ? '<div class="aviso av" style="margin-top:8px">Em contagem agora (não bipe): referência ' + EST.travadas.map(esc).join(', ') + '.</div>' : '');
+  if (!FPV.conc) {
+    var grupos = {}, ordem = [];
+    L.linhas.forEach(function (l) { if (!grupos[l.ref]) { grupos[l.ref] = []; ordem.push(l.ref); } grupos[l.ref].push(l); });
+    h += '<div class="lin"><button class="btn" data-fbipar="sep">📷 Bipar peças</button></div><div class="lin"><input data-fcod="sep" inputmode="numeric" placeholder="ou digite o código e Enter"></div>'
+      + ordem.map(function (r) {
+        return '<h3>Ref ' + esc(r) + ' · ' + esc(grupos[r][0].descricao) + '</h3>' + grupos[r].map(function (l) {
+          var k = fNorm(l.sku), c = x.q[k] || 0;
+          return '<div class="item' + (c >= l.pendente ? ' ok' : '') + '"><div class="nm"><div class="ds">' + esc(l.cor) + '</div><div><span class="tam">' + esc(l.tamanho) + '</span>' + (l.separado ? '<span class="mu">já saíram ' + l.separado + ' de ' + l.qtd + '</span>' : '') + '</div>'
+            + (l.marca ? '<div><span class="pill ' + (l.marca == 'nao_entrega' ? 'er' : 'av') + '">' + esc(l.marca_rotulo) + (l.motivo ? ': ' + esc(l.motivo) : '') + '</span> <span class="mu">desde ' + dt(l.marca_em) + '</span></div>' : (l.ultima_nf ? '<div><span class="pill av">pendente da nota ' + esc(l.ultima_nf) + '</span></div>' : ''))
+            + (c > 0 ? '<div class="lin" style="margin-top:6px"><button class="btn sec pq" data-fpmenos="' + k + '">− 1</button></div>' : '')
+            + '</div><div class="ct">' + c + ' / ' + l.pendente + '</div></div>';
+        }).join('');
+      }).join('')
+      + '<div class="lin"><button class="btn ok" data-fpconc="1">' + (tot ? 'Concluir com a nota…' : 'Não tenho nada agora…') + '</button></div>'
+      + '<div class="lin"><button class="btn sec" data-fpguarda="1">Guardar e continuar depois</button><button class="btn sec" data-fpcancel="1" style="flex:0 0 auto">Cancelar separação</button></div>'
+      + '<div class="mu" style="margin-top:6px">O que foi bipado fica guardado neste celular e no servidor até concluir, mesmo que leve dias. Uma pessoa por pedido de cada vez.</div>';
+    return h + '</div>';
+  }
+  var resta = fpResta(L, x), falta = resta.reduce(function (s, l) { return s + l.pendente - (x.q[fNorm(l.sku)] || 0); }, 0);
+  h += (tot ? '<div class="aviso ok" style="margin-top:10px">' + pl(tot, 'peça bipada vai', 'peças bipadas vão') + ' nesta nota.</div>' : '<div class="aviso av" style="margin-top:10px">Nenhuma peça bipada: nada sai agora. Marque o que não tem; tudo continua pendente no pedido.</div>')
+    + (resta.length ? '<h3>O que fica pendente (' + pl(falta, 'peça', 'peças') + ')</h3><div class="mu">Marque cada linha. Tudo continua pendente no pedido; só o Raphael cancela.</div>' + resta.map(function (l) {
+      var k = fNorm(l.sku), m = fpMarca(x, l), fica = l.pendente - (x.q[k] || 0);
+      return '<div class="item"><div class="nm"><div class="ds">' + esc(l.descricao + ' · ' + l.cor) + '</div><div><span class="tam">' + esc(l.tamanho) + '</span><span class="mu">ficam ' + fica + '</span></div>'
+        + '<select data-fpm="' + k + '" style="margin-top:6px"><option value="nao_tenho"' + (m.m != 'nao_entrega' ? ' selected' : '') + '>Não tenho agora</option><option value="nao_entrega"' + (m.m == 'nao_entrega' ? ' selected' : '') + '>Não vou entregar</option></select>'
+        + (m.m == 'nao_entrega' ? '<select data-fpmot="' + k + '" style="margin-top:6px"><option value="">Motivo…</option>' + (EST.motivos || []).map(function (o) { return '<option' + (m.base == o ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') + '</select>'
+          + (m.base == 'Outro' ? '<input data-fpmotx="' + k + '" maxlength="120" placeholder="qual o motivo?" value="' + esc(m.txt) + '" style="margin-top:6px">' : '') : '')
+        + '</div></div>';
+    }).join('') : '<div class="aviso ok">Com esta nota o pedido fica todo atendido.</div>')
+    + (tot ? '<label>Número da nota fiscal</label><input data-fpnf="1" inputmode="numeric" placeholder="número da nota" value="' + esc(x.nf || '') + '">' : '')
+    + '<div class="lin">' + (tot ? '<button class="btn ok" data-fpfim="1">Concluir com a nota</button>' : '<button class="btn ok" data-fpmarcas="1"' + (resta.length ? '' : ' disabled') + '>Registrar sem nota</button>') + '<button class="btn sec" data-fpvoltabip="1" style="flex:0 0 auto">Voltar à bipagem</button></div>';
+  return h + '</div>';
+}
+function lidoFSep(code) {
+  var ped = FPV.ped, L = ped && fpLinhas(ped), M = ped && fpSep(ped); if (!L || !M) return;
+  var x = fm(M.id), l = L.linhas.filter(function (i) { return casa(code, i.sku); })[0];
+  if (!l) {
+    bip(false); fb('FORA DO PEDIDO', 'Não está no pedido ' + ped + '. Não envie esta peça.', 'er');
+    fProduto(code).then(function (p) { if (SCAN && p && p.achou) fb('FORA DO PEDIDO', p.descricao + ' ' + p.cor + ' ' + p.tamanho + ': não está no pedido ' + ped + '. Não envie.', 'er'); });
+    return;
+  }
+  if (EST.travadas.indexOf(String(l.ref)) >= 0) { bip(false); fb('REFERÊNCIA EM CONTAGEM', 'A ' + l.ref + ' está sendo contada: separe esta peça e bipe depois que a contagem acabar.', 'er'); return; }
+  var k = fNorm(l.sku), c = x.q[k] || 0;
+  if (c >= l.pendente) { bip(false); fb('A MAIS', nomeIt(l) + ' ' + l.tamanho + ': o pedido pede ' + l.pendente + '. Não envie esta.', 'av'); return; }
+  x.q[k] = c + 1; fmSet(M.id, x); bip(true); fb('OK · ' + l.tamanho, nomeIt(l) + ' — ' + (c + 1) + ' de ' + l.pendente, 'ok'); fpAgenda(M.id);
+  if (!SCAN) render();
+}
+function fpMarcasPayload(L, x) {
+  var o = {}, falta = [];
+  fpResta(L, x).forEach(function (l) { var m = fpMarca(x, l), mot = fpMotivo(m); if (m.m == 'nao_entrega' && (!m.base || (m.base == 'Outro' && !m.txt))) falta.push(l.descricao + ' ' + l.cor + ' ' + l.tamanho); o[fNorm(l.sku)] = { m: m.m, motivo: mot }; });
+  if (falta.length) { toast('Diga o motivo de "não vou entregar": ' + falta.join('; '), 'er'); return null; }
+  return o;
+}
+function fpAbre(ped) {
+  var p = (EST.pedidos || []).filter(function (x) { return x.pedido == ped; })[0];
+  if (p && p.sep) { fSetAtivo('p' + ped, p.sep.id); FPV.ped = ped; FPV.conc = false; FPL[ped] = null; render(); return; } // hFSep busca as linhas atualizadas
+  return fAcao('abrir', { tipo: 'saida', pedido: ped }).then(function (o) { if (!o || !o.mov) return; fSetAtivo('p' + ped, o.mov.id); if (o.ped) fpGuarda(ped, o.ped, o.mov.id); FPV.ped = ped; FPV.conc = false; window.scrollTo(0, 0); render(); });
+}
+
 // ----- cliques e teclas do fornecedor -----
 $('conteudo').addEventListener('click', function (e) {
   if (!EST || EST.modo != 'fornecedor') return; var b = e.target.closest('button'); if (!b) return; var d = b.dataset;
@@ -942,7 +1082,52 @@ $('conteudo').addEventListener('click', function (e) {
   if (d.fabrircam) return abreScanner(function (c) { fechaScanner(); fAbrirContagem({ codigo: c }); });
   if (d.fadota) { var ka = d.fadota.split('|'); fSetAtivo(ka[0], ka[1]); return render(); }
   if (d.fabrir) { var ds = document.querySelector('[data-fdest]'), dv = ds ? ds.value : ''; if (d.fabrir == 'saida' && !dv) { toast('Escolha a loja de destino.', 'er'); return; } return fAcao('abrir', { tipo: d.fabrir, destino: dv }).then(function (o) { if (o && o.mov) { fSetAtivo(d.fabrir, o.mov.id); render(); } }); }
-  if (d.fbipar) { var tp = d.fbipar; return abreScanner(function (c) { if (tp == 'contagem') lidoFContagem(c); else lidoFMov(tp, c); }); }
+  if (d.fbipar) { var tp = d.fbipar; return abreScanner(function (c) { if (tp == 'contagem') lidoFContagem(c); else if (tp == 'sep') lidoFSep(c); else lidoFMov(tp, c); }); }
+  // v2.12: Início
+  if (d.fini0) { FABA = 'inicio'; window.scrollTo(0, 0); return render(); }
+  if (d.fiped) { FABA = 'pedidos'; FPV.ped = null; FPV.conc = false; window.scrollTo(0, 0); return render(); }
+  if (d.fini) {
+    var mi = EST.abertos.filter(function (x) { return x.id == d.fini; })[0]; if (!mi) return render();
+    window.scrollTo(0, 0);
+    if (mi.tipo == 'saida') { FABA = 'pedidos'; FPV.conc = false; if (!mi.pedido) { FPV.ped = null; return render(); } FPV.loja = Number(mi.destino); return fpAbre(mi.pedido); }
+    fSetAtivo(mi.tipo, mi.id); FABA = mi.tipo; return render();
+  }
+  if (d.finic) {
+    var mc = EST.abertos.filter(function (x) { return x.id == d.finic; })[0]; if (!mc) return;
+    if (!confirm('Cancelar: ' + fRotuloMov(mc).replace(/<[^>]+>/g, '') + ', aberta por ' + mc.aberto_por + '? O que foi bipado é descartado; nada muda no estoque.')) return;
+    return fAcao('cancelar', { mov: mc.id }).then(function (o) {
+      if (!o) return; lsSet('fm_' + mc.id, null); lsSet('fg_' + mc.id, null);
+      var kc = fChaveMov(mc); if ((lsGet('fat_' + EST.forn) || {})[kc] == mc.id) fSetAtivo(kc, null);
+      if (mc.pedido) { FPL[mc.pedido] = null; lsSet('fpl_' + mc.pedido, null); if (FPV.ped == mc.pedido) { FPV.ped = null; FPV.conc = false; } }
+      render();
+    });
+  }
+  // v2.12: Separar pedido
+  if (d.fploja) { FPV.loja = Number(d.fploja); FPV.ped = null; FPV.conc = false; window.scrollTo(0, 0); return render(); }
+  if (d.fpvolta) { if (d.fpvolta == 'lojas') FPV.loja = null; FPV.ped = null; FPV.conc = false; return fApi('estado').then(function (o) { EST = o.estado; render(); }).catch(function () { render(); }); }
+  if (d.fpsep) return fpAbre(d.fpsep);
+  if (d.fpleg) { if (!confirm('Cancelar esta saída aberta antes da versão nova? Nada sai do estoque.')) return; return fAcao('cancelar', { mov: d.fpleg }); }
+  if (d.fpmenos) { var Mq = fpSep(FPV.ped), xq = fm(Mq.id); xq.q[d.fpmenos] = (xq.q[d.fpmenos] || 0) - 1; if (xq.q[d.fpmenos] <= 0) delete xq.q[d.fpmenos]; fmSet(Mq.id, xq); fpAgenda(Mq.id); return render(); }
+  if (d.fpconc) { FPV.conc = true; window.scrollTo(0, 0); return render(); }
+  if (d.fpvoltabip) { FPV.conc = false; return render(); }
+  if (d.fpguarda) { var Mg = fpSep(FPV.ped); clearTimeout(FPT); return fAcao('parte', { mov: Mg.id, q: fm(Mg.id).q }).then(function (o) { if (o) { FPV.ped = null; render(); } }); }
+  if (d.fpcancel) {
+    var Mc2 = fpSep(FPV.ped), pc = FPV.ped; if (!confirm('Cancelar a separação do pedido ' + pc + '? O que foi bipado é descartado; nada sai do estoque e o pedido continua como estava.')) return;
+    clearTimeout(FPT); return fAcao('cancelar', { mov: Mc2.id }).then(function (o) { if (o) { fpLimpa(pc, Mc2.id); render(); } });
+  }
+  if (d.fpfim || d.fpmarcas) {
+    var pf = FPV.ped, Mf2 = fpSep(pf), Lf = fpLinhas(pf), xf2 = fm(Mf2.id), mk = fpMarcasPayload(Lf, xf2); if (!mk) return;
+    var tot2 = Lf.linhas.reduce(function (s, l) { return s + Math.min(xf2.q[fNorm(l.sku)] || 0, l.pendente); }, 0), nfp = d.fpfim ? (document.querySelector('[data-fpnf]') || {}).value || '' : '';
+    if (d.fpfim && !nfp.trim()) { toast('Digite o número da nota fiscal.', 'er'); var ni = document.querySelector('[data-fpnf]'); ni && ni.focus(); return; }
+    var fica = Object.keys(mk).length;
+    if (!confirm(d.fpfim ? 'Concluir a nota ' + nfp.trim() + ' com ' + tot2 + ' peça(s) para ' + Lf.pedido.loja + '?' + (fica ? ' ' + fica + ' linha(s) continuam pendentes no pedido.' : ' O pedido fica todo atendido.') : 'Registrar sem nota? Nada sai; ' + fica + ' linha(s) ficam marcadas e continuam pendentes.')) return;
+    clearTimeout(FPT);
+    var req = d.fpfim ? fAcao('concluir', { mov: Mf2.id, q: xf2.q, outros: {}, nf: nfp.trim(), marcas: mk }) : fAcao('marcar', { pedido: pf, mov: Mf2.id, marcas: mk });
+    return req.then(function (o) {
+      if (o) { fpLimpa(pf, Mf2.id); return render(); }
+      return fApi('pedido', { pedido: pf }).then(function (r) { fpGuarda(pf, r.ped, Mf2.id); render(); }).catch(function () { }); // o pedido pode ter mudado: atualiza as linhas
+    });
+  }
   if (d.fcp || d.fcm) { var Mc = fAtivo('contagem'), xc = fm(Mc.id), kc = d.fcp || d.fcm; xc.q[kc] = Math.max(0, (xc.q[kc] || 0) + (d.fcp ? 1 : -1)); if (!xc.q[kc]) delete xc.q[kc]; fmSet(Mc.id, xc); return render(); }
   if (d.fmenos || d.fom) { var tpm = FABA, Mm = fAtivo(tpm), xm = fm(Mm.id), campo = d.fmenos ? 'q' : 'outros', km = d.fmenos || d.fom; xm[campo][km] = (xm[campo][km] || 0) - 1; if (xm[campo][km] <= 0) delete xm[campo][km]; fmSet(Mm.id, xm); return render(); }
   if (d.fparte) { var Mp = fAtivo('contagem'), xp = fm(Mp.id); return fAcao('parte', { mov: Mp.id, q: xp.q, outros: xp.outros, eti: xp.eti || {}, etiOutros: xp.etiOutros || {} }); }
@@ -976,10 +1161,18 @@ $('conteudo').addEventListener('click', function (e) {
 $('conteudo').addEventListener('change', function (e) {
   if (!EST || EST.modo != 'fornecedor') return; var t = e.target;
   if (t.dataset.fqtd) { var M = fAtivo('contagem'), x = fm(M.id), n = Math.max(0, parseInt(t.value, 10) || 0); if (n) x.q[t.dataset.fqtd] = n; else delete x.q[t.dataset.fqtd]; fmSet(M.id, x); render(); }
+  // v2.12: marcas do que fica pendente e a nota
+  if (t.dataset.fpm || t.dataset.fpmot || t.dataset.fpmotx || t.dataset.fpnf) {
+    var Ms = fpSep(FPV.ped), Ls = fpLinhas(FPV.ped); if (!Ms || !Ls) return; var xs = fm(Ms.id);
+    if (t.dataset.fpnf) { xs.nf = t.value; fmSet(Ms.id, xs); return; }
+    var ks = t.dataset.fpm || t.dataset.fpmot || t.dataset.fpmotx, ls = Ls.linhas.filter(function (l) { return fNorm(l.sku) == ks; })[0], ms = fpMarca(xs, ls);
+    if (t.dataset.fpm) ms.m = t.value; if (t.dataset.fpmot) ms.base = t.value; if (t.dataset.fpmotx) ms.txt = t.value.trim();
+    xs.marcas[ks] = ms; fmSet(Ms.id, xs); if (!t.dataset.fpmotx) render();
+  }
 });
 $('conteudo').addEventListener('keydown', function (e) {
   if (!EST || EST.modo != 'fornecedor' || e.key != 'Enter') return; var t = e.target, v = t.value.trim(); if (!v) return;
-  if (t.dataset.fcod) { if (t.dataset.fcod == 'contagem') lidoFContagem(v); else lidoFMov(t.dataset.fcod, v); t.value = ''; var k = t.dataset.fcod; setTimeout(function () { var n = document.querySelector('[data-fcod="' + k + '"]'); n && n.focus(); }, 0); }
+  if (t.dataset.fcod) { if (t.dataset.fcod == 'contagem') lidoFContagem(v); else if (t.dataset.fcod == 'sep') lidoFSep(v); else lidoFMov(t.dataset.fcod, v); t.value = ''; var k = t.dataset.fcod; setTimeout(function () { var n = document.querySelector('[data-fcod="' + k + '"]'); n && n.focus(); }, 0); }
   if (t.dataset.fqtd) t.blur();
   if (t.dataset.fref) document.querySelector('[data-fabrirc]').click();
   if (t.dataset.fbusca) fBuscar(v);
@@ -1004,11 +1197,271 @@ function hFornPainel(p) {
     if (F.outroFornecedor.length) al += '<details><summary><span class="pill av">' + F.outroFornecedor.length + '</span> peça(s) de outro fornecedor</summary>' + F.outroFornecedor.map(function (x) { return '<div class="mu">' + esc(x.sku) + ' · ref ' + esc(x.ref) + ' ' + esc(x.descricao + ' ' + x.cor + ' ' + x.tamanho) + '</div>'; }).join('') + '</details>';
     h += al ? '<h3>Alertas</h3>' + al : '';
     h += '<details><summary>Movimentos dos últimos 30 dias (' + F.movimentos.length + ')</summary><div class="tabw"><table><tr><th>Quando</th><th>Movimento</th><th>Peças</th><th></th></tr>' + F.movimentos.map(function (m) {
-      return '<tr><td>' + dt(m.concluido_em) + '</td><td>' + esc(m.rotulo) + (m.ref ? ' ref ' + esc(m.ref) : '') + (m.modo ? ' <span class="pill">' + (m.modo == 'dupla' ? 'dupla' : 'rápida') + '</span>' : '') + (m.difEtiqueta ? ' <span class="pill er">' + m.difEtiqueta + ' etiqueta(s) a trocar</span>' : '') + (m.etiOutras ? ' <span class="pill av">' + m.etiOutras + ' etiqueta(s) de outro produto</span>' : '') + (m.nf ? ' · NF ' + esc(m.nf) : '') + (m.destino_nome ? ' · ' + esc(m.destino_nome) : '') + '<div class="mu">' + esc(m.quem) + '</div>' + (m.situacao == 'estornado' ? '<div class="mu">' + esc(m.obs) + '</div>' : '') + '</td><td>' + m.pecas + '</td><td>'
+      return '<tr><td>' + dt(m.concluido_em) + '</td><td>' + esc(m.rotulo) + (m.pedido ? ' · pedido ' + esc(m.pedido) : '') + (m.ref ? ' ref ' + esc(m.ref) : '') + (m.modo ? ' <span class="pill">' + (m.modo == 'dupla' ? 'dupla' : 'rápida') + '</span>' : '') + (m.difEtiqueta ? ' <span class="pill er">' + m.difEtiqueta + ' etiqueta(s) a trocar</span>' : '') + (m.etiOutras ? ' <span class="pill av">' + m.etiOutras + ' etiqueta(s) de outro produto</span>' : '') + (m.nf ? ' · NF ' + esc(m.nf) : '') + (m.destino_nome ? ' · ' + esc(m.destino_nome) : '') + '<div class="mu">' + esc(m.quem) + '</div>' + (m.situacao == 'estornado' ? '<div class="mu">' + esc(m.obs) + '</div>' : '') + '</td><td>' + m.pecas + '</td><td>'
         + (m.situacao == 'estornado' ? '<span class="pill av">estornado</span>' : (m.tipo != 'contagem' ? '<button class="btn sec pq" data-festorn="' + esc(F.id) + '|' + m.id + '">Estornar</button>' : '')) + '</td></tr>'; }).join('') + '</table></div></details></div>';
-    return h;
+    return h + hFPedPainel(F);
   }).join('');
 }
+
+// ----- v2.12: pedidos do fornecedor no painel (incluir por arquivo ou digitando, alterar, cancelar) -----
+var FPUP = null, FPDIG = null, FPDET = null;
+function quadroF(id) { return ((PAINEL && PAINEL.fornecedores) || []).filter(function (F) { return F.id == id; })[0]; }
+function hFPedPainel(F) {
+  var Q = F.pedidos || { abertos: [], encerrados: [], naoTenho: [], naoEntrega: [], prazo: 7 };
+  var h = '<div class="card"><h2>Pedidos da ' + esc(F.nome) + '</h2><div class="mu">Cada pedido é de uma loja. A ' + esc(F.nome) + ' separa contra o pedido e emite a nota; o que não sai fica pendente no pedido. Pedido parado: ' + Q.prazo + ' dias sem nota com peça pendente (parâmetro PRAZO_PEDIDO_FORN).</div>'
+    + '<div class="lin"><label class="btn sec" style="flex:0 0 auto;cursor:pointer">Incluir por arquivo (.xlsx)<input type="file" accept=".xlsx" data-fparq="' + esc(F.id) + '" style="display:none"></label><button class="btn sec" data-fpdig="' + esc(F.id) + '">Digitar um pedido</button></div>';
+  if (FPUP && FPUP.forn == F.id) h += hFPUpload(F);
+  if (FPDIG && FPDIG.forn == F.id && !FPDIG.pedido) h += hFPDigita(F);
+  var parados = Q.abertos.filter(function (p) { return p.parado; });
+  if (parados.length) h += '<div class="aviso er" style="margin-top:10px"><b>' + pl(parados.length, 'pedido parado', 'pedidos parados') + '</b> (sem nota há ' + Q.prazo + ' dias ou mais): ' + parados.map(function (p) { return 'pedido ' + esc(p.pedido) + ' ' + esc(p.loja) + ' (' + p.dias + ' dias)'; }).join(', ') + '.</div>';
+  if (Q.naoEntrega.length) h += '<h3><span class="pill er">' + Q.naoEntrega.length + '</span> linha(s) que a ' + esc(F.nome) + ' diz que não vai entregar</h3><div class="mu">Continuam pendentes até você cancelar.</div>' + Q.naoEntrega.map(function (x) {
+    return '<div class="item"><div class="nm"><div class="ds">' + esc(x.descricao + ' · ' + x.cor) + ' <span class="tam">' + esc(x.tamanho) + '</span></div><div class="mu">Pedido ' + esc(x.pedido) + ' · ' + esc(x.loja) + ' · ' + pl(x.pendente, 'pendente', 'pendentes') + ' · <b>' + esc(x.motivo) + '</b> · desde ' + dt(x.marca_em) + '</div></div><button class="btn sec pq" data-fpcl="' + esc(F.id) + '|' + esc(x.pedido) + '|' + esc(x.sku) + '|' + esc(x.motivo) + '">Cancelar</button></div>'; }).join('');
+  if (Q.naoTenho.length) h += '<details><summary><span class="pill av">' + Q.naoTenho.length + '</span> linha(s) "não tenho" (fila de pendência)</summary><div class="tabw"><table><tr><th>Desde</th><th>Pedido · loja</th><th>Produto</th><th>Pendente</th></tr>' + Q.naoTenho.map(function (x) {
+    return '<tr><td>' + dt(x.marca_em) + '</td><td>' + esc(x.pedido) + ' · ' + esc(x.loja) + '</td><td>ref ' + esc(x.ref) + ' ' + esc(x.descricao + ' · ' + x.cor + ' · ' + x.tamanho) + '</td><td>' + x.pendente + '</td></tr>'; }).join('') + '</table></div></details>';
+  if (!Q.abertos.length) h += '<div class="mu" style="margin-top:10px">Nenhum pedido pendente.</div>';
+  else {
+    var lojas = []; Q.abertos.forEach(function (p) { if (lojas.indexOf(p.loja) < 0) lojas.push(p.loja); });
+    h += '<h3>Pedidos pendentes por loja</h3><div class="tabw"><table><tr><th>Loja · pedido</th><th>Pedido</th><th>Separado</th><th>Pendente</th><th>%</th><th>Última nota</th><th></th></tr>' + lojas.map(function (lj) {
+      return Q.abertos.filter(function (p) { return p.loja == lj; }).map(function (p) {
+        return '<tr><td><b>' + esc(p.loja) + '</b><div class="mu">Pedido ' + esc(p.pedido) + (p.nome ? ' · ' + esc(p.nome) : '') + ' · ' + dt(p.criado_em) + '</div>'
+          + (p.parado ? '<span class="pill er">parado há ' + p.dias + ' dias</span> ' : '') + (p.sep ? '<span class="pill av">em separação</span> ' : '') + (p.nao_tenho ? '<span class="pill">' + p.nao_tenho + ' "não tenho"</span> ' : '') + (p.nao_entrega ? '<span class="pill er">' + p.nao_entrega + ' "não vou entregar"</span> ' : '') + (p.cancelado ? '<span class="pill">' + p.cancelado + ' cancelada(s)</span>' : '')
+          + '</td><td>' + p.qtd + '</td><td>' + p.separado + '</td><td>' + p.pendente + '</td><td>' + p.pct + '%</td><td>' + (p.ultima_nf ? esc(p.ultima_nf) + '<div class="mu">' + dt(p.ultima_nf_em) + '</div>' : '—') + '</td><td><button class="btn sec pq" data-fpver="' + esc(F.id) + '|' + esc(p.pedido) + '">' + (FPDET && FPDET.forn == F.id && FPDET.pedido == p.pedido ? 'Fechar' : 'Ver') + '</button></td></tr>';
+      }).join('');
+    }).join('') + '</table></div>';
+  }
+  if (FPDET && FPDET.forn == F.id) h += hFPDetalhe(F);
+  if (Q.encerrados.length) h += '<details><summary>Encerrados nos últimos 30 dias (' + Q.encerrados.length + ')</summary>' + Q.encerrados.map(function (p) {
+    return '<div class="item"><div class="nm"><div class="ds">Pedido ' + esc(p.pedido) + ' · ' + esc(p.loja) + '</div><div class="mu">' + (p.nome ? esc(p.nome) + ' · ' : '') + 'de ' + dt(p.criado_em) + ' · saíram ' + p.separado + ' de ' + p.qtd + (p.cancelado ? ' · ' + p.cancelado + ' cancelada(s)' : '') + (p.ultima_nf ? ' · última nota ' + esc(p.ultima_nf) : '') + '</div></div><button class="btn sec pq" data-fpver="' + esc(F.id) + '|' + esc(p.pedido) + '">Ver</button></div>'; }).join('') + '</details>';
+  return h + '</div>';
+}
+function caixa(h) { return '<div style="border:1px solid var(--li);border-radius:10px;padding:10px;margin-top:10px">' + h + '</div>'; }
+function hFPDetalhe(F) {
+  var D = FPDET.dados; if (!D) return caixa('<div class="vazio">Carregando o pedido ' + esc(FPDET.pedido) + '…</div>');
+  var p = D.pedido, sit = function (l) {
+    if (l.situacao == 'cancelado') return '<span class="pill">cancelado</span><div class="mu">' + esc(l.cancelado_motivo) + '</div>';
+    if (l.situacao == 'atendido') return '<span class="pill ok">atendido</span>';
+    return (l.situacao == 'parcial' ? '<span class="pill av">parcial</span> ' : '') + (l.marca ? '<span class="pill ' + (l.marca == 'nao_entrega' ? 'er' : 'av') + '">' + esc(l.marca_rotulo) + '</span>' + (l.motivo ? '<div class="mu">' + esc(l.motivo) + '</div>' : '') : (l.situacao == 'aberto' ? '<span class="pill">aberto</span>' : ''));
+  };
+  var h = '<h3 style="margin-top:0">Pedido ' + esc(p.pedido) + ' · ' + esc(p.loja) + '</h3><div class="mu">' + (p.nome ? esc(p.nome) + ' · ' : '') + 'incluído em ' + dt(p.criado_em) + ' (' + (p.origem == 'arquivo' ? 'arquivo' : 'digitado') + ') · saíram ' + p.separado + ' de ' + p.qtd + ' peças' + (p.cancelado ? ' · ' + p.cancelado + ' cancelada(s)' : '') + (p.ultima_nf ? ' · última nota ' + esc(p.ultima_nf) + ' em ' + dt(p.ultima_nf_em) : '') + '</div>'
+    + '<div class="tabw"><table><tr><th>Produto</th><th>Pedido</th><th>Saiu</th><th>Falta</th><th>Situação</th><th></th></tr>' + D.linhas.map(function (l) {
+      var k = fNorm(l.sku), canc = l.situacao == 'cancelado';
+      return '<tr><td>ref ' + esc(l.ref) + ' ' + esc(l.descricao) + '<div class="mu">' + esc(l.cor) + ' · ' + esc(l.tamanho) + '</div></td><td>' + (canc ? l.qtd : '<input data-fpaq="' + k + '" value="' + l.qtd + '" inputmode="numeric" style="width:64px;min-height:36px;padding:4px 6px">') + '</td><td>' + l.separado + '</td><td>' + l.pendente + '</td><td>' + sit(l) + '</td><td>'
+        + (canc ? '' : '<button class="btn sec pq" data-fpas="' + esc(l.sku) + '">Salvar</button>' + (l.pendente ? ' <button class="btn sec pq" data-fpcl="' + esc(F.id) + '|' + esc(p.pedido) + '|' + esc(l.sku) + '|' + esc(l.marca == 'nao_entrega' ? l.motivo : '') + '">Cancelar</button>' : '')) + '</td></tr>';
+    }).join('') + '</table></div>'
+    + '<div class="lin">' + (p.pendente ? '<button class="btn sec" data-fpadd="1">Acrescentar itens</button><button class="btn sec" data-fpcall="1">Cancelar o que falta</button>' : '') + '<button class="btn sec" data-fpdx="1" style="flex:0 0 auto">Fechar</button></div>';
+  if (FPDIG && FPDIG.forn == F.id && FPDIG.pedido == p.pedido) h += hFPDigita(F);
+  return caixa(h);
+}
+function hFPDigita(F) {
+  var D = FPDIG, novo = !D.pedido;
+  var h = '<h3 style="margin-top:0">' + (novo ? 'Digitar um pedido' : 'Acrescentar itens ao pedido ' + esc(D.pedido)) + '</h3>'
+    + (novo ? '<label>Loja</label><select data-fpdloja="1"><option value="">Escolha…</option>' + (F.lojas || []).map(function (l) { return '<option value="' + l.filial + '"' + (String(D.filial) == String(l.filial) ? ' selected' : '') + '>' + esc(l.nome) + '</option>'; }).join('') + '</select>'
+      + '<label>Nome do pedido (opcional)</label><input data-fpdnome="1" maxlength="80" placeholder="ex.: Básico dezembro" value="' + esc(D.nome || '') + '">' : '')
+    + '<label>Referência</label><div class="lin" style="margin-top:0"><input data-fpdref="1" placeholder="ex.: 0395" value="' + esc(D.ref || '') + '"><button class="btn sec" data-fpdgrade="1" style="flex:0 0 auto">Carregar a grade</button></div>';
+  if (D.grade && D.grade.length) {
+    var cores = [], tams = [], cel = {};
+    D.grade.forEach(function (g) { if (cores.indexOf(g.cor) < 0) cores.push(g.cor); if (tams.indexOf(g.tamanho) < 0) tams.push(g.tamanho); cel[g.cor + '|' + g.tamanho] = g; });
+    tams.sort(function (a, b) { return ordTamF(a) < ordTamF(b) ? -1 : 1; });
+    h += '<div class="mu" style="margin-top:8px">Ref ' + esc(D.grade[0].ref) + ' · ' + esc(D.grade[0].descricao) + ': digite a quantidade de cada cor e tamanho.</div><div class="tabw"><table><tr><th>Cor</th>' + tams.map(function (t) { return '<th>' + esc(t) + '</th>'; }).join('') + '</tr>'
+      + cores.map(function (c) { return '<tr><td>' + esc(c) + '</td>' + tams.map(function (t) { var g = cel[c + '|' + t]; return '<td>' + (g ? '<input data-fpgq="' + esc(g.sku) + '" inputmode="numeric" style="width:56px;min-height:36px;padding:4px 6px">' : '') + '</td>'; }).join('') + '</tr>'; }).join('')
+      + '</table></div><div class="lin"><button class="btn sec" data-fpgadd="1">Pôr no pedido</button></div>';
+  }
+  if (D.rasc.length) h += '<h3>Itens (' + pl(D.rasc.reduce(function (s, i) { return s + i.qtd; }, 0), 'peça', 'peças') + ')</h3>' + D.rasc.map(function (i, ix) {
+    return '<div class="item"><div class="nm"><div class="ds">ref ' + esc(i.ref) + ' ' + esc(i.descricao) + ' · ' + esc(i.cor) + '</div><span class="tam">' + esc(i.tamanho) + '</span></div><div class="ct">' + i.qtd + '</div><button class="btn sec pq" data-fprm="' + ix + '">Tirar</button></div>'; }).join('');
+  h += '<div class="lin"><button class="btn" data-fpdok="1"' + (D.rasc.length ? '' : ' disabled') + '>' + (novo ? 'Incluir o pedido' : 'Acrescentar ao pedido') + '</button><button class="btn sec" data-fpdx2="1" style="flex:0 0 auto">Fechar</button></div>';
+  return caixa(h);
+}
+function hFPUpload(F) {
+  var U = FPUP;
+  if (U.carregando) return caixa('<div class="mu">Lendo ' + esc(U.arquivo) + '…</div>');
+  if (!U.abas.length) return caixa('<div class="aviso er">Nenhuma aba com pedido em ' + esc(U.arquivo) + '. O app procura a linha de cabeçalho com Referência e Cor e os tamanhos em colunas (formato do consolidado por fornecedor), ou Referência, Cor, Tamanho e Quantidade em colunas.</div><div class="lin"><button class="btn sec" data-fpux="1">Fechar</button></div>');
+  return caixa('<h3 style="margin-top:0">Arquivo ' + esc(U.arquivo) + '</h3><div class="mu">Cada aba vira um pedido. Confira a loja de cada aba: nada é gravado até você incluir.</div>' + U.abas.map(function (a, i) {
+    var v = a.valid, probs = v ? v.linhas.filter(function (l) { return !l.ok; }) : [];
+    return '<div style="border-top:1px solid var(--li);padding:8px 0;margin-top:8px"><label style="display:flex;gap:8px;align-items:center;color:var(--tx);margin:0"><input type="checkbox" data-fpuinc="' + i + '"' + (a.incluir ? ' checked' : '') + ' style="width:22px;min-height:22px"><b>Aba ' + esc(a.aba) + '</b></label>'
+      + '<div class="mu">' + (v ? v.ok + ' linha(s) ok, ' + pl(v.pecas, 'peça', 'peças') : 'Conferindo no cadastro…') + '</div>'
+      + '<label>Loja</label><select data-fpuloja="' + i + '"><option value="">Escolha…</option>' + (F.lojas || []).map(function (l) { return '<option value="' + l.filial + '"' + (String(a.filial) == String(l.filial) ? ' selected' : '') + '>' + esc(l.nome) + '</option>'; }).join('') + '</select>'
+      + '<label>Nome do pedido</label><input data-fpunome="' + i + '" value="' + esc(a.nome) + '" maxlength="80">'
+      + (probs.length ? '<div class="aviso er" style="margin-top:8px"><b>' + probs.length + ' linha(s) com problema:</b><br>' + probs.map(function (l) { return esc(l.rotulo) + ' — ' + esc(l.erro); }).join('<br>') + '</div><label style="display:flex;gap:8px;align-items:center;color:var(--tx);margin:0"><input type="checkbox" data-fpusem="' + i + '"' + (a.semProblema ? ' checked' : '') + ' style="width:22px;min-height:22px">Incluir sem essas linhas</label>' : '')
+      + '</div>';
+  }).join('') + '<div class="lin"><button class="btn" data-fpuok="1">Incluir os pedidos marcados</button><button class="btn sec" data-fpux="1" style="flex:0 0 auto">Descartar</button></div>');
+}
+
+// Leitura do .xlsx no navegador (zip + XML), sem biblioteca: o servidor recebe só as linhas do pedido.
+function u16(b, o) { return b[o] | (b[o + 1] << 8); }
+function u32(b, o) { return (b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24)) >>> 0; }
+function zipLer(buf) {
+  var b = new Uint8Array(buf), e = -1, td = new TextDecoder();
+  for (var i = b.length - 22; i >= Math.max(0, b.length - 66000); i--) if (u32(b, i) == 0x06054b50) { e = i; break; }
+  if (e < 0) throw new Error('o arquivo não é um .xlsx');
+  var n = u16(b, e + 10), o = u32(b, e + 16), arqs = {};
+  for (var k = 0; k < n && u32(b, o) == 0x02014b50; k++) {
+    var ln = u16(b, o + 28); arqs[td.decode(b.subarray(o + 46, o + 46 + ln))] = { met: u16(b, o + 10), tam: u32(b, o + 20), loc: u32(b, o + 42) };
+    o += 46 + ln + u16(b, o + 30) + u16(b, o + 32);
+  }
+  return { b: b, arqs: arqs };
+}
+function zipTexto(z, nome) {
+  var a = z.arqs[nome]; if (!a) return Promise.resolve(null);
+  var b = z.b, ini = a.loc + 30 + u16(b, a.loc + 26) + u16(b, a.loc + 28), dados = b.subarray(ini, ini + a.tam);
+  if (a.met == 0) return Promise.resolve(new TextDecoder().decode(dados));
+  if (a.met != 8 || !window.DecompressionStream) return Promise.reject(new Error('formato de compressão não suportado neste navegador'));
+  return new Response(new Blob([dados]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text();
+}
+function colIdx(r) { var m = String(r).match(/^[A-Z]+/), n = 0; if (!m) return -1; for (var i = 0; i < m[0].length; i++) n = n * 26 + m[0].charCodeAt(i) - 64; return n - 1; }
+function linhasAba(doc, ss) {
+  var out = [];
+  [].forEach.call(doc.getElementsByTagName('row'), function (r) {
+    var ri = Number(r.getAttribute('r')) - 1, lin = [];
+    [].forEach.call(r.getElementsByTagName('c'), function (c, j) {
+      var t = c.getAttribute('t'), v = c.getElementsByTagName('v')[0], val;
+      if (t == 's') val = ss[Number(v && v.textContent)] || '';
+      else if (t == 'inlineStr') val = [].map.call(c.getElementsByTagName('t'), function (x) { return x.textContent; }).join('');
+      else val = v ? v.textContent : '';
+      lin[c.getAttribute('r') ? colIdx(c.getAttribute('r')) : j] = val;
+    });
+    out[isNaN(ri) ? out.length : ri] = lin;
+  });
+  return out;
+}
+function lerXlsx(file) {
+  return file.arrayBuffer().then(function (buf) {
+    var z = zipLer(buf), P = new DOMParser();
+    return Promise.all([zipTexto(z, 'xl/workbook.xml'), zipTexto(z, 'xl/_rels/workbook.xml.rels'), zipTexto(z, 'xl/sharedStrings.xml')]).then(function (r) {
+      if (!r[0]) throw new Error('o arquivo não é um .xlsx');
+      var wb = P.parseFromString(r[0], 'application/xml'), rel = {}, ss = [];
+      if (r[1]) [].forEach.call(P.parseFromString(r[1], 'application/xml').getElementsByTagName('Relationship'), function (x) { rel[x.getAttribute('Id')] = x.getAttribute('Target'); });
+      if (r[2]) [].forEach.call(P.parseFromString(r[2], 'application/xml').getElementsByTagName('si'), function (si) { ss.push([].map.call(si.getElementsByTagName('t'), function (t) { return t.textContent; }).join('')); });
+      var abas = [].map.call(wb.getElementsByTagName('sheet'), function (s) {
+        var rid = s.getAttribute('r:id') || s.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id');
+        return { nome: s.getAttribute('name'), arq: 'xl/' + String(rel[rid] || '').replace(/^\/?xl\//, '').replace(/^\//, '') };
+      });
+      return Promise.all(abas.map(function (a) { return zipTexto(z, a.arq).then(function (x) { a.linhas = x ? linhasAba(P.parseFromString(x, 'application/xml'), ss) : []; return a; }); }));
+    });
+  });
+}
+function nrm(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase().replace(/\s+/g, ' '); }
+var ABAS_SEM_PEDIDO = ['resumo por loja', 'consolidado (rede)', 'consolidado', 'resumo descartes', 'detalhe descartes'];
+// Duas formas: grade (Referência | Descrição | Cor | tamanhos… | Total — o consolidado por fornecedor) ou lista (Referência, Cor, Tamanho, Quantidade).
+function itensDaAba(a) {
+  if (ABAS_SEM_PEDIDO.indexOf(nrm(a.nome)) >= 0) return [];
+  var L = a.linhas, hi = -1, cab = [];
+  for (var i = 0; i < Math.min(L.length, 20); i++) { var r = (L[i] || []).map(nrm); if (r.indexOf('referencia') >= 0 && r.indexOf('cor') >= 0) { hi = i; cab = r; break; } }
+  if (hi < 0) return [];
+  var cR = cab.indexOf('referencia'), cC = cab.indexOf('cor'), cT = cab.indexOf('tamanho'), cQ = cab.indexOf('quantidade'), itens = [];
+  var num = function (v) { var x = Number(String(v == null ? '' : v).replace(',', '.')); return isFinite(x) ? x : 0; };
+  if (cT >= 0 && cQ >= 0) {
+    for (var j = hi + 1; j < L.length; j++) { var x = L[j] || []; if (nrm(x[cR]) == 'total') break; var q = num(x[cQ]); if (!x[cR] || !(q > 0)) continue; itens.push({ ref: String(x[cR]).trim(), cor: String(x[cC] || '').trim(), tamanho: String(x[cT] || '').trim(), qtd: q }); }
+    return itens;
+  }
+  var tams = [];
+  for (var c = cC + 1; c < cab.length; c++) { var hc = cab[c] || ''; if (hc == 'total' || hc.indexOf('valor') == 0) break; if (hc && hc != 'descricao') tams.push([c, String(L[hi][c]).trim()]); }
+  for (var k = hi + 1; k < L.length; k++) {
+    var y = L[k] || []; if (nrm(y[cR]) == 'total') break; if (!y[cR]) continue;
+    tams.forEach(function (t) { var q2 = num(y[t[0]]); if (q2 > 0) itens.push({ ref: String(y[cR]).trim(), cor: String(y[cC] || '').trim(), tamanho: t[1], qtd: q2 }); });
+  }
+  return itens;
+}
+// Loja da aba pelo nome ("Goiânia Flamboyant" → Flamboyant): todas as palavras do nome da loja aparecem no nome da aba. Sem certeza, fica em branco.
+function lojaPalpite(nome, lojas) {
+  var n = nrm(nome).split(/[^a-z0-9]+/).filter(Boolean), best = null, emp = false;
+  (lojas || []).forEach(function (l) { var t = nrm(l.nome).split(/[^a-z0-9]+/).filter(Boolean); if (!t.length || !t.every(function (w) { return n.indexOf(w) >= 0; })) return; if (!best || t.length > best.t) { best = { f: l.filial, t: t.length }; emp = false; } else if (t.length == best.t) emp = true; });
+  return best && !emp ? best.f : '';
+}
+function fpUpload(id, file) {
+  var F = quadroF(id); if (!F || !file) return;
+  var base = file.name.replace(/\.xlsx$/i, '');
+  FPUP = { forn: id, arquivo: file.name, carregando: true, abas: [] }; FPDIG = null; render();
+  lerXlsx(file).then(function (abas) {
+    FPUP.abas = abas.map(function (a) { return { aba: a.nome, itens: itensDaAba(a) }; }).filter(function (a) { return a.itens.length; })
+      .map(function (a) { return { aba: a.aba, itens: a.itens, incluir: true, filial: lojaPalpite(a.aba, F.lojas), nome: base, semProblema: false, valid: null }; });
+    FPUP.carregando = false; render();
+    if (!FPUP.abas.length) return;
+    return api('pedValidar', { forn: id, pedidos: FPUP.abas.map(function (a) { return { aba: a.aba, itens: a.itens }; }) }).then(function (o) { if (!FPUP) return; o.validacao.forEach(function (v, i) { FPUP.abas[i].valid = v; }); render(); });
+  }).catch(function (e) { FPUP = null; toast('Não consegui ler o arquivo: ' + e.message, 'er'); render(); });
+}
+function fpDetalhe(id, ped) {
+  FPDET = { forn: id, pedido: String(ped), dados: null }; render();
+  return api('pedDetalhe', { forn: id, pedido: ped }).then(function (o) { if (FPDET && FPDET.pedido == String(ped)) { FPDET.dados = o.detalhe; render(); } }).catch(function (e) { FPDET = null; toast(e.message, 'er'); render(); });
+}
+function fpAposAdm(o) { if (o && o.detalhe && FPDET) FPDET.dados = o.detalhe; render(); return o; }
+$('conteudo').addEventListener('click', function (e) {
+  if (!PAINEL || LOJA_ADM || FORN_ADM) return; var b = e.target.closest('button'); if (!b) return; var d = b.dataset;
+  if (d.fpdig) { FPDIG = { forn: d.fpdig, pedido: null, filial: '', nome: '', ref: '', grade: null, rasc: [] }; FPUP = null; return render(); }
+  if (d.fpver) { var kv = d.fpver.split('|'); if (FPDET && FPDET.forn == kv[0] && FPDET.pedido == kv[1]) { FPDET = null; FPDIG = null; return render(); } FPDIG = null; return fpDetalhe(kv[0], kv[1]); }
+  if (d.fpdx) { FPDET = null; FPDIG = null; return render(); }
+  if (d.fpdx2) { FPDIG = null; return render(); }
+  if (d.fpux) { FPUP = null; return render(); }
+  if (d.fpadd) { FPDIG = { forn: FPDET.forn, pedido: FPDET.pedido, ref: '', grade: null, rasc: [] }; return render(); }
+  if (d.fpdgrade) {
+    var rf = (document.querySelector('[data-fpdref]') || {}).value || ''; if (!rf.trim()) { toast('Digite a referência.', 'er'); return; }
+    FPDIG.ref = rf.trim(); return api('pedGrade', { forn: FPDIG.forn, ref: rf.trim() }).then(function (o) { FPDIG.grade = o.grade; render(); var i0 = document.querySelector('[data-fpgq]'); i0 && i0.focus(); }).catch(function (er) { toast(er.message, 'er'); });
+  }
+  if (d.fpgadd) {
+    var n0 = 0; [].forEach.call(document.querySelectorAll('[data-fpgq]'), function (inp) {
+      var q = Number(inp.value); if (!inp.value.trim()) return;
+      if (!(q > 0) || Math.round(q) != q) { n0 = -1; return; }
+      var g = FPDIG.grade.filter(function (x) { return x.sku == inp.dataset.fpgq; })[0], ix = -1;
+      FPDIG.rasc.forEach(function (r, i) { if (r.sku == g.sku) ix = i; });
+      var it = { sku: g.sku, ref: g.ref, descricao: g.descricao, cor: g.cor, tamanho: g.tamanho, qtd: q };
+      if (ix >= 0) FPDIG.rasc[ix] = it; else FPDIG.rasc.push(it); if (n0 >= 0) n0++;
+    });
+    if (n0 < 0) { toast('Quantidade inválida: use número inteiro.', 'er'); return; }
+    if (!n0) { toast('Digite pelo menos uma quantidade.', 'er'); return; }
+    FPDIG.grade = null; FPDIG.ref = ''; render(); var r0 = document.querySelector('[data-fpdref]'); r0 && r0.focus(); return;
+  }
+  if (d.fprm) { FPDIG.rasc.splice(Number(d.fprm), 1); return render(); }
+  if (d.fpdok) {
+    var D = FPDIG; if (!D.pedido && !D.filial) { toast('Escolha a loja do pedido.', 'er'); return; }
+    var pecas = D.rasc.reduce(function (s, i) { return s + i.qtd; }, 0);
+    if (!confirm(D.pedido ? 'Acrescentar ' + D.rasc.length + ' linha(s), ' + pecas + ' peça(s), ao pedido ' + D.pedido + '?' : 'Incluir o pedido com ' + D.rasc.length + ' linha(s), ' + pecas + ' peça(s)?')) return;
+    var dados = { forn: D.forn, pedidos: [{ filial: D.filial, nome: D.nome, origem: 'digitado', itens: D.rasc.map(function (i) { return { sku: i.sku, qtd: i.qtd }; }) }] };
+    if (D.pedido) dados.pedido = D.pedido;
+    return acao('pedIncluir', dados).then(function (o) { if (!o) return; var ped = D.pedido; FPDIG = null; if (ped && FPDET) return fpDetalhe(D.forn, ped); render(); });
+  }
+  if (d.fpuok) {
+    var U = FPUP, env = [], erro = '';
+    U.abas.forEach(function (a) {
+      if (!a.incluir || erro) return;
+      if (!a.valid) { erro = 'Espere a conferência do arquivo terminar.'; return; }
+      if (!a.filial) { erro = 'Escolha a loja da aba ' + a.aba + '.'; return; }
+      if (a.valid.problemas && !a.semProblema) { erro = 'A aba ' + a.aba + ' tem ' + a.valid.problemas + ' linha(s) com problema: corrija o arquivo ou marque "Incluir sem essas linhas".'; return; }
+      var it = a.valid.linhas.filter(function (l) { return l.ok; }).map(function (l) { return { sku: l.sku, qtd: l.qtd }; });
+      if (!it.length) { erro = 'A aba ' + a.aba + ' ficou sem nenhuma linha válida.'; return; }
+      env.push({ filial: a.filial, nome: a.nome, origem: 'arquivo', aba: a.aba, itens: it });
+    });
+    if (erro) { toast(erro, 'er'); return; }
+    if (!env.length) { toast('Marque pelo menos uma aba.', 'er'); return; }
+    if (!confirm('Incluir ' + pl(env.length, 'pedido', 'pedidos') + '?')) return;
+    return acao('pedIncluir', { forn: U.forn, pedidos: env }).then(function (o) { if (o) { FPUP = null; render(); } });
+  }
+  if (d.fpas) {
+    var inp2 = document.querySelector('[data-fpaq="' + fNorm(d.fpas) + '"]');
+    return acao('pedAlterar', { forn: FPDET.forn, pedido: FPDET.pedido, sku: d.fpas, qtd: inp2 ? inp2.value : '' }).then(fpAposAdm);
+  }
+  if (d.fpcl) {
+    var kc = d.fpcl.split('|'), mot = prompt('Motivo do cancelamento (fica registrado):', kc[3] || ''); if (!mot || !mot.trim()) return;
+    return acao('pedCancelar', { forn: kc[0], pedido: kc[1], sku: kc[2], motivo: mot.trim() }).then(fpAposAdm);
+  }
+  if (d.fpcall) {
+    var mot2 = prompt('Cancelar tudo o que falta do pedido ' + FPDET.pedido + '. Motivo (fica registrado):', ''); if (!mot2 || !mot2.trim()) return;
+    return acao('pedCancelar', { forn: FPDET.forn, pedido: FPDET.pedido, motivo: mot2.trim() }).then(fpAposAdm);
+  }
+});
+$('conteudo').addEventListener('change', function (e) {
+  if (!PAINEL || LOJA_ADM || FORN_ADM) return; var t = e.target, d = t.dataset;
+  if (d.fparq) { var fl = t.files && t.files[0]; t.value = ''; return fpUpload(d.fparq, fl); }
+  if (d.fpdloja && FPDIG) FPDIG.filial = t.value;
+  if (d.fpdnome && FPDIG) FPDIG.nome = t.value;
+  if (d.fpdref && FPDIG) FPDIG.ref = t.value;
+  if (FPUP && (d.fpuinc || d.fpuloja || d.fpunome || d.fpusem)) {
+    var a = FPUP.abas[Number(d.fpuinc || d.fpuloja || d.fpunome || d.fpusem)];
+    if (d.fpuinc) a.incluir = t.checked; if (d.fpuloja) a.filial = t.value; if (d.fpunome) a.nome = t.value; if (d.fpusem) a.semProblema = t.checked;
+  }
+});
+$('conteudo').addEventListener('keydown', function (e) {
+  if (!PAINEL || LOJA_ADM || FORN_ADM || e.key != 'Enter') return; var t = e.target;
+  if (t.dataset.fpdref) { e.preventDefault(); var bt = document.querySelector('[data-fpdgrade]'); bt && bt.click(); }
+});
 
 function carrega() {
   if (!TOK) { $('titulo').textContent = 'Link incompleto'; $('conteudo').innerHTML = '<div class="card"><div class="vazio">Abra o link da sua loja.</div></div>'; return; }
