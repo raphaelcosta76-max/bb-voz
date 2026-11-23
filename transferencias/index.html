@@ -1023,7 +1023,8 @@ function hFSep(ped) {
         return '<h3>Ref ' + esc(r) + ' · ' + esc(grupos[r][0].descricao) + '</h3>' + grupos[r].map(function (l) {
           var k = fNorm(l.sku), c = x.q[k] || 0;
           return '<div class="item' + (c >= l.pendente ? ' ok' : '') + '"><div class="nm"><div class="ds">' + esc(l.cor) + '</div><div><span class="tam">' + esc(l.tamanho) + '</span>' + (l.separado ? '<span class="mu">já saíram ' + l.separado + ' de ' + l.qtd + '</span>' : '') + '</div>'
-            + (l.marca ? '<div><span class="pill ' + (l.marca == 'nao_entrega' ? 'er' : 'av') + '">' + esc(l.marca_rotulo) + (l.motivo ? ': ' + esc(l.motivo) : '') + '</span> <span class="mu">desde ' + dt(l.marca_em) + '</span></div>' : (l.ultima_nf ? '<div><span class="pill av">pendente da nota ' + esc(l.ultima_nf) + '</span></div>' : ''))
+            + (l.marca == 'nao_entrega' ? '<div><span class="pill er">não vou entregar — aguardando ajuste do pedido</span> <span class="mu">' + (l.motivo ? 'motivo: ' + esc(l.motivo) + ' · ' : '') + 'desde ' + dt(l.marca_em) + '</span></div>' // v2.13: texto aprovado pelo Raphael em 23/11
+              : l.marca ? '<div><span class="pill av">' + esc(l.marca_rotulo) + '</span> <span class="mu">desde ' + dt(l.marca_em) + '</span></div>' : (l.ultima_nf ? '<div><span class="pill av">pendente da nota ' + esc(l.ultima_nf) + '</span></div>' : ''))
             + (c > 0 ? '<div class="lin" style="margin-top:6px"><button class="btn sec pq" data-fpmenos="' + k + '">− 1</button></div>' : '')
             + '</div><div class="ct">' + c + ' / ' + l.pendente + '</div></div>';
         }).join('');
@@ -1035,7 +1036,7 @@ function hFSep(ped) {
   }
   var resta = fpResta(L, x), falta = resta.reduce(function (s, l) { return s + l.pendente - (x.q[fNorm(l.sku)] || 0); }, 0);
   h += (tot ? '<div class="aviso ok" style="margin-top:10px">' + pl(tot, 'peça bipada vai', 'peças bipadas vão') + ' nesta nota.</div>' : '<div class="aviso av" style="margin-top:10px">Nenhuma peça bipada: nada sai agora. Marque o que não tem; tudo continua pendente no pedido.</div>')
-    + (resta.length ? '<h3>O que fica pendente (' + pl(falta, 'peça', 'peças') + ')</h3><div class="mu">Marque cada linha. Tudo continua pendente no pedido; só o Raphael cancela.</div>' + resta.map(function (l) {
+    + (resta.length ? '<h3>O que fica pendente (' + pl(falta, 'peça', 'peças') + ')</h3><div class="mu">Marque cada linha.<br><b>Não tenho agora:</b> continua pendente neste pedido para a próxima nota.<br><b>Não vou entregar:</b> fica marcado com o motivo até o pedido ser ajustado.</div>' + resta.map(function (l) {
       var k = fNorm(l.sku), m = fpMarca(x, l), fica = l.pendente - (x.q[k] || 0);
       return '<div class="item"><div class="nm"><div class="ds">' + esc(l.descricao + ' · ' + l.cor) + '</div><div><span class="tam">' + esc(l.tamanho) + '</span><span class="mu">ficam ' + fica + '</span></div>'
         + '<select data-fpm="' + k + '" style="margin-top:6px"><option value="nao_tenho"' + (m.m != 'nao_entrega' ? ' selected' : '') + '>Não tenho agora</option><option value="nao_entrega"' + (m.m == 'nao_entrega' ? ' selected' : '') + '>Não vou entregar</option></select>'
