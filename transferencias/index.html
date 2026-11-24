@@ -27,6 +27,11 @@ main{padding:12px 12px 90px;max-width:760px;margin:0 auto}
 .mu{color:var(--mu);font-size:14px}
 .vazio{color:var(--mu);text-align:center;padding:28px 10px}
 .item{display:flex;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--li)}
+.fcor{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px 0 4px;border-top:2px solid var(--li);margin-top:6px}
+.fmini{width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--li)}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;margin-top:6px}
+.fgrid a{color:inherit;text-decoration:none;font-size:12px;line-height:1.3}
+.fgrid img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:1px solid var(--li);display:block;margin-bottom:3px}
 .item:first-of-type{border-top:0}
 .item .nm{flex:1;min-width:0}
 .item .ds{font-weight:600}
@@ -756,7 +761,7 @@ function hFContagem() {
   var M = fAtivo('contagem');
   if (M) {
     var g = fGrade(M.id);
-    if (!g) { fApi('grade', { mov: M.id }).then(function (o) { FGRADE[M.id] = o.grade; lsSet('fg_' + M.id, o.grade); render(); }).catch(function (e) { toast(e.message, 'er'); }); return '<div class="card"><div class="vazio">Carregando a grade…</div></div>'; }
+    if (!g) { fApi('grade', { mov: M.id }).then(function (o) { FGRADE[M.id] = o.grade; lsSet('fg_' + M.id, o.grade); if (o.fotos) { FFOTO[M.id] = o.fotos; FFOTOBUSCA[M.id] = 1; lsSet('ff_' + M.id, o.fotos); } render(); }).catch(function (e) { toast(e.message, 'er'); }); return '<div class="card"><div class="vazio">Carregando a grade…</div></div>'; }
     if (M.modo == 'dupla') return hFDupla(M, g);
     var x = fm(M.id), tot = fTot(x), d = (g[0] || {}).descricao || '';
     var outrosCel = (M.enviados || []).filter(function (e) { return e.pecas; });
@@ -765,7 +770,7 @@ function hFContagem() {
       + (outrosCel.length ? '<div class="aviso ok">Outros celulares já mandaram: ' + outrosCel.map(function (e) { return esc(e.quem) + ' (' + e.pecas + ' peças)'; }).join(', ') + '. Quem concluir soma tudo.</div>' : '')
       + '<div class="lin"><button class="btn" data-fbipar="contagem">📷 Bipar etiqueta</button></div>'
       + '<div class="lin"><input data-fcod="contagem" inputmode="numeric" placeholder="ou digite o código e Enter"></div>'
-      + g.map(function (it) { var k = fNorm(it.sku), n = x.q[k] || 0; return '<div class="item"><div class="nm"><div class="ds">' + esc(it.cor) + '</div><span class="tam">' + esc(it.tamanho) + '</span></div><button class="btn sec pq" data-fcm="' + k + '">−</button><input data-fqtd="' + k + '" inputmode="numeric" value="' + n + '" style="width:76px;min-height:40px;text-align:center;font-weight:700"><button class="btn sec pq" data-fcp="' + k + '">+</button></div>'; }).join('')
+      + fComCores(g, M.id, function (it) { var k = fNorm(it.sku), n = x.q[k] || 0; return '<div class="item"><div class="nm"><div class="ds">' + esc(it.cor) + '</div><span class="tam">' + esc(it.tamanho) + '</span></div><button class="btn sec pq" data-fcm="' + k + '">−</button><input data-fqtd="' + k + '" inputmode="numeric" value="' + n + '" style="width:76px;min-height:40px;text-align:center;font-weight:700"><button class="btn sec pq" data-fcp="' + k + '">+</button></div>'; })
       + (Object.keys(x.outros).length ? '<h3>Códigos sem cadastro</h3><div class="mu">Ficam registrados à parte, com a marca.</div>' + Object.keys(x.outros).map(function (k) { return '<div class="item"><div class="nm"><div class="ds">' + esc(k) + '</div></div><button class="btn sec pq" data-fom="' + k + '">− 1</button><div class="ct">' + x.outros[k] + '</div></div>'; }).join('') : '')
       + '<div class="mu" style="margin-top:8px"><b>Total contado neste celular: ' + tot + (tot == 1 ? ' peça' : ' peças') + '</b></div>'
       + '<div class="lin"><button class="btn ok" data-fconcluir="contagem">Concluir contagem</button></div>'
@@ -782,6 +787,45 @@ function hFContagem() {
   if (ab.length) h2 += '<div class="card"><h2>Contagens abertas</h2>' + ab.map(function (m) { return '<div class="item"><div class="nm"><div class="ds">Referência ' + esc(m.ref) + ' <span class="pill">' + (m.modo == 'dupla' ? 'dupla' : 'rápida') + '</span></div><div class="mu">Aberta por ' + esc(m.aberto_por) + ' em ' + dt(m.aberto_em) + '</div></div><button class="btn sec pq" data-fadota="contagem|' + m.id + '">Contar neste celular</button></div>'; }).join('') + '</div>';
   h2 += hFUltimos();
   return h2;
+}
+// v2.14 (Raphael, 24/11): foto por variação (referência + cor), opcional, no passo 1 da dupla e na rápida. O celular reduz a foto
+// antes de mandar (lado maior 1600 px) e faz a miniatura (160 px) que volta para mostrar que a cor já tem foto.
+var FFOTO = {}, FFOTOENV = {}, FFOTOBUSCA = {};
+function fFotos(mid) {
+  if (!FFOTO[mid]) FFOTO[mid] = lsGet('ff_' + mid) || {};
+  if (!FFOTOBUSCA[mid]) { FFOTOBUSCA[mid] = 1; fApi('fotos', { mov: mid }).then(function (o) { FFOTO[mid] = o.fotos || {}; lsSet('ff_' + mid, FFOTO[mid]); render(); }).catch(function () { }); }
+  return FFOTO[mid];
+}
+function hFotoCor(mid, cor) {
+  var f = fFotos(mid)[cor], env = FFOTOENV[mid + '|' + cor];
+  return '<div class="fcor"><b>' + esc(cor) + '</b>'
+    + (f && f.mini ? '<img class="fmini" alt="foto" src="data:image/jpeg;base64,' + f.mini + '">' : '')
+    + (env ? '<span class="mu">enviando a foto…</span>'
+      : '<label class="btn sec pq">' + (f ? '📷 Trocar foto' : '📷 Foto') + '<input type="file" accept="image/*" capture="environment" data-ffoto="' + esc(cor) + '" style="display:none"></label>'
+        + (f ? '<span class="mu">foto de ' + dt(f.quando) + '</span>' : '<span class="mu">sem foto</span>'))
+    + '</div>';
+}
+function fComCores(g, mid, linha) { var ult = null; return g.map(function (it) { var h = it.cor != ult ? hFotoCor(mid, it.cor) : ''; ult = it.cor; return h + linha(it); }).join(''); }
+function fReduz(file, max, q) {
+  return new Promise(function (ok, nao) {
+    var img = new Image(), url = URL.createObjectURL(file);
+    img.onload = function () {
+      var r = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement('canvas');
+      c.width = Math.round(img.width * r); c.height = Math.round(img.height * r); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url); ok(c.toDataURL('image/jpeg', q).split(',')[1]);
+    };
+    img.onerror = function () { URL.revokeObjectURL(url); nao(new Error('não consegui ler a foto.')); };
+    img.src = url;
+  });
+}
+function fEnviaFoto(cor, file) {
+  var M = fAtivo('contagem'); if (!M || !file) return; var k = M.id + '|' + cor;
+  FFOTOENV[k] = 1; render();
+  Promise.all([fReduz(file, 1600, 0.8), fReduz(file, 160, 0.6)])
+    .then(function (r) { return fApi('foto', { mov: M.id, cor: cor, img: r[0], mini: r[1] }); })
+    .then(function (o) { var fs = fFotos(M.id); fs[cor] = o.foto; lsSet('ff_' + M.id, fs); toast(o.msg, 'ok'); })
+    .catch(function (e) { toast('A foto não foi enviada: ' + e.message + ' Tente de novo.', 'er'); })
+    .then(function () { delete FFOTOENV[k]; render(); });
 }
 function fModo() { var r = document.querySelector('input[name=fmodo]:checked'); return r ? r.value : 'dupla'; }
 function fAbrirContagem(dados) {
@@ -804,7 +848,7 @@ function hFDupla(M, g) {
     + (outrosCel.length ? '<div class="aviso ok" style="margin-top:8px">Outros celulares já mandaram: ' + outrosCel.map(function (e) { return esc(e.quem) + ' (' + e.pecas + ')'; }).join(', ') + '. Quem concluir soma tudo.</div>' : '');
   if (passo == 1) {
     h += '<div class="aviso av" style="margin-top:10px"><b>Passo 1 de 2 · Contagem pela peça.</b> Pegue cada peça, olhe a cor e o tamanho da própria roupa e digite quantas tem de cada. <b>Não bipe agora.</b> Cor ou tamanho sem peça fica com 0.</div>'
-      + g.map(linhaFis).join('')
+      + fComCores(g, M.id, linhaFis)
       + '<div class="lin"><button class="btn" data-fpasso2="1">Concluir a contagem pela peça (' + tf + (tf == 1 ? ' peça' : ' peças') + ')</button></div>';
   } else if (passo == 3) {
     var dv = fDif(g, x);
@@ -935,7 +979,7 @@ function hFEstoque() {
 function fBuscar(txt) { txt = String(txt || '').trim(); if (!txt) return; var dig = txt.replace(/\D/g, ''); var d = dig.length >= 8 ? { codigo: txt } : { ref: txt }; return fApi('estoque', d).then(function (o) { FSTQ = o.estoque; render(); }).catch(function (e) { toast(e.message, 'er'); }); }
 function hFUltimos() {
   var u = EST.ultimos || []; if (!u.length) return '';
-  return '<div class="card"><details><summary>Últimos movimentos concluídos</summary><div class="tabw"><table><tr><th>Quando</th><th>Movimento</th><th>Peças</th><th>Quem</th></tr>' + u.map(function (m) {
+  return '<div class="card"><details><summary>Últimos movimentos concluídos</summary>' + (u.some(function (m) { return m.tipo == 'contagem'; }) ? '<div class="mu" style="margin:6px 0">Errou numa contagem já registrada? Conte a referência de novo: a nova contagem substitui a anterior.</div>' : '') + '<div class="tabw"><table><tr><th>Quando</th><th>Movimento</th><th>Peças</th><th>Quem</th></tr>' + u.map(function (m) {
     return '<tr><td>' + dt(m.concluido_em) + ' ' + esc(String(m.concluido_em).slice(11, 16)) + '</td><td>' + esc(m.rotulo) + (m.ref ? ' · ref ' + esc(m.ref) : '') + (m.nf ? ' · NF ' + esc(m.nf) : '') + (m.destino_nome ? ' · ' + esc(m.destino_nome) : '') + '</td><td>' + m.pecas + '</td><td>' + esc(m.quem) + '</td></tr>'; }).join('') + '</table></div></details></div>';
 }
 
@@ -1162,6 +1206,7 @@ $('conteudo').addEventListener('click', function (e) {
 $('conteudo').addEventListener('change', function (e) {
   if (!EST || EST.modo != 'fornecedor') return; var t = e.target;
   if (t.dataset.fqtd) { var M = fAtivo('contagem'), x = fm(M.id), n = Math.max(0, parseInt(t.value, 10) || 0); if (n) x.q[t.dataset.fqtd] = n; else delete x.q[t.dataset.fqtd]; fmSet(M.id, x); render(); }
+  if (t.dataset.ffoto !== undefined && t.files && t.files[0]) { var arqF = t.files[0]; t.value = ''; fEnviaFoto(t.dataset.ffoto, arqF); } // v2.14
   // v2.12: marcas do que fica pendente e a nota
   if (t.dataset.fpm || t.dataset.fpmot || t.dataset.fpmotx || t.dataset.fpnf) {
     var Ms = fpSep(FPV.ped), Ls = fpLinhas(FPV.ped); if (!Ms || !Ls) return; var xs = fm(Ms.id);
@@ -1190,6 +1235,7 @@ function hFornPainel(p) {
       + '<div class="mu">' + pl(r.pecas, 'peça', 'peças') + ' em ' + pl(r.skus, 'código', 'códigos') + ' · ' + pl(r.refs, 'referência contada', 'referências contadas') + ' · ' + pl(r.refsSem, 'com movimento e ainda sem contagem', 'com movimento e ainda sem contagem') + (F.ultimo ? ' · último movimento ' + dt(F.ultimo) : '') + '.' + (r.pecas ? ' Das ' + pl(r.pecas, 'peça', 'peças') + ', ' + (r.pecasDupla || 0) + ' vêm de contagem dupla (conferida pela bipagem).' : '') + '</div>'
       + '<div class="mu">Entradas: ' + fx.entradas7 + ' peças em 7 dias, ' + fx.entradas30 + ' em 30 · Saídas: ' + fx.saidas7 + ' em 7 dias, ' + fx.saidas30 + ' em 30 · Devoluções 30 dias: ' + fx.devolucoes30 + '.</div>'
       + '<div class="lin"><button class="btn sec" data-fver="' + esc(F.id) + '">Ver como a ' + esc(F.nome) + '</button><a class="btn sec" href="' + esc(F.planilha) + '" target="_blank">Planilha</a></div>';
+    if ((F.fotos || []).length) h += '<details><summary>Fotos tiradas na contagem (30 dias): ' + F.fotos.length + '</summary><div class="fgrid">' + F.fotos.map(function (x) { return '<a href="' + esc(x.url) + '" target="_blank">' + (x.mini ? '<img alt="" src="data:image/jpeg;base64,' + x.mini + '">' : '') + '<b>' + esc(x.ref) + '</b> ' + esc(x.cor) + '<br><span class="mu">' + esc(x.quem) + ' · ' + dt(x.quando) + '</span></a>'; }).join('') + '</div></details>'; // v2.14
     if (F.abertos.length) h += '<h3>Abertos agora</h3>' + F.abertos.map(function (m) { return '<div class="mu" style="padding:3px 0">' + esc(m.rotulo) + (m.ref ? ' ref ' + esc(m.ref) : '') + (m.destino_nome ? ' · ' + esc(m.destino_nome) : '') + ' · ' + esc(m.aberto_por) + ' · desde ' + dt(m.aberto_em) + (m.parado ? ' <span class="pill er">parado há ' + m.dias + ' dias</span>' : '') + '</div>'; }).join('');
     var al = '';
     if (F.negativos.length) al += '<details open><summary><span class="pill er">' + F.negativos.length + '</span> código(s) com saldo negativo</summary><div class="mu">Saiu mais do que foi contado: conte a referência de novo.</div>' + F.negativos.map(function (x) { return '<div class="mu">Ref ' + esc(x.ref) + ' ' + esc(x.descricao + ' ' + x.cor + ' ' + x.tamanho) + ': ' + x.saldo + '</div>'; }).join('') + '</details>';
