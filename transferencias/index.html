@@ -285,7 +285,7 @@ $('conteudo').addEventListener('change', function (e) { var c = e.target.closest
 function hReceber() {
   var h = EST.receber.length ? EST.receber.map(function (L) {
     var pc = L.itens.reduce(function (s, i) { return s + i.qtd_bipada; }, 0);
-    return '<div class="card"><h2>Do ' + esc(L.deNome) + '</h2><div class="mu">Romaneio ' + esc(L.romaneio) + ' · saiu de lá em ' + dt(L.enviado_em) + (L.levou ? ' com ' + esc(L.levou) : '') + ' · ' + pc + ' peças</div>' + (L.viaTexto ? '<div class="aviso av" style="margin-top:8px">Este lote ' + esc(L.viaTexto) + '. Só confirme o recebimento quando ele chegar aqui.</div>' : '')
+    return '<div class="card"><h2>Do ' + esc(L.deNome) + '</h2><div class="mu">Romaneio ' + esc(L.romaneio) + ' · saiu de lá em ' + dt(L.enviado_em) + (L.levou ? ' com ' + esc(L.levou) : '') + ' · ' + pc + ' peças</div>' + (L.deixado_em ? '<div class="aviso ok" style="margin-top:8px"><b>O Raphael registrou que este saco foi entregue aqui em ' + dt(L.deixado_em) + (L.deixado_com ? ', com ' + esc(L.deixado_com) : '') + '.</b> Confira e confirme o recebimento.</div>' : (L.viaTexto ? '<div class="aviso av" style="margin-top:8px">Este lote ' + esc(L.viaTexto) + '. Só confirme o recebimento quando ele chegar aqui.</div>' : ''))
       + '<details><summary>Peças</summary>' + L.itens.map(function (i) { return '<div class="item"><div class="nm"><div class="ds">' + refIt(i) + esc(nomeIt(i)) + '</div><span class="tam">' + esc(i.tamanho) + '</span></div><div class="ct">' + i.qtd_bipada + '</div></div>'; }).join('') + '</details>'
       + '<label>Dia em que chegou</label><input type="date" data-recd="' + L.id + '" value="' + hojeISO() + '" max="' + hojeISO() + '">'
       + '<label style="display:flex;gap:8px;align-items:center;color:var(--tx)"><input type="checkbox" data-dif="' + L.id + '" style="width:22px;min-height:22px"> Chegou diferente</label>'
@@ -492,12 +492,13 @@ var TIPO_DIV = { romaneio_nao_encontrado: 'Romaneio não encontrado', destino_er
 var ST_LOTE = { separando: 'separando', de_acordo: 'conferido, falta lançar', romaneio: 'lançado, ainda na loja', enviado: 'saiu da loja', recebido: 'recebido', validado: 'validado', cancelado: 'cancelado' };
 function renderPainel() {
   var p = PAINEL; document.querySelector('.marca').textContent = 'bb básico · transferências entre lojas'; $('titulo').textContent = 'Painel de transferências'; $('sub').textContent = 'Hoje, ' + dt(p.hoje); $('abas').hidden = true;
-  var h = '';
+  var h = hTarefas(p); // v2.17: a lista de tarefas é sempre a primeira coisa do painel
   (p.alertas || []).forEach(function (a) { h += '<div class="aviso ' + (a.tipo == 'equivalencia' ? 'av' : 'er') + '">' + esc(a.detalhe) + '</div>'; });
   h += '<div class="card"><div class="lin" style="margin-top:0"><button class="btn" id="rodar">Rodar a rotina agora</button><select id="vercomo"><option value="">Ver como loja…</option><option value="43">Flamboyant</option><option value="1097">Goiânia Shopping</option><option value="45">Terraço</option>' + (p.rede || []).map(function (x) { return '<option value="' + x.filial + '">' + esc(x.nome) + ' (bipador)</option>'; }).join('') + '</select></div>'
     + '<div class="lin"><button class="btn sec" id="simular">Simular remontagem dos lotes</button><button class="btn sec" id="remontar">Remontar lotes agora</button></div>'
     + '<div class="mu" style="margin-top:6px">Remontar desfaz os lotes ainda em separação (nenhuma peça conferida) e monta de novo pela prioridade e pelo tamanho de lote atuais. Simular mostra o resultado sem mudar nada.</div></div>';
   if (SIMUL) h += hSimulacao(SIMUL, p);
+  h += hOnde(p);
   h += hRetirada(p);
   h += hAtividade(p);
   h += hAcomp(p);
@@ -533,6 +534,60 @@ function renderPainel() {
   if ($('verfranq')) $('verfranq').onchange = function () { if (!this.value) return; FRANQ_ADM = Number(this.value); api('estado').then(function (o) { FRANQ = o.franq; render(); }).catch(function (e) { FRANQ_ADM = null; toast(e.message, 'er'); }); };
   $('vercomo').onchange = function () { if (!this.value) return; LOJA_ADM = Number(this.value); ABA = null; api('estado').then(function (o) { EST = o.estado; render(); }).catch(function (e) { toast(e.message, 'er'); }); };
 }
+// v2.17 — "O que eu tenho que fazer": no alto do painel, tudo que depende do Raphael, com o botão na própria linha.
+// Bloco sem pendência não aparece. Os cartões de consulta continuam abaixo.
+function dias(n) { return n > 0 ? ' · há ' + n + (n == 1 ? ' dia' : ' dias') : ''; }
+function comigo(x) { return !x.deixado_em && (x.via ? (x.viaEtapa == 'indo' && x.lev == 'raphael') || (x.viaEtapa == 'saiu' && x.lev2 == 'raphael') : x.lev == 'raphael'); }
+function podeDeixar(x) { return !x.deixado_em && (!x.via || x.viaEtapa == 'saiu'); }
+function hDeixei(x, rot) { return '<div class="lin" style="margin-top:6px"><input data-deixcom="' + x.id + '" placeholder="com quem ficou (opcional)" maxlength="60" style="flex:1 1 140px;min-width:0"><button class="btn ok pq" data-deixei="' + x.id + '">' + rot + ' ' + esc(x.paraNome) + '</button></div>'; }
+function hTarefas(p) {
+  var r = p.retirada || [], ac = p.aCaminho || [], n = 0, h = '';
+  var bloco = function (tit, linhas, nota) { if (!linhas.length) return; n += linhas.length; h += '<h3>' + tit + ' <span class="pill av">' + linhas.length + '</span></h3>' + (nota ? '<div class="mu">' + nota + '</div>' : '') + linhas.join(''); };
+  var item = function (tit, sub, bot) { return '<div class="item"><div class="nm"><div class="ds">' + tit + '</div>' + (sub ? '<div class="mu">' + sub + '</div>' : '') + (bot || '') + '</div></div>'; };
+  bloco('Buscar', r.filter(function (x) { return x.busca; }).map(function (x) {
+    return item('No ' + esc(x.deNome) + ' → para ' + esc(x.paraNome) + ' · ' + x.pecas + ' peças', x.pronto ? 'Romaneio ' + esc(x.romaneio) + ' · pronto desde ' + dt(x.desde) + dias(x.dias) : 'Conferido em ' + dt(x.desde) + ' · <b>a loja ainda não lançou no sistema: não dá para levar</b>',
+      x.pronto ? '<div class="lin" style="margin-top:6px"><button class="btn ok pq" data-peguei="' + x.id + '">Peguei' + (x.via ? ', levo direto' : '') + '</button>' + (x.via ? '<button class="btn ok pq" data-peguei="' + x.id + '|via">Peguei, deixo no ' + esc(x.viaNome) + '</button>' : '') + '</div>' : '');
+  }));
+  bloco('Está comigo', ac.filter(comigo).map(function (x) {
+    var passo = x.via && x.viaEtapa == 'indo';
+    return item(esc(x.deNome) + ' → ' + esc(x.paraNome) + ' · ' + x.pecas + ' peças', 'Romaneio ' + esc(x.romaneio) + ' · você pegou em ' + dt(x.viaEtapa == 'saiu' ? x.via_saiu_em : x.enviado_em) + (passo ? ' · deixa no ' + esc(x.viaNome) + ', de passagem' : ''),
+      passo ? '<div class="lin" style="margin-top:6px"><button class="btn ok pq" data-avia="' + x.id + '|chegou">Deixei no ' + esc(x.viaNome) + '</button></div>' : hDeixei(x, 'Deixei no'));
+  }));
+  bloco('Ajustes de estoque a lançar', (p.contagens || []).filter(function (c) { return c.propria !== false && c.status == 'ajuste_pendente'; }).map(function (c) {
+    var g = c.grade || {}, df = (c.resultado && c.resultado.diferencas) || [];
+    return item(esc(c.loja) + ' · ref ' + esc(c.ref) + ' ' + esc(c.cor || '(referência inteira)'), 'Contada em ' + dt(c.contada_em) + (c.aviso ? ' · ' + esc(c.aviso) : ''),
+      df.map(function (x) { var i = g[x.sku] || {}; return '<div><b>' + (x.diferenca > 0 ? 'Entrada de ' + x.diferenca : 'Saída de ' + (-x.diferenca)) + '</b> · ' + esc([i.c, i.t].filter(Boolean).join(' ')) + ' <span class="mu">' + esc(x.sku) + ' · físico ' + x.fisico + ' × sistema ' + x.sistema + '</span></div>'; }).join('')
+      + '<div class="lin" style="margin-top:6px"><button class="btn ok pq" data-ajust="' + c.id + '">Ajuste lançado</button></div>');
+  }), 'Lance no moda UP e dê a baixa aqui. A rotina confere no sistema depois.');
+  bloco('Divergências a decidir', (p.divergencias || []).filter(function (d) { return d.status == 'aberta'; }).map(function (d) {
+    return item('<span class="pill er">' + esc(TIPO_DIV[d.tipo] || d.tipo) + '</span> ' + esc(d.rota) + ' · ' + dt(d.quando), esc(d.detalhe),
+      '<div class="lin" style="margin-top:6px">' + (d.acerta ? '<button class="btn pq" data-acerta="' + d.id + '">A peça foi no saco: acertar o lote</button>' : '') + '<button class="btn sec pq" data-div="' + d.id + '|cobrada">Cobrada</button><button class="btn sec pq" data-div="' + d.id + '|resolvida">Resolvida</button></div>');
+  }));
+  bloco('Fretes a pagar', (p.fretes || []).filter(function (x) { return !x.pago_em; }).map(function (x) {
+    return item(brl(x.valor) + ' · ' + esc(x.prestador), esc(x.rota) + ' · romaneio ' + esc(x.romaneio) + ' · saiu em ' + dt(x.saiu) + ' · ' + (x.pix ? 'Pix: ' + esc(x.pix) : '<span class="pill av">sem Pix cadastrado</span>'),
+      '<div class="lin" style="margin-top:6px"><button class="btn ok pq" data-fpago="' + x.lote + '||' + (x.trecho || 1) + '">Pago</button></div>');
+  }), 'Total em aberto: ' + brl(p.fretesAberto) + '.');
+  bloco('Parado esperando outra pessoa', (p.atrasos || []).map(function (a) { return item('<span class="pill er">' + esc(a.tipo) + '</span> ' + esc(a.rota) + ' · ' + a.dias + (a.dias == 1 ? ' dia' : ' dias'), esc(a.detalhe)); }), 'Aqui a ação é cobrar a loja.');
+  var semDono = r.filter(function (x) { return x.pronto && !x.busca; }).length;
+  return '<div class="card" id="tarefas"><h2>O que eu tenho que fazer' + (n ? ': ' + n : '') + '</h2>' + (n ? h : '<div class="mu">Nada para fazer agora.</div>')
+    + (semDono ? '<div class="mu" style="margin-top:8px">' + semDono + (semDono == 1 ? ' lote pronto' : ' lotes prontos') + ' nas lojas sem "eu busco" marcado: veja em Retirada e saída.</div>' : '') + '</div>';
+}
+// v2.17 — Onde está cada saco: da loja de origem até a entrada no sistema da loja de destino.
+function hOnde(p) {
+  var r = p.retirada || [], ac = p.aCaminho || [], nd = p.noDestino || [], h = '';
+  var grupo = function (tit, linhas) { if (linhas.length) h += '<h3>' + tit + ' <span class="pill">' + linhas.length + '</span></h3>' + linhas.join(''); };
+  var lin = function (x, sub, bot) { return '<div class="item"><div class="nm"><div class="ds">' + esc(x.deNome) + ' → ' + esc(x.paraNome) + ' · ' + x.pecas + ' peças</div><div class="mu">' + sub + '</div>' + (bot || '') + '</div></div>'; };
+  grupo('Na loja de origem', r.map(function (x) { return lin(x, (x.pronto ? 'Romaneio ' + esc(x.romaneio) + ' · lançado em ' + dt(x.desde) : 'Conferido em ' + dt(x.desde) + ' · sem romaneio') + dias(x.dias) + (x.busca ? ' · você busca' : '')); }));
+  grupo('A caminho', ac.filter(function (x) { return !x.deixado_em && x.viaEtapa != 'na_loja'; }).map(function (x) {
+    return lin(x, 'Romaneio ' + esc(x.romaneio) + ' · saiu em ' + dt(x.enviado_em) + (x.levou ? ' com ' + esc(x.levou) : ' · <b>sem quem levou</b>') + (x.viaTexto ? ' · ' + esc(x.viaTexto) : '') + dias(x.dias), podeDeixar(x) ? hDeixei(x, comigo(x) ? 'Deixei no' : 'Chegou ao') : '');
+  }));
+  grupo('De passagem', ac.filter(function (x) { return x.viaEtapa == 'na_loja'; }).map(function (x) { return lin(x, 'Romaneio ' + esc(x.romaneio) + ' · parado no ' + esc(x.viaNome) + ' desde ' + dt(x.via_chegou_em)); }));
+  grupo('Na loja de destino, a loja ainda não confirmou', ac.filter(function (x) { return x.deixado_em; }).map(function (x) {
+    return lin(x, 'Romaneio ' + esc(x.romaneio) + ' · deixado em ' + dt(x.deixado_em) + (x.deixado_com ? ' com ' + esc(x.deixado_com) : '') + dias(x.deixado_dias), '<div class="lin" style="margin-top:6px"><button class="btn sec pq" data-deixei="' + x.id + '|desfaz">Desfazer</button></div>');
+  }));
+  grupo('Na loja de destino, recebido e sem entrada no sistema', nd.map(function (x) { return lin(x, 'Romaneio ' + esc(x.romaneio) + ' · a loja confirmou em ' + dt(x.recebido_em) + dias(x.dias)); }));
+  return '<div class="card" id="onde"><h2>Onde está cada saco</h2>' + (h || '<div class="mu">Nenhum saco em andamento.</div>') + '</div>';
+}
 // v2.5 — Retirada: o que buscar e levar. Baixa lote a lote ("Peguei" = saiu com o Raphael); "Eu busco" avisa a loja.
 function brl(v) { return 'R$ ' + Number(v || 0).toFixed(2).replace('.', ','); }
 // v2.10 — formulário de saída dentro do painel: mesmos campos da tela da loja; v = saída já marcada (para corrigir).
@@ -557,7 +612,7 @@ function hRetirada(p) {
   r.forEach(function (x) { if (lojas.indexOf(x.deNome) < 0) lojas.push(x.deNome); });
   var h = '<div class="card"><h2>Retirada e saída: o que está na loja e o que já saiu</h2><div class="mu">Aqui você muda direto o que a loja marcou. "Peguei" dá a baixa como levado por você hoje. "Saiu com outra pessoa" marca a saída com motoboy ou outra pessoa. Em "Já saíram", "Não saiu" volta o lote para a loja e "Corrigir" troca quem levou, o dia ou o frete. Entre Terraço e Goiânia Shopping o lote pode passar pelo Flamboyant: marque o caminho na saída e dê aqui as baixas de chegada e de saída do Flamboyant.</div>';
   var hAc = ac.length ? '<h3>Já saíram, esperando o destino confirmar</h3>' + ac.map(function (x) {
-    return '<div class="item"><div class="nm"><div class="ds">' + esc(x.deNome) + ' → ' + esc(x.paraNome) + ' · ' + x.pecas + ' peças</div><div class="mu">Romaneio ' + esc(x.romaneio) + ' · saiu em ' + dt(x.enviado_em) + (x.levou ? ' com ' + esc(x.levou) : ' · <b>sem quem levou</b>') + (x.frete ? ' · frete R$ ' + x.frete.toFixed(2).replace('.', ',') + (x.pago ? ' (pago)' : '') : '') + (x.dias > 0 ? ' · há ' + x.dias + (x.dias == 1 ? ' dia' : ' dias') : '') + ' · baixa dada ' + (x.reg == 'painel' ? 'por você' : 'pela loja') + '</div>'
+    return '<div class="item"><div class="nm"><div class="ds">' + esc(x.deNome) + ' → ' + esc(x.paraNome) + ' · ' + x.pecas + ' peças</div><div class="mu">Romaneio ' + esc(x.romaneio) + ' · saiu em ' + dt(x.enviado_em) + (x.levou ? ' com ' + esc(x.levou) : ' · <b>sem quem levou</b>') + (x.frete ? ' · frete R$ ' + x.frete.toFixed(2).replace('.', ',') + (x.pago ? ' (pago)' : '') : '') + (x.dias > 0 ? ' · há ' + x.dias + (x.dias == 1 ? ' dia' : ' dias') : '') + ' · baixa dada ' + (x.reg == 'painel' ? 'por você' : 'pela loja') + (x.deixado_em ? ' · <b>deixado no destino em ' + dt(x.deixado_em) + '</b>' : '') + '</div>'
       + (x.via ? '<div class="mu"><span class="pill ' + (x.viaEtapa == 'na_loja' ? 'av' : '') + '">' + (x.viaEtapa == 'na_loja' ? 'parado no ' + esc(x.viaNome) : 'passa pelo ' + esc(x.viaNome)) + '</span> ' + esc(x.viaTexto) + (x.frete2 ? ' · frete do 2º trecho R$ ' + x.frete2.toFixed(2).replace('.', ',') + (x.pago2 ? ' (pago)' : '') : '') + '</div>' : '')
       + (AFORM == x.id ? hFormSaidaAdm(p, x.id, x) : (AFORM == 'v:' + x.id ? hFormSaidaAdm(p, x.id, {}, x) : '<div class="lin" style="margin-top:6px">'
         + (!x.via || x.viaEtapa == 'indo' ? '<button class="btn sec pq" data-anaosaiu="' + x.id + '">Não saiu</button><button class="btn sec pq" data-aform="' + x.id + '">Corrigir</button>' : '')
@@ -710,6 +765,8 @@ $('conteudo').addEventListener('click', function (e) {
     if (kv[1] == 'desfaz') { if (!confirm('Desfazer a última baixa da passagem deste lote?')) return; acao('viaAdm', { lote: kv[0], passo: 'desfaz' }, 'Baixa desfeita.'); }
     return;
   }
+  if (d.deixei) { var kd = d.deixei.split('|'); if (kd[1]) { if (!confirm('Desfazer o registro de que este saco chegou à loja de destino?')) return; acao('deixei', { lote: kd[0], desfaz: true }, 'Registro desfeito.'); return; }
+    var ic = document.querySelector('[data-deixcom="' + kd[0] + '"]'); acao('deixei', { lote: kd[0], com: ic ? ic.value : '' }, 'Registrado: o saco está na loja de destino. Falta a loja confirmar.'); return; }
   if (d.anaosaiu) { if (!confirm('Este lote não saiu da loja? Ele volta para "lançado no sistema, ainda na loja".')) return; acao('saidaAdm', { lote: d.anaosaiu, saiu: false }, 'Saída desfeita: o lote voltou para a loja.'); return; }
   if (d.peguei) { var kp = d.peguei.split('|'); if (!confirm(kp[1] ? 'Dar a baixa: você pegou este lote na loja hoje e vai deixar na loja de passagem?' : 'Dar a baixa: você pegou este lote na loja hoje?')) return; acao('peguei', { lote: kp[0], via: kp[1] ? 'sim' : '' }, 'Baixa registrada: saiu com você.'); }
   if (d.fpago) { var kf = d.fpago.split('|'); acao('fretePago', { lote: kf[0], desfaz: !!kf[1], trecho: Number(kf[2]) || 1 }, kf[1] ? 'Baixa do frete desfeita.' : 'Frete marcado como pago.'); }
