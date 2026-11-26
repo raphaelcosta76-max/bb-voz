@@ -607,7 +607,7 @@ function hTarefas(p) {
       '<div class="lin" style="margin-top:6px"><button class="btn ok pq" data-fpago="' + x.lote + '||' + (x.trecho || 1) + '">Pago</button></div>');
   }, 'Total em aberto: ' + brl(p.fretesAberto) + '.', function (l) { var v = 0; l.forEach(function (x) { v += Number(x.valor) || 0; }); return l.length + (l.length == 1 ? ' frete' : ' fretes') + ' · ' + brl(v); });
   bloco('parado', 'Parado esperando outra pessoa', p.atrasos || [], function (a) { return a.loja || origem(a.rota); }, function (a) { return item('<span class="pill er">' + esc(a.tipo) + '</span> ' + esc(a.rota) + ' · ' + a.dias + (a.dias == 1 ? ' dia' : ' dias'), esc(a.detalhe)); },
-    'Aqui a ação é cobrar a loja. Na mesma ordem da tela Hoje da loja: primeiro o que libera mercadoria para vender.', function (l) { var mx = 0, tp = {}; l.forEach(function (a) { if (a.dias > mx) mx = a.dias; tp[a.tipo] = (tp[a.tipo] || 0) + 1; }); return l.length + (l.length == 1 ? ' item' : ' itens') + ' · ' + Object.keys(tp).map(function (k) { return tp[k] + ' ' + k.toLowerCase(); }).join(', ') + ' · o mais antigo há ' + mx + (mx == 1 ? ' dia' : ' dias'); });
+    'Aqui a ação é cobrar a loja. Na mesma ordem da tela Hoje da loja: primeiro o que libera mercadoria para vender.', function (l) { var mx = 0, tp = {}; l.forEach(function (a) { if (a.dias > mx) mx = a.dias; tp[a.tipo] = (tp[a.tipo] || 0) + 1; }); var PLU = { 'Contagem': 'contagens', 'Separação': 'separações', 'Lançamento no sistema': 'lançamentos no sistema', 'Saída da loja': 'saídas da loja', 'Recebimento': 'recebimentos', 'Confirmação do recebimento': 'confirmações do recebimento' }; return l.length + (l.length == 1 ? ' item' : ' itens') + ' · ' + Object.keys(tp).map(function (k) { return tp[k] + ' ' + (tp[k] == 1 ? k.toLowerCase() : (PLU[k] || k.toLowerCase())); }).join(', ') + ' · o mais antigo há ' + mx + (mx == 1 ? ' dia' : ' dias'); });
   var semDono = r.filter(function (x) { return x.pronto && !x.busca; }).length;
   return '<div class="card" id="tarefas"><h2>O que eu tenho que fazer' + (n ? ': ' + n : '') + '</h2>' + (n ? '<div class="mu">Toque na loja para abrir.</div>' + h : '<div class="mu">Nada para fazer agora.</div>')
     + (semDono ? '<div class="mu" style="margin-top:8px">' + semDono + (semDono == 1 ? ' lote pronto' : ' lotes prontos') + ' nas lojas sem "eu busco" marcado: veja em Retirada e saída.</div>' : '') + '</div>';
@@ -1072,7 +1072,7 @@ function hFEstoque() {
       tams.sort(function (a, b) { return ordTamF(a) < ordTamF(b) ? -1 : 1; });
       h += '<div class="card"><h2>Ref ' + esc(FSTQ.ref) + ' · ' + esc(FSTQ.descricao) + '</h2>'
         + (FSTQ.em_contagem ? '<div class="aviso av">Em contagem agora.</div>' : '')
-        + (FSTQ.sem_saldo_inicial ? '<div class="aviso er"><b>Sem saldo inicial</b> em parte da grade: conte a referência para o saldo valer. Os números "—" ainda não têm contagem.</div>' : '<div class="mu">Contada em ' + dt(FSTQ.contada_em) + '.</div>')
+        + (FSTQ.sem_saldo_inicial ? '<div class="aviso er"><b>Sem saldo inicial</b> em parte da grade: conte a referência para o saldo valer. Os números "—" ainda não têm contagem.</div>' : '<div class="mu">' + (FSTQ.contada_em ? 'Contada em ' + dt(FSTQ.contada_em) + '.' : 'Ainda sem contagem: o saldo vem da entrada da produção.') + '</div>')
         + '<div class="tabw"><table><tr><th>Cor</th>' + tams.map(function (t) { return '<th>' + esc(t) + '</th>'; }).join('') + '</tr>'
         + cores.map(function (c) { return '<tr><td>' + esc(c) + '</td>' + tams.map(function (t) { var l = cel[c + '|' + t]; return '<td>' + (!l ? '' : (l.saldo == null ? '—' : (l.saldo < 0 ? '<span class="pill er">' + l.saldo + '</span>' : '<b>' + l.saldo + '</b>'))) + '</td>'; }).join('') + '</tr>'; }).join('') + '</table></div>'
         + (FSTQ.historico.length ? '<h3>Movimentos dos últimos 30 dias</h3><div class="tabw"><table><tr><th>Data</th><th>Movimento</th><th>Cor · tam.</th><th>Qtd</th></tr>' + FSTQ.historico.map(function (m) {
@@ -1354,7 +1354,7 @@ function hFichaForn(F) {
   var num = function (v) { return v == null ? '—' : (v < 0 ? '<span class="pill er">' + v + '</span>' : (v ? '<b>' + v + '</b>' : '0')); };
   var hh = String(S.contada_quando || '').slice(11, 16), fotos = (F.fotos || []).filter(function (x) { return String(x.ref) == String(S.ref); });
   return '<div id="ficha" style="margin-top:10px;padding:10px;border:1px solid var(--li);border-radius:10px"><h3 style="margin-top:0">Ref ' + esc(S.ref) + ' · ' + esc(S.descricao) + '</h3>'
-    + '<div class="mu">' + (S.contada_em ? '<b>Última contagem:</b> ' + dt(S.contada_quando || S.contada_em) + (hh ? ' às ' + hh : '') + (S.contada_por ? ', por ' + esc(S.contada_por) : '') : '<b>Nunca contada.</b>') + '</div>'
+    + '<div class="mu">' + (S.contada_em ? '<b>Última contagem:</b> ' + dt(S.contada_quando || S.contada_em) + (hh ? ' às ' + hh : '') + (S.contada_por ? ', por ' + esc(S.contada_por) : '') : '<b>Nunca contada.</b>') + (S.aberta_por_entrada ? ' Há código com o saldo aberto pela entrada da produção de ' + dt(S.aberta_por_entrada) + '.' : '') + '</div>'
     + (S.em_contagem ? '<div class="aviso av">Em contagem agora: o saldo pode mudar.</div>' : '')
     + (S.sem_saldo_inicial ? '<div class="aviso er">Parte da grade nunca foi contada: os "—" não têm saldo e ficam fora dos totais.</div>' : '')
     + '<div class="tabw"><table class="gtab"><tr><th>Cor</th>' + tams.map(function (t) { return '<th>' + esc(t) + '</th>'; }).join('') + '<th>Total</th></tr>'
@@ -1404,7 +1404,7 @@ function quadroF(id) { return ((PAINEL && PAINEL.fornecedores) || []).filter(fun
 function hFPedPainel(F) {
   var Q = F.pedidos || { abertos: [], encerrados: [], naoTenho: [], naoEntrega: [], prazo: 7 };
   var h = '<div class="card"><h2>Pedidos da ' + esc(F.nome) + '</h2><div class="mu">Cada pedido é de uma loja. A ' + esc(F.nome) + ' separa contra o pedido e emite a nota; o que não sai fica pendente no pedido. Pedido parado: ' + Q.prazo + ' dias sem nota com peça pendente (parâmetro PRAZO_PEDIDO_FORN).</div>'
-    + '<div class="lin"><label class="btn sec" style="flex:0 0 auto;cursor:pointer">Incluir por arquivo (.xlsx)<input type="file" accept=".xlsx" data-fparq="' + esc(F.id) + '" style="display:none"></label><button class="btn sec" data-fpdig="' + esc(F.id) + '">Digitar um pedido</button></div>';
+    + '<div class="lin"><label class="btn sec" style="flex:0 0 auto;cursor:pointer">Incluir por arquivo<input type="file" accept=".xlsx,.csv,.txt" data-fparq="' + esc(F.id) + '" style="display:none"></label><button class="btn sec" data-fpdig="' + esc(F.id) + '">Digitar um pedido</button></div>';
   if (FPUP && FPUP.forn == F.id) h += hFPUpload(F);
   if (FPDIG && FPDIG.forn == F.id && !FPDIG.pedido) h += hFPDigita(F);
   var parados = Q.abertos.filter(function (p) { return p.parado; });
@@ -1468,9 +1468,10 @@ function hFPDigita(F) {
 }
 function hFPUpload(F) {
   var U = FPUP;
-  if (U.carregando) return caixa('<div class="mu">Lendo ' + esc(U.arquivo) + '…</div>');
+  if (U.carregando) return caixa('<div class="mu">' + esc(U.nota || 'Lendo ' + U.arquivo + '…') + '</div>');
+  if (!U.abas.length && U.nota) return caixa('<div class="aviso er">' + esc(U.nota) + '</div><div class="lin"><button class="btn sec" data-fpux="1">Fechar</button></div>');
   if (!U.abas.length) return caixa('<div class="aviso er">Nenhuma aba com pedido em ' + esc(U.arquivo) + '. O app procura a linha de cabeçalho com Referência e Cor e os tamanhos em colunas (formato do consolidado por fornecedor), ou Referência, Cor, Tamanho e Quantidade em colunas.</div><div class="lin"><button class="btn sec" data-fpux="1">Fechar</button></div>');
-  return caixa('<h3 style="margin-top:0">Arquivo ' + esc(U.arquivo) + '</h3><div class="mu">Cada aba vira um pedido. Confira a loja de cada aba: nada é gravado até você incluir.</div>' + U.abas.map(function (a, i) {
+  return caixa('<h3 style="margin-top:0">Arquivo ' + esc(U.arquivo) + '</h3>' + (U.nota ? '<div class="aviso av">' + esc(U.nota) + '</div>' : '') + '<div class="mu">Cada aba vira um pedido. Confira a loja de cada aba: nada é gravado até você incluir.</div>' + U.abas.map(function (a, i) {
     var v = a.valid, probs = v ? v.linhas.filter(function (l) { return !l.ok; }) : [];
     return '<div style="border-top:1px solid var(--li);padding:8px 0;margin-top:8px"><label style="display:flex;gap:8px;align-items:center;color:var(--tx);margin:0"><input type="checkbox" data-fpuinc="' + i + '"' + (a.incluir ? ' checked' : '') + ' style="width:22px;min-height:22px"><b>Aba ' + esc(a.aba) + '</b></label>'
       + '<div class="mu">' + (v ? v.ok + ' linha(s) ok, ' + pl(v.pecas, 'peça', 'peças') : 'Conferindo no cadastro…') + '</div>'
@@ -1562,10 +1563,50 @@ function lojaPalpite(nome, lojas) {
   (lojas || []).forEach(function (l) { var t = nrm(l.nome).split(/[^a-z0-9]+/).filter(Boolean); if (!t.length || !t.every(function (w) { return n.indexOf(w) >= 0; })) return; if (!best || t.length > best.t) { best = { f: l.filial, t: t.length }; emp = false; } else if (t.length == best.t) emp = true; });
   return best && !emp ? best.f : '';
 }
+// v2.20 — Arquivo de importação do sistema (skill gerar-importacao-sistema): texto sem cabeçalho, separado por ponto e vírgula,
+// Loja;Referência;Cor;Tamanho;Quantidade;Preço, com todas as lojas e todos os fornecedores. Vira um pedido por loja (pelo número
+// da loja); as linhas de outros fornecedores são ignoradas e contadas; o preço não é usado.
+function lerTextoArq(file) {
+  return file.arrayBuffer().then(function (buf) { var u = new Uint8Array(buf), t; try { t = new TextDecoder('utf-8', { fatal: true }).decode(u); } catch (e) { t = new TextDecoder('windows-1252').decode(u); } return t.replace(/^﻿/, ''); });
+}
+function pedidosDoTexto(txt, lojas) {
+  var g = {}, ordem = [], ruins = [];
+  String(txt).split(/\r?\n/).forEach(function (ln, n) {
+    if (!ln.trim()) return;
+    var c = ln.split(';'), lj = String(c[0] || '').trim().replace(/^0+/, '');
+    if (c.length < 5 || !/^\d+$/.test(lj) || !String(c[1] || '').trim()) { ruins.push(n + 1); return; }
+    var q = Number(String(c[4]).trim().replace(',', '.')); if (q === 0) return; // linha zerada não é pedido
+    if (!g[lj]) { g[lj] = []; ordem.push(lj); }
+    g[lj].push({ ref: String(c[1]).trim(), cor: String(c[2] || '').trim(), tamanho: String(c[3] || '').trim(), qtd: q });
+  });
+  return { ruins: ruins, abas: ordem.map(function (lj) { var L = (lojas || []).filter(function (l) { return String(l.filial) == lj; })[0]; return { aba: 'Loja ' + lj + (L ? ' · ' + L.nome : ' (número de loja desconhecido)'), itens: g[lj], filial: L ? L.filial : '' }; }) };
+}
+function fpUploadTexto(id, file, F, base) {
+  lerTextoArq(file).then(function (txt) {
+    var r = pedidosDoTexto(txt, F.lojas);
+    if (!r.abas.length) { FPUP.carregando = false; FPUP.nota = 'O arquivo não tem linha no formato Loja;Referência;Cor;Tamanho;Quantidade;Preço.'; return render(); }
+    FPUP.nota = 'Lendo ' + r.abas.reduce(function (s, a) { return s + a.itens.length; }, 0) + ' linhas e conferindo com o cadastro…'; render();
+    return api('pedValidar', { forn: id, pedidos: r.abas.map(function (a) { return { aba: a.aba, itens: a.itens }; }) }).then(function (o) {
+      if (!FPUP) return; var fora = 0, abas = [];
+      r.abas.forEach(function (a, i) {
+        var v = o.validacao[i], fica = [], lin = [];
+        v.linhas.forEach(function (l, k) { if (!l.ok && /^é de outro fornecedor/.test(l.erro || '')) { fora++; return; } fica.push(a.itens[k]); lin.push(l); });
+        if (!fica.length) return;
+        var ok = lin.filter(function (x) { return x.ok; });
+        abas.push({ aba: a.aba, itens: fica, incluir: true, filial: a.filial, nome: base, semProblema: false, valid: { aba: a.aba, linhas: lin, ok: ok.length, pecas: ok.reduce(function (s, x) { return s + x.qtd; }, 0), problemas: lin.length - ok.length } });
+      });
+      FPUP.abas = abas; FPUP.carregando = false;
+      FPUP.nota = 'Arquivo de importação do sistema: um pedido por loja. ' + (fora ? fora + (fora == 1 ? ' linha de outro fornecedor foi ignorada' : ' linhas de outros fornecedores foram ignoradas') + '. ' : '') + (r.ruins.length ? r.ruins.length + ' linha(s) fora do formato ficaram de fora (linha ' + r.ruins.slice(0, 5).join(', ') + (r.ruins.length > 5 ? '…' : '') + '). ' : '') + 'O preço do arquivo não é usado.'
+        + (abas.length ? '' : ' Nenhuma linha é da ' + F.nome + '.');
+      render();
+    });
+  }).catch(function (e) { FPUP = null; toast('Não consegui ler o arquivo: ' + e.message, 'er'); render(); });
+}
 function fpUpload(id, file) {
   var F = quadroF(id); if (!F || !file) return;
-  var base = file.name.replace(/\.xlsx$/i, '');
+  var base = file.name.replace(/\.(xlsx|csv|txt)$/i, '');
   FPUP = { forn: id, arquivo: file.name, carregando: true, abas: [] }; FPDIG = null; render();
+  if (/\.(csv|txt)$/i.test(file.name)) return fpUploadTexto(id, file, F, base); // v2.20: arquivo de importação do sistema
   lerXlsx(file).then(function (abas) {
     FPUP.abas = abas.map(function (a) { return { aba: a.nome, itens: itensDaAba(a) }; }).filter(function (a) { return a.itens.length; })
       .map(function (a) { return { aba: a.aba, itens: a.itens, incluir: true, filial: lojaPalpite(a.aba, F.lojas), nome: base, semProblema: false, valid: null }; });
