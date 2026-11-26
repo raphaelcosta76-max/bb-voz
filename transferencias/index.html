@@ -287,10 +287,11 @@ function hReceber() {
     var pc = L.itens.reduce(function (s, i) { return s + i.qtd_bipada; }, 0);
     return '<div class="card"><h2>Do ' + esc(L.deNome) + '</h2><div class="mu">Romaneio ' + esc(L.romaneio) + ' · saiu de lá em ' + dt(L.enviado_em) + (L.levou ? ' com ' + esc(L.levou) : '') + ' · ' + pc + ' peças</div>' + (L.deixado_em ? '<div class="aviso ok" style="margin-top:8px"><b>O Raphael registrou que este saco foi entregue aqui em ' + dt(L.deixado_em) + (L.deixado_com ? ', com ' + esc(L.deixado_com) : '') + '.</b> Confira e confirme o recebimento.</div>' : (L.viaTexto ? '<div class="aviso av" style="margin-top:8px">Este lote ' + esc(L.viaTexto) + '. Só confirme o recebimento quando ele chegar aqui.</div>' : ''))
       + '<details><summary>Peças</summary>' + L.itens.map(function (i) { return '<div class="item"><div class="nm"><div class="ds">' + refIt(i) + esc(nomeIt(i)) + '</div><span class="tam">' + esc(i.tamanho) + '</span></div><div class="ct">' + i.qtd_bipada + '</div></div>'; }).join('') + '</details>'
-      + '<label>Dia em que chegou</label><input type="date" data-recd="' + L.id + '" value="' + hojeISO() + '" max="' + hojeISO() + '">'
+      + (L.comRaphael ? '<div class="aviso av" style="margin-top:8px"><b>Este saco está com o Raphael.</b> O botão Recebido aparece aqui depois que ele registrar a entrega. Se o saco já chegou, avise o Raphael.</div></div>'
+      : '<label>Dia em que chegou</label><input type="date" data-recd="' + L.id + '" value="' + hojeISO() + '" max="' + hojeISO() + '">'
       + '<label style="display:flex;gap:8px;align-items:center;color:var(--tx)"><input type="checkbox" data-dif="' + L.id + '" style="width:22px;min-height:22px"> Chegou diferente</label>'
       + '<textarea data-obs="' + L.id + '" placeholder="O que veio diferente? (opcional)" hidden></textarea>'
-      + '<div class="lin"><button class="btn ok" data-rec="' + L.id + '">Recebido</button></div><div class="mu" style="margin-top:6px">Dê a entrada no sistema normalmente. Aqui é só para registrar que chegou.</div></div>';
+      + '<div class="lin"><button class="btn ok" data-rec="' + L.id + '">Recebido</button></div><div class="mu" style="margin-top:6px">Dê a entrada no sistema normalmente. Aqui é só para registrar que chegou.</div></div>');
   }).join('') : '<div class="card"><div class="vazio">Nenhum lote a caminho para confirmar.</div></div>';
   return h + hBusca() + hForaDoApp() + hSituacao(); // lotes a confirmar primeiro (é a ação do dia)
 }
@@ -585,7 +586,7 @@ function hOnde(p) {
   grupo('Na loja de destino, a loja ainda não confirmou', ac.filter(function (x) { return x.deixado_em; }).map(function (x) {
     return lin(x, 'Romaneio ' + esc(x.romaneio) + ' · deixado em ' + dt(x.deixado_em) + (x.deixado_com ? ' com ' + esc(x.deixado_com) : '') + dias(x.deixado_dias), '<div class="lin" style="margin-top:6px"><button class="btn sec pq" data-deixei="' + x.id + '|desfaz">Desfazer</button></div>');
   }));
-  grupo('Na loja de destino, recebido e sem entrada no sistema', nd.map(function (x) { return lin(x, 'Romaneio ' + esc(x.romaneio) + ' · a loja confirmou em ' + dt(x.recebido_em) + dias(x.dias)); }));
+  grupo('Na loja de destino, recebido e sem entrada no sistema', nd.map(function (x) { return lin(x, 'Romaneio ' + esc(x.romaneio) + ' · a loja confirmou em ' + dt(x.recebido_em) + dias(x.dias), x.desfaz ? '<div class="lin" style="margin-top:6px"><button class="btn sec pq" data-naorec="' + x.id + '">A loja não recebeu: desfazer</button></div>' : ''); }));
   return '<div class="card" id="onde"><h2>Onde está cada saco</h2>' + (h || '<div class="mu">Nenhum saco em andamento.</div>') + '</div>';
 }
 // v2.5 — Retirada: o que buscar e levar. Baixa lote a lote ("Peguei" = saiu com o Raphael); "Eu busco" avisa a loja.
@@ -765,6 +766,7 @@ $('conteudo').addEventListener('click', function (e) {
     if (kv[1] == 'desfaz') { if (!confirm('Desfazer a última baixa da passagem deste lote?')) return; acao('viaAdm', { lote: kv[0], passo: 'desfaz' }, 'Baixa desfeita.'); }
     return;
   }
+  if (d.naorec) { if (!confirm('Desfazer o recebimento? O saco volta para "a caminho" e a loja terá de confirmar de novo quando ele chegar.')) return; acao('naoRecebeu', { lote: d.naorec }, 'Recebimento desfeito: o saco voltou para a caminho.'); return; }
   if (d.deixei) { var kd = d.deixei.split('|'); if (kd[1]) { if (!confirm('Desfazer o registro de que este saco chegou à loja de destino?')) return; acao('deixei', { lote: kd[0], desfaz: true }, 'Registro desfeito.'); return; }
     var ic = document.querySelector('[data-deixcom="' + kd[0] + '"]'); acao('deixei', { lote: kd[0], com: ic ? ic.value : '' }, 'Registrado: o saco está na loja de destino. Falta a loja confirmar.'); return; }
   if (d.anaosaiu) { if (!confirm('Este lote não saiu da loja? Ele volta para "lançado no sistema, ainda na loja".')) return; acao('saidaAdm', { lote: d.anaosaiu, saiu: false }, 'Saída desfeita: o lote voltou para a loja.'); return; }
