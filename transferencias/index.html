@@ -71,6 +71,7 @@ th,td{text-align:left;padding:7px 6px;border-top:1px solid var(--li);vertical-al
 th{font-size:12px;color:var(--mu);text-transform:uppercase;letter-spacing:.03em;border-top:0}
 .tabw{overflow-x:auto}
 .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:700;background:var(--chip)}
+.etp{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0}.etp button{border:1px solid var(--li);background:var(--card);color:var(--tx);border-radius:12px;padding:8px 4px;font:inherit;cursor:pointer;min-height:64px}.etp button b{display:block;font-size:24px;line-height:1.1}.etp button span{font-size:12px;font-weight:700}.etp button.on{background:var(--pri);color:#fff;border-color:var(--pri)}.etp button.er b{color:var(--er)}.etp button.on.er b{color:#fff}.etpf{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0}.etpf input[type=date]{min-height:40px;padding:4px 8px;width:auto;flex:1 1 130px}@media(max-width:520px){.etp{grid-template-columns:repeat(2,1fr)}}
 .pill.er{background:var(--erbg);color:var(--er)}.pill.ok{background:var(--okbg);color:var(--ok)}.pill.av{background:var(--avbg);color:var(--av)}
 details summary{cursor:pointer;font-weight:600;padding:6px 0}
 details.dob{border-top:1px solid var(--li)}
@@ -110,7 +111,7 @@ function api(acao, dados) {
   var b = Object.assign({ tok: TOK, acao: acao }, dados || {}); if (LOJA_ADM) b.loja = LOJA_ADM; if (FRANQ_ADM) b.franq = FRANQ_ADM; if (FORN_ADM && !b.forn) b.forn = FORN_ADM;
   if (PAINEL && PAINEL.gestorForn && !b.quem) b.quem = lsGet('g_quem') || ''; // v2.21: quem é o gestor (fica no registro de cada ajuste)
   return fetch(EXEC, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(b) })
-    .then(function (r) { return r.json(); }).then(function (o) { if (!o.ok) throw new Error(o.erro || 'erro'); if (o.estado && o.estado.tarefas && o.estado.modo == 'fornecedor') FTAR = o.estado.tarefas; return o; });
+    .then(function (r) { return r.json(); }).then(function (o) { if (!o.ok) throw new Error(o.erro || 'erro'); if (o.estado && o.estado.tarefas && o.estado.modo == 'fornecedor') { FTAR = o.estado.tarefas; if (o.estado.etapas) FETP = o.estado.etapas; } else if (o.estado && o.estado.modo == 'fornecedor' && FETP) FVELHO = true; /* v2.24: a ação mudou algo; as etapas são refeitas na próxima ida ao Início */ return o; });
 }
 function acao(nome, dados, msgOk) {
   if (OCUP) return Promise.resolve(); OCUP = true; document.body.style.cursor = 'progress';
@@ -524,7 +525,7 @@ function renderPainel() {
     + '<div class="mu" style="margin-top:6px">Remontar desfaz os lotes ainda em separação (nenhuma peça conferida) e monta de novo pela prioridade e pelo tamanho de lote atuais. Simular mostra o resultado sem mudar nada.</div></div>';
   if (SIMUL) h += hSimulacao(SIMUL, p);
   h += hOnde(p);
-  (p.fornecedores || []).forEach(function (F) { h += hTarefasForn(F.tarefas, { titulo: F.nome + ': o que tem para fazer', forn: F.id, notas: F.aguardandoNota }); }); // v2.21: a visão do fornecedor sobe para o alto do painel
+  (p.fornecedores || []).forEach(function (F) { h += (F.etapas ? hEtapasForn(F.etapas, { nome: F.nome, forn: F.id, notas: F.aguardandoNota }) : '') + hTarefasForn(F.tarefas, { titulo: F.nome + ': outras pendências', forn: F.id }); }); // v2.21: a visão do fornecedor sobe para o alto do painel
   h += hFornPainel(p);
   h += hRetirada(p);
   h += hAtividade(p);
@@ -820,7 +821,7 @@ $('conteudo').addEventListener('click', function (e) {
 // ---------- v2.8: link do fornecedor (estoque do fornecedor, parte 1) ----------
 // Contagem por referência (substitui o saldo), entrada da produção, saída por nota, devolução e "Meu estoque".
 // O que é bipado fica guardado no celular até concluir (sinal fraco no depósito não perde nada).
-var FABA = null, FGRADE = {}, FSTQ = null, FFILA = [], FPROC = false, FTAR = null;
+var FABA = null, FGRADE = {}, FSTQ = null, FFILA = [], FPROC = false, FTAR = null, FETP = null, FVELHO = false;
 var FTIPOS = { inicio: 'Início', contagem: 'Contagem', entrada: 'Entrada da produção', saida: 'Saída por nota', devolucao: 'Devolução', estoque: 'Meu estoque', pedidos: 'Separar pedido' };
 function fQuem() { return lsGet('f_quem') || (PAINEL && PAINEL.gestorForn ? lsGet('g_quem') : '') || ''; } // v2.21: o gestor já disse quem é
 function fDev() { var d = lsGet('f_dev'); if (!d) { d = 'd' + Math.random().toString(36).slice(2, 10); lsSet('f_dev', d); } return d; }
@@ -1099,13 +1100,14 @@ function fRotuloMov(m) {
 }
 function fChaveMov(m) { return m.tipo == 'saida' && m.pedido ? 'p' + m.pedido : m.tipo; }
 function hFInicio() {
+  if (FVELHO) { FVELHO = false; fApi('estado').then(function (o) { EST = o.estado; render(); }).catch(function () { }); }
   var at = fAtivos(), ab = EST.abertos.slice().sort(function (a, b) { return a.aberto_em < b.aberto_em ? -1 : 1; }), ps = EST.pedidos || [];
   var h = '<div class="card"><h2>Em andamento</h2>' + (ab.length ? '<div class="mu">Continue de onde parou ou cancele o que não vai mais fazer. Cancelar descarta o que foi bipado; nada muda no estoque.</div>' + ab.map(function (m) {
     return '<div class="item"><div class="nm"><div class="ds">' + fRotuloMov(m) + '</div><div class="mu">Aberta por ' + esc(m.aberto_por) + ' em ' + dt(m.aberto_em) + ' ' + esc(String(m.aberto_em).slice(11, 16)) + (at[fChaveMov(m)] == m.id ? ' · <b>neste celular</b>' : '') + '</div></div>'
       + '<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="btn pq" data-fini="' + m.id + '">Continuar</button><button class="btn sec pq" data-finic="' + m.id + '">Cancelar</button></div></div>';
   }).join('') : '<div class="vazio">Nada em andamento.</div>') + '</div>';
   var pend = ps.reduce(function (s, p) { return s + p.pendente; }, 0), lj = {}; ps.forEach(function (p) { lj[p.filial] = 1; });
-  return (FTAR ? hTarefasForn(FTAR, { titulo: 'O que tem para fazer' }) : '') + h + '<div class="card"><h2>Pedidos para separar</h2>' + (ps.length ? '<div class="mu">' + pl(ps.length, 'pedido', 'pedidos') + ' de ' + pl(Object.keys(lj).length, 'loja', 'lojas') + ' · ' + pl(pend, 'peça pendente', 'peças pendentes') + '</div><div class="lin"><button class="btn" data-fiped="1">Separar pedido</button></div>' : '<div class="vazio">Nenhum pedido pendente agora.</div>') + '</div>';
+  return (FETP ? hEtapasForn(FETP, { nome: EST.nome || '' }) : '') + (FTAR ? hTarefasForn(FTAR, { titulo: 'Outras pendências' }) : '') + h + '<div class="card"><h2>Pedidos para separar</h2>' + (ps.length ? '<div class="mu">' + pl(ps.length, 'pedido', 'pedidos') + ' de ' + pl(Object.keys(lj).length, 'loja', 'lojas') + ' · ' + pl(pend, 'peça pendente', 'peças pendentes') + '</div><div class="lin"><button class="btn" data-fiped="1">Separar pedido</button></div>' : '<div class="vazio">Nenhum pedido pendente agora.</div>') + '</div>';
 }
 
 // ----- v2.12: Separar pedido -----
@@ -1420,10 +1422,63 @@ $('conteudo').addEventListener('click', function (e) {
     return fAcao('reabrirSep', { mov: d.fnreab }).then(function (o) { if (o) { delete FNL[d.fnreab]; render(); } });
   }
 });
+// v2.24 — Os pedidos por etapa: a separar · em separação · nota a emitir · nota emitida (com período e busca). Igual para o Raphael, o gestor e quem bipa.
+var FET = { ab: null, per: '7', de: '', ate: '', q: '' };
+function fetDia(hoje, menos) { var d = new Date(hoje + 'T12:00:00'); d.setDate(d.getDate() - menos); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+function fetEmitidas(E) {
+  var de = FET.per == 'datas' ? FET.de : fetDia(E.hoje, FET.per == 'hoje' ? 0 : FET.per == '30' ? 29 : 6), ate = FET.per == 'datas' ? FET.ate : '';
+  return (E.emitidas || []).filter(function (x) { var d = x.em.slice(0, 10); return (!de || d >= de) && (!ate || d <= ate); });
+}
+function hEtapasForn(E, o) {
+  var em = fetEmitidas(E), L = { separar: E.separar || [], separando: E.separando || [], nota: E.nota || [], emitidas: em };
+  if (FET.ab == null) FET.ab = L.nota.length ? 'nota' : L.separando.length ? 'separando' : L.separar.length ? 'separar' : 'emitidas';
+  var rot = { separar: 'A separar', separando: 'Em separação', nota: 'Nota a emitir', emitidas: 'Nota emitida' }, pc = function (n) { return n + (n == 1 ? ' peça' : ' peças'); }, q = FET.q.toLowerCase();
+  var verm = { separar: L.separar.some(function (x) { return x.parado; }), separando: L.separando.some(function (x) { return x.dias >= 1; }), nota: L.nota.some(function (x) { return x.fora; }) };
+  var h = '<div class="card" id="etapasf"><h2>' + (o.nome ? esc(o.nome) + ': pedidos' : 'Pedidos') + ' por etapa</h2><div class="etp">' + ['separar', 'separando', 'nota', 'emitidas'].map(function (k) {
+    return '<button data-fet="' + k + '" class="' + (FET.ab == k ? 'on' : '') + (verm[k] ? ' er' : '') + '"><b>' + L[k].length + '</b><span>' + rot[k] + '</span></button>'; }).join('') + '</div>';
+  var bVer = function (ped, txt) { return !ped ? '' : o.forn ? '<button class="btn sec pq" data-ftver="' + esc(o.forn) + '|' + esc(ped) + '">Ver o pedido</button>' : (txt ? '<button class="btn pq" data-ftsep="' + esc(ped) + '">' + txt + '</button>' : ''); };
+  var item = function (busca, ds, mu, bot, extra, pecas) { var b = busca.toLowerCase(); return '<div data-busca="' + esc(b) + '" data-pecas="' + (pecas || 0) + '"' + (q && b.indexOf(q) < 0 ? ' style="display:none"' : '') + '><div class="item"><div class="nm"><div class="ds">' + ds + '</div><div class="mu">' + mu + '</div></div>' + bot + '</div>' + (extra || '') + '</div>'; };
+  var k = FET.ab, lst = L[k], corpo = '';
+  if (k == 'emitidas') {
+    corpo += '<div class="etpf">' + [['hoje', 'Hoje'], ['7', '7 dias'], ['30', '30 dias'], ['datas', 'Datas']].map(function (c) { return '<button class="btn pq' + (FET.per == c[0] ? '' : ' sec') + '" data-fetper="' + c[0] + '">' + c[1] + '</button>'; }).join('')
+      + (FET.per == 'datas' ? '<input type="date" data-fetde="1" value="' + esc(FET.de) + '" aria-label="de"><input type="date" data-fetate="1" value="' + esc(FET.ate) + '" aria-label="até">' : '') + '</div>';
+  }
+  corpo += '<input data-fetq="1" placeholder="Buscar por loja, pedido' + (k == 'emitidas' ? ' ou número da nota' : '') + '" value="' + esc(FET.q) + '" style="margin:4px 0 6px">';
+  if (k == 'emitidas') corpo += '<div class="mu" id="fettot"></div>';
+  if (!lst.length) corpo += '<div class="vazio">' + ({ separar: 'Nenhum pedido esperando separação.', separando: 'Ninguém está separando agora.', nota: 'Nenhuma nota a emitir: tudo o que foi separado já teve a baixa.', emitidas: 'Nenhuma nota no período.' })[k] + '</div>';
+  corpo += lst.map(function (x) {
+    if (k == 'separar') return item(x.loja + ' pedido ' + x.pedido + ' ' + x.nome, esc(x.loja) + ' · pedido ' + esc(x.pedido) + ' · ' + pc(x.pecas) + (x.parado ? ' <span class="pill er">parado há ' + x.dias + ' dias</span>' : ''),
+      esc(x.nome ? x.nome + ' · ' : '') + 'entrou em ' + dt(x.criado_em) + (x.saiu ? ' · já saíram ' + x.saiu + ' de ' + x.qtd + (x.ultima_nf ? ' · última nota ' + esc(x.ultima_nf) + ' em ' + dt(x.ultima_nf_em) : '') : '') + (x.nao_tenho ? ' · ' + x.nao_tenho + ' linha(s) "não tenho"' : ''), bVer(x.pedido, 'Separar'));
+    if (k == 'separando') return item(x.loja + ' pedido ' + x.pedido + ' ' + x.por, esc(x.loja) + ' · pedido ' + esc(x.pedido) + ' · ' + x.bipadas + ' de ' + pc(x.pecas) + ' bipada' + (x.bipadas == 1 ? '' : 's') + (x.dias >= 1 ? ' <span class="pill er">aberta há ' + x.dias + (x.dias == 1 ? ' dia' : ' dias') + '</span>' : ''),
+      'bipando: ' + esc(x.por) + ' · desde ' + dt(x.desde) + ' ' + esc(String(x.desde).slice(11, 16)), bVer(x.pedido, 'Continuar'));
+    if (k == 'nota') { var ab = FNOTA == x.mov;
+      return item(x.loja + ' pedido ' + x.pedido + ' ' + x.fechado_por, esc(x.loja) + ' · pedido ' + esc(x.pedido) + ' · ' + pc(x.pecas) + (x.fora ? ' <span class="pill er">atrasada</span>' : ''),
+        'separado por ' + esc(x.aberto_por) + ' · fechado por ' + esc(x.fechado_por) + ' em ' + dt(x.fechado_em) + ' ' + esc(String(x.fechado_em).slice(11, 16)) + (x.dias ? ' · há ' + x.dias + (x.dias == 1 ? ' dia' : ' dias') : ''),
+        o.forn ? '<button class="btn pq" data-fnver="' + esc(x.mov) + '">' + (ab ? 'Fechar' : 'Lista e baixa') + '</button>' : '<button class="btn pq" data-ftsep="' + esc(x.pedido) + '">Abrir</button>', o.forn && ab ? hNotaBox(x, o.forn) : ''); }
+    return item('nota ' + x.nf + ' ' + x.loja + ' pedido ' + x.pedido, 'Nota ' + esc(x.nf) + ' · ' + esc(x.loja) + (x.pedido ? ' · pedido ' + esc(x.pedido) : '') + ' · ' + pc(x.pecas), dt(x.em) + ' ' + esc(x.em.slice(11, 16)) + ' · baixa por ' + esc(x.quem), o.forn ? bVer(x.pedido) : '', '', x.pecas);
+  }).join('');
+  setTimeout(fetTotal, 0);
+  return h + '<div id="fetlista">' + corpo + '</div></div>';
+}
+function fetTotal() {
+  var t = document.getElementById('fettot'); if (!t) return; var n = 0, p = 0;
+  [].forEach.call(document.querySelectorAll('#fetlista [data-busca]'), function (r) { if (r.style.display == 'none') return; n++; p += Number(r.dataset.pecas || 0); });
+  t.textContent = n + (n == 1 ? ' nota' : ' notas') + ' · ' + p + (p == 1 ? ' peça' : ' peças') + (FET.q ? ' na busca' : ' no período');
+}
+$('conteudo').addEventListener('click', function (e) {
+  var b = e.target.closest('button'); if (!b) return; var d = b.dataset;
+  if (d.fet) { FET.ab = d.fet; FET.q = ''; return render(); }
+  if (d.fetper) { FET.per = d.fetper; return render(); }
+});
+$('conteudo').addEventListener('change', function (e) { var d = e.target.dataset || {}; if (d.fetde) { FET.de = e.target.value; render(); } if (d.fetate) { FET.ate = e.target.value; render(); } });
+$('conteudo').addEventListener('input', function (e) { // a busca filtra sem redesenhar (o campo não perde o foco)
+  if (!(e.target.dataset || {}).fetq) return; FET.q = e.target.value.trim(); var q = FET.q.toLowerCase();
+  [].forEach.call(document.querySelectorAll('#fetlista [data-busca]'), function (r) { r.style.display = !q || r.dataset.busca.indexOf(q) >= 0 ? '' : 'none'; }); fetTotal();
+});
 function hTarefasForn(blocos, o) {
   var n = 0; (blocos || []).forEach(function (b) { n += b.itens.length; });
   var h = '<div class="card" id="tarefasf"><h2>' + esc(o.titulo) + (n ? ': ' + n : '') + '</h2>';
-  if (!n) return h + '<div class="mu">Nada para fazer agora.</div></div>';
+  if (!n) return h + '<div class="mu">Nenhuma outra pendência agora.</div></div>';
   var linha = function (x) {
     if (x.mov) { // v2.22: separação fechada esperando a nota
       var ab = FNOTA == x.mov, lst = (o.notas || []).filter(function (n) { return n.mov == x.mov; })[0];
@@ -1450,7 +1505,7 @@ function renderGestorForn(p) {
   var F = p.fornecedores[0], quem = lsGet('g_quem') || '';
   document.querySelector('.marca').textContent = 'bb básico · gestão do fornecedor'; $('titulo').textContent = F.nome + ' · gestão'; $('sub').textContent = 'Hoje, ' + dt(p.hoje) + (quem ? ' · ' + quem : ''); $('abas').hidden = true;
   if (!quem) { $('conteudo').innerHTML = '<div class="card"><h2>Quem é você?</h2><div class="mu">Seu nome fica registrado em cada ajuste (estorno, pedido incluído, alterado ou cancelado). Só pergunta uma vez neste aparelho.</div><label>Nome</label><input data-gquem="1" maxlength="40" placeholder="seu nome"><div class="lin"><button class="btn" data-gquemok="1">Entrar</button></div></div>'; return; }
-  $('conteudo').innerHTML = hTarefasForn(F.tarefas, { titulo: 'O que a ' + F.nome + ' tem que fazer', forn: F.id, notas: F.aguardandoNota }) + hFornPainel(p)
+  $('conteudo').innerHTML = (F.etapas ? hEtapasForn(F.etapas, { nome: F.nome, forn: F.id, notas: F.aguardandoNota }) : '') + hTarefasForn(F.tarefas, { titulo: 'Outras pendências', forn: F.id }) + hFornPainel(p)
     + '<div class="card"><div class="mu">Você está como <b>' + esc(quem) + '</b>.</div><div class="lin"><button class="btn sec pq" data-gquemx="1">Trocar o nome</button></div></div>';
 }
 $('conteudo').addEventListener('click', function (e) {
