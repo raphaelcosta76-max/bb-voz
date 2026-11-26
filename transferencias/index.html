@@ -524,7 +524,7 @@ function renderPainel() {
     + '<div class="mu" style="margin-top:6px">Remontar desfaz os lotes ainda em separação (nenhuma peça conferida) e monta de novo pela prioridade e pelo tamanho de lote atuais. Simular mostra o resultado sem mudar nada.</div></div>';
   if (SIMUL) h += hSimulacao(SIMUL, p);
   h += hOnde(p);
-  (p.fornecedores || []).forEach(function (F) { h += hTarefasForn(F.tarefas, { titulo: F.nome + ': o que tem para fazer', forn: F.id }); }); // v2.21: a visão do fornecedor sobe para o alto do painel
+  (p.fornecedores || []).forEach(function (F) { h += hTarefasForn(F.tarefas, { titulo: F.nome + ': o que tem para fazer', forn: F.id, notas: F.aguardandoNota }); }); // v2.21: a visão do fornecedor sobe para o alto do painel
   h += hFornPainel(p);
   h += hRetirada(p);
   h += hAtividade(p);
@@ -1154,14 +1154,19 @@ function hFPedidos0() {
     var mk = [p.nao_tenho ? p.nao_tenho + ' "não tenho"' : '', p.nao_entrega ? p.nao_entrega + ' "não vou entregar"' : ''].filter(Boolean).join(' · ');
     return '<div class="card"><h2>Pedido ' + esc(p.pedido) + (i == 0 && meus.length > 1 ? ' <span class="pill">mais antigo</span>' : '') + '</h2><div class="mu">' + (p.nome ? esc(p.nome) + ' · ' : '') + 'de ' + dt(p.criado_em) + ' · ' + p.pendente + ' de ' + p.qtd + ' peças pendentes</div>'
       + (pend ? '<div class="aviso av" style="margin-top:8px">' + pend + (mk ? ' · ' + mk : '') + '</div>' : '')
-      + (p.sep ? '<div class="mu" style="margin-top:6px">Em separação: aberta por ' + esc(p.sep.aberto_por) + ' em ' + dt(p.sep.aberto_em) + '.</div>' : '')
-      + '<div class="lin"><button class="btn" data-fpsep="' + esc(p.pedido) + '">' + (p.sep ? 'Continuar a separação' : 'Separar este pedido') + '</button></div></div>';
+      + (p.sep && p.sep.fechado_em ? '<div class="aviso ok" style="margin-top:8px"><b>Separado, esperando a nota fiscal.</b> Fechada por ' + esc(p.sep.fechado_por) + ' em ' + dt(p.sep.fechado_em) + '.</div>'
+        : p.sep ? '<div class="mu" style="margin-top:6px">Em separação: aberta por ' + esc(p.sep.aberto_por) + ' em ' + dt(p.sep.aberto_em) + '.</div>' : '')
+      + '<div class="lin"><button class="btn" data-fpsep="' + esc(p.pedido) + '">' + (p.sep && p.sep.fechado_em ? 'Ver a lista e dar baixa com a nota' : p.sep ? 'Continuar a separação' : 'Separar este pedido') + '</button></div></div>';
   }).join('');
 }
 function hFSep(ped) {
   var L = fpLinhas(ped), M = fpSep(ped), topo = '<div class="lin" style="margin-top:0"><button class="btn sec pq" data-fpvolta="loja" style="flex:0 0 auto">← Pedidos da loja</button></div>';
   if (!M) return '<div class="card">' + topo + '<div class="aviso av" style="margin-top:8px">A separação do pedido ' + esc(ped) + ' não está mais aberta (concluída ou cancelada em outro celular).</div></div>';
   if (!L) { fApi('pedido', { pedido: ped }).then(function (o) { fpGuarda(ped, o.ped, M.id); render(); }).catch(function (e) { toast(e.message, 'er'); }); return '<div class="card">' + topo + '<div class="vazio">Carregando o pedido…</div></div>'; }
+  if (M.fechado_em) { // v2.22: separado, esperando a nota fiscal
+    if (!FNL[M.id]) { if (FNL[M.id] !== 0) { FNL[M.id] = 0; fApi('sepLista', { mov: M.id }).then(function (o) { FNL[M.id] = o.lista; render(); }).catch(function (e) { delete FNL[M.id]; toast(e.message, 'er'); }); } return '<div class="card">' + topo + '<div class="vazio">Carregando a separação…</div></div>'; }
+    return '<div class="card" id="sepfechada">' + topo + '<h2 style="margin-top:8px">Pedido ' + esc(ped) + ' para ' + esc(L.pedido.loja) + '</h2><div class="aviso ok" style="margin-top:8px"><b>Separado, esperando a nota fiscal.</b> Fechada por ' + esc(M.fechado_por) + ' em ' + dt(M.fechado_em) + '. O estoque só baixa quando a nota for informada.</div>' + hNotaBox(FNL[M.id], '') + '</div>';
+  }
   var x = fm(M.id), tot = 0, pend = 0, cab = L.pedido;
   L.linhas.forEach(function (l) { tot += Math.min(x.q[fNorm(l.sku)] || 0, l.pendente); pend += l.pendente; });
   var h = '<div class="card">' + topo + '<h2 style="margin-top:8px">Pedido ' + esc(ped) + ' para ' + esc(cab.loja) + '</h2><div class="mu">' + (cab.nome ? esc(cab.nome) + ' · ' : '') + 'de ' + dt(cab.criado_em) + ' · separação aberta por ' + esc(M.aberto_por) + ' em ' + dt(M.aberto_em) + '. Bipe só o que está neste pedido: peça de fora ou a mais é recusada.</div>'
@@ -1181,7 +1186,7 @@ function hFSep(ped) {
             + '</div><div class="ct">' + c + ' / ' + l.pendente + '</div></div>';
         }).join('');
       }).join('')
-      + '<div class="lin"><button class="btn ok" data-fpconc="1">' + (tot ? 'Concluir com a nota…' : 'Não tenho nada agora…') + '</button></div>'
+      + '<div class="lin"><button class="btn ok" data-fpconc="1">' + (tot ? 'Concluir a separação…' : 'Não tenho nada agora…') + '</button></div>'
       + '<div class="lin"><button class="btn sec" data-fpguarda="1">Guardar e continuar depois</button><button class="btn sec" data-fpcancel="1" style="flex:0 0 auto">Cancelar separação</button></div>'
       + '<div class="mu" style="margin-top:6px">O que foi bipado fica guardado neste celular e no servidor até concluir, mesmo que leve dias. Uma pessoa por pedido de cada vez.</div>';
     return h + '</div>';
@@ -1196,8 +1201,9 @@ function hFSep(ped) {
           + (m.base == 'Outro' ? '<input data-fpmotx="' + k + '" maxlength="120" placeholder="qual o motivo?" value="' + esc(m.txt) + '" style="margin-top:6px">' : '') : '')
         + '</div></div>';
     }).join('') : '<div class="aviso ok">Com esta nota o pedido fica todo atendido.</div>')
-    + (tot ? '<label>Número da nota fiscal</label><input data-fpnf="1" inputmode="numeric" placeholder="número da nota" value="' + esc(x.nf || '') + '">' : '')
-    + '<div class="lin">' + (tot ? '<button class="btn ok" data-fpfim="1">Concluir com a nota</button>' : '<button class="btn ok" data-fpmarcas="1"' + (resta.length ? '' : ' disabled') + '>Registrar sem nota</button>') + '<button class="btn sec" data-fpvoltabip="1" style="flex:0 0 auto">Voltar à bipagem</button></div>';
+    + (tot ? '<div class="aviso" style="margin-top:10px"><b>Ainda sem a nota?</b> Feche a separação: ela vai para quem emite a nota, e a baixa é dada depois, com o número dela. Fechada, ninguém mais bipa neste pedido.</div><div class="lin"><button class="btn ok" data-fpfecha="1">Fechar a separação e esperar a nota</button></div>'
+      + '<label>Já tem a nota? Número da nota fiscal</label><input data-fpnf="1" inputmode="numeric" placeholder="número da nota" value="' + esc(x.nf || '') + '">' : '')
+    + '<div class="lin">' + (tot ? '<button class="btn sec" data-fpfim="1">Concluir com a nota</button>' : '<button class="btn ok" data-fpmarcas="1"' + (resta.length ? '' : ' disabled') + '>Registrar sem nota</button>') + '<button class="btn sec" data-fpvoltabip="1" style="flex:0 0 auto">Voltar à bipagem</button></div>';
   return h + '</div>';
 }
 function lidoFSep(code) {
@@ -1267,6 +1273,13 @@ $('conteudo').addEventListener('click', function (e) {
   if (d.fpcancel) {
     var Mc2 = fpSep(FPV.ped), pc = FPV.ped; if (!confirm('Cancelar a separação do pedido ' + pc + '? O que foi bipado é descartado; nada sai do estoque e o pedido continua como estava.')) return;
     clearTimeout(FPT); return fAcao('cancelar', { mov: Mc2.id }).then(function (o) { if (o) { fpLimpa(pc, Mc2.id); render(); } });
+  }
+  if (d.fpfecha) {
+    var pz = FPV.ped, Mz = fpSep(pz), Lz = fpLinhas(pz), xz = fm(Mz.id), mz = fpMarcasPayload(Lz, xz); if (!mz) return;
+    var tz = Lz.linhas.reduce(function (s, l) { return s + Math.min(xz.q[fNorm(l.sku)] || 0, l.pendente); }, 0);
+    if (!confirm('Fechar a separação do pedido ' + pz + ' com ' + tz + ' peça(s) para ' + Lz.pedido.loja + '? Ninguém mais bipa nela; o estoque baixa quando a nota for informada.')) return;
+    clearTimeout(FPT);
+    return fAcao('fecharSep', { mov: Mz.id, q: xz.q, outros: {}, marcas: mz }).then(function (o) { if (o) { FPV.conc = false; delete FNL[Mz.id]; window.scrollTo(0, 0); return render(); } return fApi('pedido', { pedido: pz }).then(function (r) { fpGuarda(pz, r.ped, Mz.id); render(); }).catch(function () { }); });
   }
   if (d.fpfim || d.fpmarcas) {
     var pf = FPV.ped, Mf2 = fpSep(pf), Lf = fpLinhas(pf), xf2 = fm(Mf2.id), mk = fpMarcasPayload(Lf, xf2); if (!mk) return;
@@ -1358,6 +1371,7 @@ function hFichaForn(F) {
   return '<div id="ficha" style="margin-top:10px;padding:10px;border:1px solid var(--li);border-radius:10px"><h3 style="margin-top:0">Ref ' + esc(S.ref) + ' · ' + esc(S.descricao) + '</h3>'
     + '<div class="mu">' + (S.contada_em ? '<b>Última contagem:</b> ' + dt(S.contada_quando || S.contada_em) + (hh ? ' às ' + hh : '') + (S.contada_por ? ', por ' + esc(S.contada_por) : '') : '<b>Nunca contada.</b>') + (S.aberta_por_entrada ? ' Há código com o saldo aberto pela entrada da produção de ' + dt(S.aberta_por_entrada) + '.' : '') + '</div>'
     + (S.em_contagem ? '<div class="aviso av">Em contagem agora: o saldo pode mudar.</div>' : '')
+    + (S.separadas ? '<div class="aviso av">' + S.separadas + (S.separadas == 1 ? ' peça já separada' : ' peças já separadas') + ' para pedido e ainda sem nota: continuam no saldo até a baixa.</div>' : '')
     + (S.sem_saldo_inicial ? '<div class="aviso er">Parte da grade nunca foi contada: os "—" não têm saldo e ficam fora dos totais.</div>' : '')
     + '<div class="tabw"><table class="gtab"><tr><th>Cor</th>' + tams.map(function (t) { return '<th>' + esc(t) + '</th>'; }).join('') + '<th>Total</th></tr>'
     + cores.map(function (c) { return '<tr><td>' + esc(c) + '</td>' + tams.map(function (t) { var l = cel[c + '|' + t]; return '<td>' + (l ? num(l.saldo) : '') + '</td>'; }).join('') + '<td>' + num(tc[c] === undefined ? null : tc[c]) + '</td></tr>'; }).join('')
@@ -1378,11 +1392,44 @@ $('conteudo').addEventListener('click', function (e) {
 $('conteudo').addEventListener('keydown', function (e) { if (e.key != 'Enter' || !PAINEL || LOJA_ADM || FORN_ADM) return; var i = e.target.closest('[data-fcons]'); if (i) { e.preventDefault(); fichaForn(i.dataset.fcons, i.value); } });
 // v2.21 — Tarefas do fornecedor (servidor: tarefasForn_): no link do gestor, no painel do Raphael e na tela Início de quem bipa.
 // o.forn = id do fornecedor quando a lista está num painel (o botão abre o pedido); sem o.forn é o link de bipagem (o botão troca de aba).
+// v2.22 — lista do que foi separado (para emitir a nota) e a baixa com o número dela. forn preenchido = painel (Raphael ou gestor).
+var FNL = {}, FNOTA = null;
+function hNotaBox(x, forn) {
+  return '<div class="notabox" data-notabox="' + esc(x.mov) + '" style="margin:8px 0;padding:10px;border:1px solid var(--li);border-radius:10px"><div class="mu">Para a nota do pedido ' + esc(x.pedido) + ' · ' + esc(x.loja) + ' · separado por ' + esc(x.aberto_por) + '</div>'
+    + '<div class="tabw"><table><tr><th>Ref</th><th>Produto</th><th>Cor</th><th>Tam</th><th>Qtd</th></tr>' + x.itens.map(function (i) { return '<tr><td><b>' + esc(i.ref) + '</b></td><td>' + esc(i.descricao) + '</td><td>' + esc(i.cor) + '</td><td>' + esc(i.tamanho) + '</td><td><b>' + i.qtd + '</b></td></tr>'; }).join('')
+    + '<tr><th colspan="4">Total</th><th>' + x.pecas + '</th></tr></table></div>'
+    + '<label>Número da nota fiscal</label><input data-fnnf="' + esc(x.mov) + '" inputmode="numeric" placeholder="número da nota">'
+    + '<div class="lin"><button class="btn ok" data-fnbaixa="' + esc(x.mov) + '" data-forn="' + esc(forn) + '" data-ped="' + esc(x.pedido) + '" data-pecas="' + x.pecas + '">Dar baixa com a nota</button><button class="btn sec" data-fnreab="' + esc(x.mov) + '" data-forn="' + esc(forn) + '" data-ped="' + esc(x.pedido) + '" style="flex:0 0 auto">Voltar para a separação</button></div>'
+    + '<div class="mu" style="margin-top:6px">A nota saiu diferente do que foi separado? Volte para a separação, acerte as peças e feche de novo.</div></div>';
+}
+$('conteudo').addEventListener('click', function (e) {
+  var b = e.target.closest('button'); if (!b) return; var d = b.dataset;
+  if (d.fnver) { FNOTA = FNOTA == d.fnver ? null : d.fnver; return render(); }
+  if (d.ftsep && EST && EST.modo == 'fornecedor') { var pp = (EST.pedidos || []).filter(function (x) { return x.pedido == d.ftsep; })[0]; if (!pp) return toast('Pedido não encontrado: atualize a página.', 'er'); FABA = 'pedidos'; FPV.loja = pp.filial; window.scrollTo(0, 0); return fpAbre(d.ftsep); }
+  if (d.fnbaixa) {
+    var ni = document.querySelector('[data-fnnf="' + d.fnbaixa + '"]'), nf = ni ? ni.value.trim() : '';
+    if (!nf) { toast('Digite o número da nota fiscal.', 'er'); ni && ni.focus(); return; }
+    if (!confirm('Dar baixa no pedido ' + d.ped + ' com a nota ' + nf + '? ' + d.pecas + ' peça(s) saem do estoque.')) return;
+    if (d.forn) return acao('notaBaixa', { forn: d.forn, mov: d.fnbaixa, nf: nf }).then(function (o) { if (o) FNOTA = null; });
+    return fAcao('concluir', { mov: d.fnbaixa, q: {}, outros: {}, nf: nf }).then(function (o) { if (o) { delete FNL[d.fnbaixa]; fpLimpa(d.ped, d.fnbaixa); render(); } });
+  }
+  if (d.fnreab) {
+    if (!confirm('Voltar o pedido ' + d.ped + ' para a separação? Dá para bipar e tirar peças de novo; depois é preciso fechar outra vez.')) return;
+    if (d.forn) return acao('notaVolta', { forn: d.forn, mov: d.fnreab }).then(function (o) { if (o) FNOTA = null; });
+    return fAcao('reabrirSep', { mov: d.fnreab }).then(function (o) { if (o) { delete FNL[d.fnreab]; render(); } });
+  }
+});
 function hTarefasForn(blocos, o) {
   var n = 0; (blocos || []).forEach(function (b) { n += b.itens.length; });
   var h = '<div class="card" id="tarefasf"><h2>' + esc(o.titulo) + (n ? ': ' + n : '') + '</h2>';
   if (!n) return h + '<div class="mu">Nada para fazer agora.</div></div>';
   var linha = function (x) {
+    if (x.mov) { // v2.22: separação fechada esperando a nota
+      var ab = FNOTA == x.mov, lst = (o.notas || []).filter(function (n) { return n.mov == x.mov; })[0];
+      return '<div class="item"><div class="nm"><div class="ds">' + esc(x.titulo) + (x.fora ? ' <span class="pill er">atrasada</span>' : '') + '</div><div class="mu">' + esc(x.sub) + '</div></div>'
+        + (o.forn ? '<button class="btn pq" data-fnver="' + esc(x.mov) + '">' + (ab ? 'Fechar' : 'Lista e baixa') + '</button>' : '<button class="btn pq" data-ftsep="' + esc(x.pedido) + '">Abrir</button>') + '</div>'
+        + (o.forn && ab && lst ? hNotaBox(lst, o.forn) : '');
+    }
     var bot = o.forn && x.pedido ? '<button class="btn sec pq" data-ftver="' + esc(o.forn) + '|' + esc(x.pedido) + '">Ver o pedido</button>' : (!o.forn && x.aba ? '<button class="btn sec pq" data-ftir="' + esc(x.aba) + '">Abrir</button>' : '');
     return '<div class="item"><div class="nm"><div class="ds">' + esc(x.titulo) + '</div><div class="mu">' + esc(x.sub) + '</div></div>' + bot + '</div>';
   };
@@ -1402,7 +1449,7 @@ function renderGestorForn(p) {
   var F = p.fornecedores[0], quem = lsGet('g_quem') || '';
   document.querySelector('.marca').textContent = 'bb básico · gestão do fornecedor'; $('titulo').textContent = F.nome + ' · gestão'; $('sub').textContent = 'Hoje, ' + dt(p.hoje) + (quem ? ' · ' + quem : ''); $('abas').hidden = true;
   if (!quem) { $('conteudo').innerHTML = '<div class="card"><h2>Quem é você?</h2><div class="mu">Seu nome fica registrado em cada ajuste (estorno, pedido incluído, alterado ou cancelado). Só pergunta uma vez neste aparelho.</div><label>Nome</label><input data-gquem="1" maxlength="40" placeholder="seu nome"><div class="lin"><button class="btn" data-gquemok="1">Entrar</button></div></div>'; return; }
-  $('conteudo').innerHTML = hTarefasForn(F.tarefas, { titulo: 'O que a ' + F.nome + ' tem que fazer', forn: F.id }) + hFornPainel(p)
+  $('conteudo').innerHTML = hTarefasForn(F.tarefas, { titulo: 'O que a ' + F.nome + ' tem que fazer', forn: F.id, notas: F.aguardandoNota }) + hFornPainel(p)
     + '<div class="card"><div class="mu">Você está como <b>' + esc(quem) + '</b>.</div><div class="lin"><button class="btn sec pq" data-gquemx="1">Trocar o nome</button></div></div>';
 }
 $('conteudo').addEventListener('click', function (e) {
@@ -1457,7 +1504,7 @@ function hFPedPainel(F) {
     h += '<h3>Pedidos pendentes por loja</h3><div class="tabw"><table><tr><th>Loja · pedido</th><th>Pedido</th><th>Separado</th><th>Pendente</th><th>%</th><th>Última nota</th><th></th></tr>' + lojas.map(function (lj) {
       return Q.abertos.filter(function (p) { return p.loja == lj; }).map(function (p) {
         return '<tr><td><b>' + esc(p.loja) + '</b><div class="mu">Pedido ' + esc(p.pedido) + (p.nome ? ' · ' + esc(p.nome) : '') + ' · ' + dt(p.criado_em) + '</div>'
-          + (p.parado ? '<span class="pill er">parado há ' + p.dias + ' dias</span> ' : '') + (p.sep ? '<span class="pill av">em separação</span> ' : '') + (p.nao_tenho ? '<span class="pill">' + p.nao_tenho + ' "não tenho"</span> ' : '') + (p.nao_entrega ? '<span class="pill er">' + p.nao_entrega + ' "não vou entregar"</span> ' : '') + (p.cancelado ? '<span class="pill">' + p.cancelado + ' cancelada(s)</span>' : '')
+          + (p.parado ? '<span class="pill er">parado há ' + p.dias + ' dias</span> ' : '') + (p.sep ? '<span class="pill av">' + (p.sep.fechado_em ? 'separado, esperando a nota' : 'em separação') + '</span> ' : '') + (p.nao_tenho ? '<span class="pill">' + p.nao_tenho + ' "não tenho"</span> ' : '') + (p.nao_entrega ? '<span class="pill er">' + p.nao_entrega + ' "não vou entregar"</span> ' : '') + (p.cancelado ? '<span class="pill">' + p.cancelado + ' cancelada(s)</span>' : '')
           + '</td><td>' + p.qtd + '</td><td>' + p.separado + '</td><td>' + p.pendente + '</td><td>' + p.pct + '%</td><td>' + (p.ultima_nf ? esc(p.ultima_nf) + '<div class="mu">' + dt(p.ultima_nf_em) + '</div>' : '—') + '</td><td><button class="btn sec pq" data-fpver="' + esc(F.id) + '|' + esc(p.pedido) + '">' + (FPDET && FPDET.forn == F.id && FPDET.pedido == p.pedido ? 'Fechar' : 'Ver') + '</button></td></tr>';
       }).join('');
     }).join('') + '</table></div>';
