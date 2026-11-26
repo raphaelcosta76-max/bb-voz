@@ -1165,7 +1165,8 @@ function hFSep(ped) {
   if (!L) { fApi('pedido', { pedido: ped }).then(function (o) { fpGuarda(ped, o.ped, M.id); render(); }).catch(function (e) { toast(e.message, 'er'); }); return '<div class="card">' + topo + '<div class="vazio">Carregando o pedido…</div></div>'; }
   if (M.fechado_em) { // v2.22: separado, esperando a nota fiscal
     if (!FNL[M.id]) { if (FNL[M.id] !== 0) { FNL[M.id] = 0; fApi('sepLista', { mov: M.id }).then(function (o) { FNL[M.id] = o.lista; render(); }).catch(function (e) { delete FNL[M.id]; toast(e.message, 'er'); }); } return '<div class="card">' + topo + '<div class="vazio">Carregando a separação…</div></div>'; }
-    return '<div class="card" id="sepfechada">' + topo + '<h2 style="margin-top:8px">Pedido ' + esc(ped) + ' para ' + esc(L.pedido.loja) + '</h2><div class="aviso ok" style="margin-top:8px"><b>Separado, esperando a nota fiscal.</b> Fechada por ' + esc(M.fechado_por) + ' em ' + dt(M.fechado_em) + '. O estoque só baixa quando a nota for informada.</div>' + hNotaBox(FNL[M.id], '') + '</div>';
+    return '<div class="card" id="sepfechada">' + topo + '<h2 style="margin-top:8px">Pedido ' + esc(ped) + ' para ' + esc(L.pedido.loja) + '</h2><div class="aviso ok" style="margin-top:8px"><b>Separado, esperando a nota fiscal.</b> Fechada por ' + esc(M.fechado_por) + ' em ' + dt(M.fechado_em) + '. O estoque só baixa quando a nota for informada. <b>Não precisa do número para continuar:</b> a nota pode ser informada depois, aqui ou pelo gestor.</div>' + hNotaBox(FNL[M.id], '')
+      + '<div class="lin"><button class="btn" data-fpvolta="loja" data-fpoutro="1">Separar outro pedido</button></div><div class="mu" style="margin-top:6px">Este pedido fica guardado como "separado, esperando a nota fiscal".</div></div>';
   }
   var x = fm(M.id), tot = 0, pend = 0, cab = L.pedido;
   L.linhas.forEach(function (l) { tot += Math.min(x.q[fNorm(l.sku)] || 0, l.pendente); pend += l.pendente; });
