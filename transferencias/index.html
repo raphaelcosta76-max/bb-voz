@@ -73,6 +73,11 @@ th{font-size:12px;color:var(--mu);text-transform:uppercase;letter-spacing:.03em;
 .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:700;background:var(--chip)}
 .pill.er{background:var(--erbg);color:var(--er)}.pill.ok{background:var(--okbg);color:var(--ok)}.pill.av{background:var(--avbg);color:var(--av)}
 details summary{cursor:pointer;font-weight:600;padding:6px 0}
+details.dob{border-top:1px solid var(--li)}
+details.dob>summary{font-weight:400;padding:10px 0}
+details.dob[open]>summary{font-weight:600}
+details.dob>:not(summary){margin-left:14px}
+.gtab td,.gtab th{text-align:center}.gtab td:first-child,.gtab th:first-child{text-align:left}
 .param{display:grid;grid-template-columns:1fr 110px 84px;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--li)}
 .param input{min-height:40px;padding:6px 8px}
 .prest{display:grid;grid-template-columns:1fr 1fr 84px;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--li)}
@@ -151,7 +156,7 @@ function abasLoja() {
   var e = EST;
   if (e.modo == 'contagem') return [['contar', 'Contar', e.contar.length]]; // loja da rede: só a contagem
   if (!e.lancar) { e.lancar = (e.enviar || []).filter(function (l) { return l.status == 'de_acordo'; }); e.sair = (e.enviar || []).filter(function (l) { return l.status == 'romaneio'; }); e.saidas = []; e.prestadores = []; }
-  return [['separar', 'Separar', e.separar.reduce(function (s, l) { return s + l.itens.length; }, 0)], ['lancar', 'Lançar no sistema', e.lancar.length], ['sair', 'Saída da loja', e.sair.length + (e.passagem || []).filter(function (l) { return l.viaEtapa != 'saiu'; }).length], ['receber', 'Receber', e.receber.length], ['contar', 'Contar', e.contar.length]];
+  return (e.tarefas ? [['hoje', 'Hoje', e.tarefas.length]] : []).concat([['separar', 'Separar', e.separar.reduce(function (s, l) { return s + l.itens.length; }, 0)], ['lancar', 'Lançar no sistema', e.lancar.length], ['sair', 'Saída da loja', e.sair.length + (e.passagem || []).filter(function (l) { return l.viaEtapa != 'saiu'; }).length], ['receber', 'Receber', e.receber.length], ['contar', 'Contar', e.contar.length]]);
 }
 function render() {
   if (FRANQ && (FRANQ_ADM || !PAINEL)) return renderFranq();
@@ -162,17 +167,35 @@ function render() {
   $('titulo').textContent = EST.nome + (LOJA_ADM ? ' (vista do painel)' : '');
   $('sub').textContent = 'Hoje, ' + dt(EST.hoje);
   var ab = abasLoja();
-  if (!ABA) { ABA = (ab.filter(function (a) { return a[2] > 0; })[0] || ab[0])[0]; }
+  if (!ABA) { ABA = EST.tarefas ? 'hoje' : (ab.filter(function (a) { return a[2] > 0; })[0] || ab[0])[0]; } // v2.19: a loja abre na tela Hoje
   $('abas').hidden = false;
   $('abas').innerHTML = (LOJA_ADM ? '<button data-ab="painel">← Painel</button>' : '') + ab.map(function (a) { return '<button data-ab="' + a[0] + '" class="' + (ABA == a[0] ? 'on' : '') + '">' + a[1] + (a[2] ? '<span class="n">' + a[2] + '</span>' : '') + '</button>'; }).join('');
-  var h = (EST.avisos || []).map(function (m) { return '<div class="aviso er">' + esc(m) + '</div>'; }).join('');
+  var h = EST.modo ? '' : hBusca(); // v2.19: a busca do que vai chegar é a primeira coisa da tela, em todas as abas
+  h += (EST.avisos || []).map(function (m) { return '<div class="aviso er">' + esc(m) + '</div>'; }).join('');
   h += (EST.acertos || []).map(function (a) { // v2.15: romaneio com peça que não foi bipada
     return '<div class="aviso er"><b>O romaneio ' + esc(a.romaneio) + ' para o ' + esc(a.paraNome) + ' está diferente do que foi bipado.</b><br>' + esc(a.detalhe) + '<div class="lin"><button class="btn pq" data-acerta="' + a.id + '">A peça foi no saco: acertar o lote</button></div><div class="mu" style="margin-top:6px">Aperte só se a peça foi mesmo no saco. Se não foi, não aperte e avise o Raphael: nesse caso o acerto é no moda UP.</div></div>';
   }).join('');
-  h += { separar: hSeparar, lancar: hLancar, sair: hSaida, receber: hReceber, contar: hContar }[ABA]();
+  h += { hoje: hHoje, separar: hSeparar, lancar: hLancar, sair: hSaida, receber: hReceber, contar: hContar }[ABA]();
   $('conteudo').innerHTML = h;
 }
 $('abas').onclick = function (e) { var b = e.target.closest('[data-ab]'); if (!b) return; if (b.dataset.ab == 'painel') { LOJA_ADM = null; FRANQ_ADM = null; FORN_ADM = null; FRANQ = null; EST = null; ABA = null; FABA = null; $('abas').hidden = true; return carrega(); } if (EST && EST.modo == 'fornecedor') FABA = b.dataset.ab; else ABA = b.dataset.ab; render(); };
+
+// ---------- Hoje (v2.19): o que a loja tem para fazer, por prioridade ----------
+// A ordem vem do servidor (tarefasLoja_): o tipo da tarefa primeiro, o atraso é só uma marca na linha.
+var NOME_ORD = { 1: 'Receber e dar a entrada', 2: 'Despachar', 3: 'Lançar no moda UP', 4: 'Separar', 5: 'Contar' };
+function hHoje() {
+  var t = EST.tarefas || [], fora = t.filter(function (x) { return x.fora; }).length;
+  var h = '<div class="card" id="hoje"><h2>O que fazer hoje' + (t.length ? ': ' + t.length : '') + '</h2>';
+  if (!t.length) return h + '<div class="vazio">Nada pendente agora.</div></div>';
+  h += '<div class="mu">De cima para baixo, na ordem de prioridade: primeiro o que libera mercadoria para vender.' + (fora ? ' <span class="pill er">' + fora + (fora == 1 ? ' item' : ' itens') + ' fora do prazo</span>' : '') + '</div>';
+  var ord = 0;
+  t.forEach(function (x) {
+    if (x.ordem != ord) { ord = x.ordem; h += '<h3>' + ord + '. ' + NOME_ORD[ord] + ' <span class="pill av">' + t.filter(function (y) { return y.ordem == ord; }).length + '</span></h3>'; }
+    h += '<div class="item"><div class="nm"><div class="ds">' + esc(x.tipo) + ' · ' + esc(x.titulo) + '</div><div class="mu">' + esc(x.sub) + (x.dias > 0 ? ' · ' + (x.fora ? '<span class="pill er">há ' + x.dias + (x.dias == 1 ? ' dia' : ' dias') + '</span>' : 'há ' + x.dias + (x.dias == 1 ? ' dia' : ' dias')) : '') + '</div></div><button class="btn sec pq" data-ir="' + x.aba + '">Abrir</button></div>';
+  });
+  return h + '</div>';
+}
+$('conteudo').addEventListener('click', function (e) { var b = e.target.closest('[data-ir]'); if (!b || !EST || EST.modo) return; ABA = b.dataset.ir; render(); window.scrollTo(0, 0); });
 
 // ---------- Separar ----------
 function prog(L) { var p = lsGet('lote_' + L.id) || { cont: {}, bip: [] }; L.itens.forEach(function (i) { if (p.cont[i.id] > i.qtd) p.cont[i.id] = i.qtd; }); return p; }
@@ -293,12 +316,12 @@ function hReceber() {
       + '<textarea data-obs="' + L.id + '" placeholder="O que veio diferente? (opcional)" hidden></textarea>'
       + '<div class="lin"><button class="btn ok" data-rec="' + L.id + '">Recebido</button></div><div class="mu" style="margin-top:6px">Dê a entrada no sistema normalmente. Aqui é só para registrar que chegou.</div></div>');
   }).join('') : '<div class="card"><div class="vazio">Nenhum lote a caminho para confirmar.</div></div>';
-  return h + hBusca() + hForaDoApp() + hSituacao(); // lotes a confirmar primeiro (é a ação do dia)
+  return h + hForaDoApp() + hSituacao(); // lotes a confirmar primeiro (é a ação do dia)
 }
 // Busca (v2.4): a gerente procura se uma peça está vindo para a loja (pelo app ou por transferência já feita no sistema).
 function hBusca() {
-  var h = '<div class="card"><h2>Essa peça está vindo?</h2><div class="mu">Digite a referência ou bipe a etiqueta.</div>'
-    + '<div class="lin"><input data-busca="1" inputmode="numeric" placeholder="referência ou código" value="' + esc(BUSCA ? BUSCA.texto : '') + '"><button class="btn" data-bus="1" style="flex:0 0 auto">Buscar</button><button class="btn sec" data-buscam="1" style="flex:0 0 auto">📷</button></div>';
+  var h = '<div class="card" style="padding-top:10px;padding-bottom:10px"><div class="mu"><b>Essa peça está vindo?</b> Digite a referência ou bipe a etiqueta.</div>'
+    + '<div class="lin" style="flex-wrap:nowrap;margin-top:6px"><input data-busca="1" inputmode="numeric" style="flex:1 1 0;min-width:0" placeholder="referência ou código" value="' + esc(BUSCA ? BUSCA.texto : '') + '"><button class="btn" data-bus="1" style="flex:0 0 auto">Buscar</button><button class="btn sec" data-buscam="1" style="flex:0 0 auto">📷</button></div>';
   if (BUSCA) {
     if (!BUSCA.achou) h += '<div class="aviso er" style="margin-top:8px">' + esc(BUSCA.msg || 'Não encontrado.') + '</div>';
     else {
@@ -508,7 +531,7 @@ function renderPainel() {
   var cob = p.divergencias.filter(function (d) { return d.tipo == 'sem_entrada' || d.tipo == 'entrada_diferente'; });
   h += '<div class="card"><h2>Divergências</h2>' + (cob.length ? '<div class="aviso av">' + cob.length + ' para cobrar da Alterdata (entrada não lançada ou diferente).</div>' : '')
     + (p.divergencias.length ? p.divergencias.map(function (d) { return '<div class="item"><div class="nm"><div><span class="pill ' + (d.status == 'cobrada' ? 'av' : 'er') + '">' + esc(TIPO_DIV[d.tipo] || d.tipo) + (d.status == 'cobrada' ? ' · cobrada' : '') + '</span> <span class="mu">' + esc(d.rota) + ' · ' + dt(d.quando) + '</span></div><div>' + esc(d.detalhe) + '</div><div class="lin" style="margin-top:6px">' + (d.acerta ? '<button class="btn pq" data-acerta="' + d.id + '">A peça foi no saco: acertar o lote</button>' : '') + (d.status != 'cobrada' ? '<button class="btn sec pq" data-div="' + d.id + '|cobrada">Cobrada</button>' : '') + '<button class="btn sec pq" data-div="' + d.id + '|resolvida">Resolvida</button></div></div></div>'; }).join('') : '<div class="mu">Nenhuma divergência aberta.</div>') + '</div>';
-  h += '<div class="card"><h2>Contagens</h2>' + (p.negativos ? '<div class="mu" style="margin-bottom:6px">Estoque negativo, contagens abertas: ' + p.negativos.map(function (x) { return esc(x.loja) + ' ' + x.abertas + (x.ajuste ? ' (+' + x.ajuste + ' com ajuste pendente)' : ''); }).join(' · ') + '. Limite por loja no parâmetro CONTA_NEG_DIA.</div>' : '') + (p.contagens.length ? (function (fc) { var pr = p.contagens.filter(function (c) { return c.propria !== false; }), fq = p.contagens.filter(function (c) { return c.propria === false; }); return (fq.length ? '<h3>Lojas próprias</h3>' : '') + (pr.map(fc).join('') || '<div class="mu">Nenhuma contagem.</div>') + (fq.length ? '<h3>Lojas de franqueados</h3>' + fq.map(fc).join('') : ''); })(function (c) {
+  h += '<div class="card"><h2>Contagens</h2>' + (p.negativos ? '<div class="mu" style="margin-bottom:6px">Estoque negativo, contagens abertas: ' + p.negativos.map(function (x) { return esc(x.loja) + ' ' + x.abertas + (x.ajuste ? ' (+' + x.ajuste + ' com ajuste pendente)' : ''); }).join(' · ') + '. Limite por loja no parâmetro CONTA_NEG_DIA.</div>' : '') + (p.contagens.length ? (function (fc) { var pr = p.contagens.filter(function (c) { return c.propria !== false; }), fq = p.contagens.filter(function (c) { return c.propria === false; }); return (fq.length ? '<h3>Lojas próprias</h3>' : '') + (porLoja('c-pr', pr, function (c) { return c.loja; }, fc, resCont) || '<div class="mu">Nenhuma contagem.</div>') + (fq.length ? '<h3>Lojas de franqueados</h3>' + porLoja('c-fq', fq, function (c) { return c.loja; }, fc, resCont) : ''); })(function (c) {
     var r = c.resultado, nomes = c.grade || {};
     var eti = r && r.etiquetas && r.etiquetas.troca ? '<div class="mu" style="margin-top:6px"><b>Físico × etiqueta</b> (etiqueta trocada: reetiquetar)</div><table><tr><th>Código</th><th>Produto</th><th>Físico</th><th>Etiqueta</th></tr>' + r.etiquetas.diferencas.map(function (x) { var g = nomes[x.sku] || {}; return '<tr><td>' + esc(x.sku) + '</td><td>' + esc([g.d, g.c, g.t].filter(Boolean).join(' ')) + '</td><td>' + x.fisico + '</td><td>' + x.etiqueta + '</td></tr>'; }).join('') + '</table>' : '';
     var dif = r && r.diferencas && r.diferencas.length ? '<table><tr><th>Código</th><th>Tamanho</th><th>Físico</th><th>' + (r.conta && Object.keys(r.conta).length ? 'Esperado' : 'Sistema') + '</th><th>Ajuste</th></tr>' + r.diferencas.map(function (x) { var g = nomes[x.sku] || {}; return '<tr><td>' + esc(x.sku) + '</td><td>' + esc((g.c || '') + ' ' + (g.t || '')) + '</td><td>' + x.fisico + '</td><td>' + x.sistema + '</td><td>' + (x.diferenca > 0 ? '+' : '') + x.diferenca + '</td></tr>'; }).join('') + '</table>' : '';
@@ -535,6 +558,19 @@ function renderPainel() {
   if ($('verfranq')) $('verfranq').onchange = function () { if (!this.value) return; FRANQ_ADM = Number(this.value); api('estado').then(function (o) { FRANQ = o.franq; render(); }).catch(function (e) { FRANQ_ADM = null; toast(e.message, 'er'); }); };
   $('vercomo').onchange = function () { if (!this.value) return; LOJA_ADM = Number(this.value); ABA = null; api('estado').then(function (o) { EST = o.estado; render(); }).catch(function (e) { toast(e.message, 'er'); }); };
 }
+function resCont(l) { var k = {}; l.forEach(function (c) { var e = c.status.replace(/_/g, ' '); k[e] = (k[e] || 0) + 1; }); return l.length + (l.length == 1 ? ' contagem' : ' contagens') + ' · ' + Object.keys(k).map(function (e) { return k[e] + ' ' + e; }).join(', '); }
+// v2.19 — Painel recolhível por loja: cada grupo abre numa linha por loja com os totais; tocar na linha abre os itens.
+// O que foi aberto continua aberto enquanto a página está em uso (DOB), inclusive depois de apertar um botão.
+var DOB = {};
+document.addEventListener('toggle', function (e) { var d = e.target; if (d && d.dataset && d.dataset.dob) DOB[d.dataset.dob] = d.open; }, true);
+function dobra(chave, resumo, corpo) { return '<details class="dob" data-dob="' + esc(chave) + '"' + (DOB[chave] ? ' open' : '') + '><summary>' + resumo + '</summary>' + corpo + '</details>'; }
+function porLoja(prefixo, lista, lojaDe, fLinha, fResumo) {
+  var nomes = [], g = {};
+  lista.forEach(function (x) { var n = lojaDe(x) || '(sem loja)'; if (!g[n]) { g[n] = []; nomes.push(n); } g[n].push(x); });
+  return nomes.map(function (n) { return dobra(prefixo + '|' + n, '<b>' + esc(n) + '</b> · ' + (fResumo || resItens)(g[n]), g[n].map(fLinha).join('')); }).join('');
+}
+function resItens(l) { return l.length + (l.length == 1 ? ' item' : ' itens'); }
+function resSacos(campoDias) { return function (l) { var pc = 0, mx = 0; l.forEach(function (x) { pc += Number(x.pecas) || 0; var d = Number(x[campoDias || 'dias']) || 0; if (d > mx) mx = d; }); return l.length + (l.length == 1 ? ' saco' : ' sacos') + ' · ' + pc + ' peças' + (mx > 0 ? ' · o mais antigo há ' + mx + (mx == 1 ? ' dia' : ' dias') : ''); }; }
 // v2.17 — "O que eu tenho que fazer": no alto do painel, tudo que depende do Raphael, com o botão na própria linha.
 // Bloco sem pendência não aparece. Os cartões de consulta continuam abaixo.
 function dias(n) { return n > 0 ? ' · há ' + n + (n == 1 ? ' dia' : ' dias') : ''; }
@@ -543,51 +579,54 @@ function podeDeixar(x) { return !x.deixado_em && (!x.via || x.viaEtapa == 'saiu'
 function hDeixei(x, rot) { return '<div class="lin" style="margin-top:6px"><input data-deixcom="' + x.id + '" placeholder="com quem ficou (opcional)" maxlength="60" style="flex:1 1 140px;min-width:0"><button class="btn ok pq" data-deixei="' + x.id + '">' + rot + ' ' + esc(x.paraNome) + '</button></div>'; }
 function hTarefas(p) {
   var r = p.retirada || [], ac = p.aCaminho || [], n = 0, h = '';
-  var bloco = function (tit, linhas, nota) { if (!linhas.length) return; n += linhas.length; h += '<h3>' + tit + ' <span class="pill av">' + linhas.length + '</span></h3>' + (nota ? '<div class="mu">' + nota + '</div>' : '') + linhas.join(''); };
+  // cada bloco é um tipo de tarefa; dentro dele, uma linha por loja (v2.19)
+  var bloco = function (chave, tit, lista, lojaDe, fLinha, nota, fResumo) { if (!lista.length) return; n += lista.length; h += '<h3>' + tit + ' <span class="pill av">' + lista.length + '</span></h3>' + (nota ? '<div class="mu">' + nota + '</div>' : '') + porLoja('t-' + chave, lista, lojaDe, fLinha, fResumo); };
   var item = function (tit, sub, bot) { return '<div class="item"><div class="nm"><div class="ds">' + tit + '</div>' + (sub ? '<div class="mu">' + sub + '</div>' : '') + (bot || '') + '</div></div>'; };
-  bloco('Buscar', r.filter(function (x) { return x.busca; }).map(function (x) {
-    return item('No ' + esc(x.deNome) + ' → para ' + esc(x.paraNome) + ' · ' + x.pecas + ' peças', x.pronto ? 'Romaneio ' + esc(x.romaneio) + ' · pronto desde ' + dt(x.desde) + dias(x.dias) : 'Conferido em ' + dt(x.desde) + ' · <b>a loja ainda não lançou no sistema: não dá para levar</b>',
+  var origem = function (rota) { return String(rota || '').split(' → ')[0]; };
+  bloco('buscar', 'Buscar', r.filter(function (x) { return x.busca; }), function (x) { return 'No ' + x.deNome; }, function (x) {
+    return item('Para ' + esc(x.paraNome) + ' · ' + x.pecas + ' peças', x.pronto ? 'Romaneio ' + esc(x.romaneio) + ' · pronto desde ' + dt(x.desde) + dias(x.dias) : 'Conferido em ' + dt(x.desde) + ' · <b>a loja ainda não lançou no sistema: não dá para levar</b>',
       x.pronto ? '<div class="lin" style="margin-top:6px"><button class="btn ok pq" data-peguei="' + x.id + '">Peguei' + (x.via ? ', levo direto' : '') + '</button>' + (x.via ? '<button class="btn ok pq" data-peguei="' + x.id + '|via">Peguei, deixo no ' + esc(x.viaNome) + '</button>' : '') + '</div>' : '');
-  }));
-  bloco('Está comigo', ac.filter(comigo).map(function (x) {
+  }, '', resSacos());
+  bloco('comigo', 'Está comigo', ac.filter(comigo), function (x) { return 'Para o ' + (x.via && x.viaEtapa == 'indo' ? x.viaNome + ' (de passagem)' : x.paraNome); }, function (x) {
     var passo = x.via && x.viaEtapa == 'indo';
     return item(esc(x.deNome) + ' → ' + esc(x.paraNome) + ' · ' + x.pecas + ' peças', 'Romaneio ' + esc(x.romaneio) + ' · você pegou em ' + dt(x.viaEtapa == 'saiu' ? x.via_saiu_em : x.enviado_em) + (passo ? ' · deixa no ' + esc(x.viaNome) + ', de passagem' : ''),
       passo ? '<div class="lin" style="margin-top:6px"><button class="btn ok pq" data-avia="' + x.id + '|chegou">Deixei no ' + esc(x.viaNome) + '</button></div>' : hDeixei(x, 'Deixei no'));
-  }));
-  bloco('Ajustes de estoque a lançar', (p.contagens || []).filter(function (c) { return c.propria !== false && c.status == 'ajuste_pendente'; }).map(function (c) {
+  }, '', resSacos());
+  bloco('ajustes', 'Ajustes de estoque a lançar', (p.contagens || []).filter(function (c) { return c.propria !== false && c.status == 'ajuste_pendente'; }), function (c) { return c.loja; }, function (c) {
     var g = c.grade || {}, df = (c.resultado && c.resultado.diferencas) || [];
-    return item(esc(c.loja) + ' · ref ' + esc(c.ref) + ' ' + esc(c.cor || '(referência inteira)'), 'Contada em ' + dt(c.contada_em) + (c.aviso ? ' · ' + esc(c.aviso) : ''),
+    return item('Ref ' + esc(c.ref) + ' ' + esc(c.cor || '(referência inteira)'), 'Contada em ' + dt(c.contada_em) + (c.aviso ? ' · ' + esc(c.aviso) : ''),
       df.map(function (x) { var i = g[x.sku] || {}; return '<div><b>' + (x.diferenca > 0 ? 'Entrada de ' + x.diferenca : 'Saída de ' + (-x.diferenca)) + '</b> · ' + esc([i.c, i.t].filter(Boolean).join(' ')) + ' <span class="mu">' + esc(x.sku) + ' · físico ' + x.fisico + ' × sistema ' + x.sistema + '</span></div>'; }).join('')
       + '<div class="lin" style="margin-top:6px"><button class="btn ok pq" data-ajust="' + c.id + '">Ajuste lançado</button></div>');
-  }), 'Lance no moda UP e dê a baixa aqui. A rotina confere no sistema depois.');
-  bloco('Divergências a decidir', (p.divergencias || []).filter(function (d) { return d.status == 'aberta'; }).map(function (d) {
+  }, 'Lance no moda UP e dê a baixa aqui. A rotina confere no sistema depois.', function (l) { return l.length + (l.length == 1 ? ' referência' : ' referências'); });
+  bloco('div', 'Divergências a decidir', (p.divergencias || []).filter(function (d) { return d.status == 'aberta'; }), function (d) { return origem(d.rota); }, function (d) {
     return item('<span class="pill er">' + esc(TIPO_DIV[d.tipo] || d.tipo) + '</span> ' + esc(d.rota) + ' · ' + dt(d.quando), esc(d.detalhe),
       '<div class="lin" style="margin-top:6px">' + (d.acerta ? '<button class="btn pq" data-acerta="' + d.id + '">A peça foi no saco: acertar o lote</button>' : '') + '<button class="btn sec pq" data-div="' + d.id + '|cobrada">Cobrada</button><button class="btn sec pq" data-div="' + d.id + '|resolvida">Resolvida</button></div>');
-  }));
-  bloco('Fretes a pagar', (p.fretes || []).filter(function (x) { return !x.pago_em; }).map(function (x) {
-    return item(brl(x.valor) + ' · ' + esc(x.prestador), esc(x.rota) + ' · romaneio ' + esc(x.romaneio) + ' · saiu em ' + dt(x.saiu) + ' · ' + (x.pix ? 'Pix: ' + esc(x.pix) : '<span class="pill av">sem Pix cadastrado</span>'),
+  });
+  bloco('fretes', 'Fretes a pagar', (p.fretes || []).filter(function (x) { return !x.pago_em; }), function (x) { return x.prestador; }, function (x) {
+    return item(brl(x.valor) + ' · ' + esc(x.rota), 'Romaneio ' + esc(x.romaneio) + ' · saiu em ' + dt(x.saiu) + ' · ' + (x.pix ? 'Pix: ' + esc(x.pix) : '<span class="pill av">sem Pix cadastrado</span>'),
       '<div class="lin" style="margin-top:6px"><button class="btn ok pq" data-fpago="' + x.lote + '||' + (x.trecho || 1) + '">Pago</button></div>');
-  }), 'Total em aberto: ' + brl(p.fretesAberto) + '.');
-  bloco('Parado esperando outra pessoa', (p.atrasos || []).map(function (a) { return item('<span class="pill er">' + esc(a.tipo) + '</span> ' + esc(a.rota) + ' · ' + a.dias + (a.dias == 1 ? ' dia' : ' dias'), esc(a.detalhe)); }), 'Aqui a ação é cobrar a loja.');
+  }, 'Total em aberto: ' + brl(p.fretesAberto) + '.', function (l) { var v = 0; l.forEach(function (x) { v += Number(x.valor) || 0; }); return l.length + (l.length == 1 ? ' frete' : ' fretes') + ' · ' + brl(v); });
+  bloco('parado', 'Parado esperando outra pessoa', p.atrasos || [], function (a) { return a.loja || origem(a.rota); }, function (a) { return item('<span class="pill er">' + esc(a.tipo) + '</span> ' + esc(a.rota) + ' · ' + a.dias + (a.dias == 1 ? ' dia' : ' dias'), esc(a.detalhe)); },
+    'Aqui a ação é cobrar a loja. Na mesma ordem da tela Hoje da loja: primeiro o que libera mercadoria para vender.', function (l) { var mx = 0, tp = {}; l.forEach(function (a) { if (a.dias > mx) mx = a.dias; tp[a.tipo] = (tp[a.tipo] || 0) + 1; }); return l.length + (l.length == 1 ? ' item' : ' itens') + ' · ' + Object.keys(tp).map(function (k) { return tp[k] + ' ' + k.toLowerCase(); }).join(', ') + ' · o mais antigo há ' + mx + (mx == 1 ? ' dia' : ' dias'); });
   var semDono = r.filter(function (x) { return x.pronto && !x.busca; }).length;
-  return '<div class="card" id="tarefas"><h2>O que eu tenho que fazer' + (n ? ': ' + n : '') + '</h2>' + (n ? h : '<div class="mu">Nada para fazer agora.</div>')
+  return '<div class="card" id="tarefas"><h2>O que eu tenho que fazer' + (n ? ': ' + n : '') + '</h2>' + (n ? '<div class="mu">Toque na loja para abrir.</div>' + h : '<div class="mu">Nada para fazer agora.</div>')
     + (semDono ? '<div class="mu" style="margin-top:8px">' + semDono + (semDono == 1 ? ' lote pronto' : ' lotes prontos') + ' nas lojas sem "eu busco" marcado: veja em Retirada e saída.</div>' : '') + '</div>';
 }
 // v2.17 — Onde está cada saco: da loja de origem até a entrada no sistema da loja de destino.
 function hOnde(p) {
   var r = p.retirada || [], ac = p.aCaminho || [], nd = p.noDestino || [], h = '';
-  var grupo = function (tit, linhas) { if (linhas.length) h += '<h3>' + tit + ' <span class="pill">' + linhas.length + '</span></h3>' + linhas.join(''); };
+  var grupo = function (chave, tit, lista, lojaDe, fLinha, campoDias) { if (lista.length) h += '<h3>' + tit + ' <span class="pill">' + lista.length + '</span></h3>' + porLoja('o-' + chave, lista, lojaDe, fLinha, resSacos(campoDias)); };
   var lin = function (x, sub, bot) { return '<div class="item"><div class="nm"><div class="ds">' + esc(x.deNome) + ' → ' + esc(x.paraNome) + ' · ' + x.pecas + ' peças</div><div class="mu">' + sub + '</div>' + (bot || '') + '</div></div>'; };
-  grupo('Na loja de origem', r.map(function (x) { return lin(x, (x.pronto ? 'Romaneio ' + esc(x.romaneio) + ' · lançado em ' + dt(x.desde) : 'Conferido em ' + dt(x.desde) + ' · sem romaneio') + dias(x.dias) + (x.busca ? ' · você busca' : '')); }));
-  grupo('A caminho', ac.filter(function (x) { return !x.deixado_em && x.viaEtapa != 'na_loja'; }).map(function (x) {
+  grupo('origem', 'Na loja de origem', r, function (x) { return x.deNome; }, function (x) { return lin(x, (x.pronto ? 'Romaneio ' + esc(x.romaneio) + ' · lançado em ' + dt(x.desde) : 'Conferido em ' + dt(x.desde) + ' · sem romaneio') + dias(x.dias) + (x.busca ? ' · você busca' : '')); });
+  grupo('caminho', 'A caminho', ac.filter(function (x) { return !x.deixado_em && x.viaEtapa != 'na_loja'; }), function (x) { return 'Para o ' + x.paraNome; }, function (x) {
     return lin(x, 'Romaneio ' + esc(x.romaneio) + ' · saiu em ' + dt(x.enviado_em) + (x.levou ? ' com ' + esc(x.levou) : ' · <b>sem quem levou</b>') + (x.viaTexto ? ' · ' + esc(x.viaTexto) : '') + dias(x.dias), podeDeixar(x) ? hDeixei(x, comigo(x) ? 'Deixei no' : 'Chegou ao') : '');
-  }));
-  grupo('De passagem', ac.filter(function (x) { return x.viaEtapa == 'na_loja'; }).map(function (x) { return lin(x, 'Romaneio ' + esc(x.romaneio) + ' · parado no ' + esc(x.viaNome) + ' desde ' + dt(x.via_chegou_em)); }));
-  grupo('Na loja de destino, a loja ainda não confirmou', ac.filter(function (x) { return x.deixado_em; }).map(function (x) {
+  });
+  grupo('passagem', 'De passagem', ac.filter(function (x) { return x.viaEtapa == 'na_loja'; }), function (x) { return 'No ' + x.viaNome; }, function (x) { return lin(x, 'Romaneio ' + esc(x.romaneio) + ' · parado no ' + esc(x.viaNome) + ' desde ' + dt(x.via_chegou_em)); });
+  grupo('deixado', 'Na loja de destino, a loja ainda não confirmou', ac.filter(function (x) { return x.deixado_em; }), function (x) { return x.paraNome; }, function (x) {
     return lin(x, 'Romaneio ' + esc(x.romaneio) + ' · deixado em ' + dt(x.deixado_em) + (x.deixado_com ? ' com ' + esc(x.deixado_com) : '') + dias(x.deixado_dias), '<div class="lin" style="margin-top:6px"><button class="btn sec pq" data-deixei="' + x.id + '|desfaz">Desfazer</button></div>');
-  }));
-  grupo('Na loja de destino, recebido e sem entrada no sistema', nd.map(function (x) { return lin(x, 'Romaneio ' + esc(x.romaneio) + ' · a loja confirmou em ' + dt(x.recebido_em) + dias(x.dias), x.desfaz ? '<div class="lin" style="margin-top:6px"><button class="btn sec pq" data-naorec="' + x.id + '">A loja não recebeu: desfazer</button></div>' : ''); }));
-  return '<div class="card" id="onde"><h2>Onde está cada saco</h2>' + (h || '<div class="mu">Nenhum saco em andamento.</div>') + '</div>';
+  }, 'deixado_dias');
+  grupo('destino', 'Na loja de destino, recebido e sem entrada no sistema', nd, function (x) { return x.paraNome; }, function (x) { return lin(x, 'Romaneio ' + esc(x.romaneio) + ' · a loja confirmou em ' + dt(x.recebido_em) + dias(x.dias), x.desfaz ? '<div class="lin" style="margin-top:6px"><button class="btn sec pq" data-naorec="' + x.id + '">A loja não recebeu: desfazer</button></div>' : ''); });
+  return '<div class="card" id="onde"><h2>Onde está cada saco</h2>' + (h ? '<div class="mu">Toque na loja para abrir.</div>' + h : '<div class="mu">Nenhum saco em andamento.</div>') + '</div>';
 }
 // v2.5 — Retirada: o que buscar e levar. Baixa lote a lote ("Peguei" = saiu com o Raphael); "Eu busco" avisa a loja.
 function brl(v) { return 'R$ ' + Number(v || 0).toFixed(2).replace('.', ','); }
@@ -612,7 +651,7 @@ function hRetirada(p) {
   var r = p.retirada || [], lojas = [], ac = p.aCaminho || [];
   r.forEach(function (x) { if (lojas.indexOf(x.deNome) < 0) lojas.push(x.deNome); });
   var h = '<div class="card"><h2>Retirada e saída: o que está na loja e o que já saiu</h2><div class="mu">Aqui você muda direto o que a loja marcou. "Peguei" dá a baixa como levado por você hoje. "Saiu com outra pessoa" marca a saída com motoboy ou outra pessoa. Em "Já saíram", "Não saiu" volta o lote para a loja e "Corrigir" troca quem levou, o dia ou o frete. Entre Terraço e Goiânia Shopping o lote pode passar pelo Flamboyant: marque o caminho na saída e dê aqui as baixas de chegada e de saída do Flamboyant.</div>';
-  var hAc = ac.length ? '<h3>Já saíram, esperando o destino confirmar</h3>' + ac.map(function (x) {
+  var hAc = ac.length ? '<h3>Já saíram, esperando o destino confirmar</h3>' + porLoja('r-saiu', ac, function (x) { return 'Para o ' + x.paraNome; }, function (x) {
     return '<div class="item"><div class="nm"><div class="ds">' + esc(x.deNome) + ' → ' + esc(x.paraNome) + ' · ' + x.pecas + ' peças</div><div class="mu">Romaneio ' + esc(x.romaneio) + ' · saiu em ' + dt(x.enviado_em) + (x.levou ? ' com ' + esc(x.levou) : ' · <b>sem quem levou</b>') + (x.frete ? ' · frete R$ ' + x.frete.toFixed(2).replace('.', ',') + (x.pago ? ' (pago)' : '') : '') + (x.dias > 0 ? ' · há ' + x.dias + (x.dias == 1 ? ' dia' : ' dias') : '') + ' · baixa dada ' + (x.reg == 'painel' ? 'por você' : 'pela loja') + (x.deixado_em ? ' · <b>deixado no destino em ' + dt(x.deixado_em) + '</b>' : '') + '</div>'
       + (x.via ? '<div class="mu"><span class="pill ' + (x.viaEtapa == 'na_loja' ? 'av' : '') + '">' + (x.viaEtapa == 'na_loja' ? 'parado no ' + esc(x.viaNome) : 'passa pelo ' + esc(x.viaNome)) + '</span> ' + esc(x.viaTexto) + (x.frete2 ? ' · frete do 2º trecho R$ ' + x.frete2.toFixed(2).replace('.', ',') + (x.pago2 ? ' (pago)' : '') : '') + '</div>' : '')
       + (AFORM == x.id ? hFormSaidaAdm(p, x.id, x) : (AFORM == 'v:' + x.id ? hFormSaidaAdm(p, x.id, {}, x) : '<div class="lin" style="margin-top:6px">'
@@ -620,14 +659,15 @@ function hRetirada(p) {
         + (x.viaEtapa == 'indo' ? '<button class="btn ok pq" data-avia="' + x.id + '|chegou">Chegou ao ' + esc(x.viaNome) + '</button>' : '')
         + (x.viaEtapa == 'na_loja' ? '<button class="btn ok pq" data-avia="' + x.id + '|peguei">Peguei no ' + esc(x.viaNome) + '</button><button class="btn sec pq" data-aform="v:' + x.id + '">Saiu do ' + esc(x.viaNome) + ' com outra pessoa</button>' : '')
         + (x.viaEtapa == 'na_loja' || x.viaEtapa == 'saiu' ? '<button class="btn sec pq" data-avia="' + x.id + '|desfaz">Desfazer a última baixa</button>' : '') + '</div>')) + '</div></div>';
-  }).join('') : '';
+  }, resSacos()) : '';
   if (!r.length) return h + '<div class="mu" style="margin-top:8px">Nada esperando para sair.</div>' + hAc + '</div>';
   lojas.forEach(function (n) {
-    h += '<h3>No ' + esc(n) + '</h3>' + r.filter(function (x) { return x.deNome == n; }).map(function (x) {
+    var daLoja = r.filter(function (x) { return x.deNome == n; });
+    h += dobra('r-na|' + n, '<b>No ' + esc(n) + '</b> · ' + resSacos()(daLoja), daLoja.map(function (x) {
       return '<div class="item"><div class="nm"><div class="ds">Para ' + esc(x.paraNome) + ' · ' + x.pecas + ' peças' + (x.busca ? ' <span class="pill ok">eu busco</span>' : '') + '</div><div class="mu">'
         + (x.pronto ? 'Romaneio ' + esc(x.romaneio) + ' · lançado em ' + dt(x.desde) + (x.dias > 0 ? ' · há ' + x.dias + (x.dias == 1 ? ' dia' : ' dias') : '') : 'Conferido em ' + dt(x.desde) + ' · <b>ainda não lançado no sistema</b>') + '</div>'
         + '<div class="lin" style="margin-top:6px"><button class="btn sec pq" data-busco="' + x.id + '|' + (x.busca ? '' : '1') + '">' + (x.busca ? 'Não vou buscar' : 'Eu busco') + '</button>' + (x.pronto ? '<button class="btn ok pq" data-peguei="' + x.id + '">Peguei' + (x.via ? ', levo direto' : '') + '</button>' + (x.via ? '<button class="btn ok pq" data-peguei="' + x.id + '|via">Peguei, deixo no ' + esc(x.viaNome) + '</button>' : '') + '<button class="btn sec pq" data-aform="' + x.id + '">Saiu com outra pessoa</button>' : '') + '</div>' + (AFORM == x.id ? hFormSaidaAdm(p, x.id, { viaOk: x.via, viaOkNome: x.viaNome, paraNome: x.paraNome }) : '') + '</div></div>';
-    }).join('');
+    }).join(''));
   });
   return h + hAc + '</div>';
 }
@@ -1293,6 +1333,47 @@ $('conteudo').addEventListener('keydown', function (e) {
 
 // ----- Quadro "Estoque do fornecedor" no painel do Raphael -----
 function pl(n, s, p) { return n + ' ' + (n == 1 ? s : p); }
+// v2.19 — Ficha do produto da MX no painel: toque na foto ou digite a referência (pedido do Raphael, 26/11).
+// Mostra quando e por quem foi contada, a grade aberta (cor × tamanho), os totais e o que entrou e saiu desde a contagem.
+var FICHA = null;
+function fichaForn(forn, txt) {
+  txt = String(txt || '').trim(); if (!txt) return;
+  var dig = txt.replace(/\D/g, ''), d = dig.length >= 8 ? { codigo: txt } : { ref: txt }; d.forn = forn;
+  FICHA = { forn: forn, txt: txt, d: null }; render();
+  return api('estoque', d).then(function (o) { FICHA = { forn: forn, txt: txt, d: o.estoque }; render(); var el = document.querySelector('#ficha'); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' }); })
+    .catch(function (e) { FICHA = null; render(); toast(e.message, 'er'); });
+}
+function hFichaForn(F) {
+  if (!FICHA || FICHA.forn != F.id) return '';
+  var S = FICHA.d, fecha = '<button class="btn sec pq" data-fichax="1">Fechar</button>';
+  if (!S) return '<div id="ficha" class="mu" style="margin-top:8px">Consultando…</div>';
+  if (!S.achou) return '<div id="ficha" class="aviso er" style="margin-top:8px">Referência ' + esc(S.ref) + ' não encontrada no cadastro nem no estoque da ' + esc(F.nome) + '.<div class="lin">' + fecha + '</div></div>';
+  var cores = [], tams = [], cel = {}, tc = {}, tt = {}, en = 0, sa = 0, dv = 0;
+  S.linhas.forEach(function (l) { if (cores.indexOf(l.cor) < 0) cores.push(l.cor); if (tams.indexOf(l.tamanho) < 0) tams.push(l.tamanho); cel[l.cor + '|' + l.tamanho] = l; if (l.saldo != null) { tc[l.cor] = (tc[l.cor] || 0) + l.saldo; tt[l.tamanho] = (tt[l.tamanho] || 0) + l.saldo; } en += l.entradas || 0; sa += l.saidas || 0; dv += l.devolucoes || 0; });
+  tams.sort(function (a, b) { return ordTamF(a) < ordTamF(b) ? -1 : 1; });
+  var num = function (v) { return v == null ? '—' : (v < 0 ? '<span class="pill er">' + v + '</span>' : (v ? '<b>' + v + '</b>' : '0')); };
+  var hh = String(S.contada_quando || '').slice(11, 16), fotos = (F.fotos || []).filter(function (x) { return String(x.ref) == String(S.ref); });
+  return '<div id="ficha" style="margin-top:10px;padding:10px;border:1px solid var(--li);border-radius:10px"><h3 style="margin-top:0">Ref ' + esc(S.ref) + ' · ' + esc(S.descricao) + '</h3>'
+    + '<div class="mu">' + (S.contada_em ? '<b>Última contagem:</b> ' + dt(S.contada_quando || S.contada_em) + (hh ? ' às ' + hh : '') + (S.contada_por ? ', por ' + esc(S.contada_por) : '') : '<b>Nunca contada.</b>') + '</div>'
+    + (S.em_contagem ? '<div class="aviso av">Em contagem agora: o saldo pode mudar.</div>' : '')
+    + (S.sem_saldo_inicial ? '<div class="aviso er">Parte da grade nunca foi contada: os "—" não têm saldo e ficam fora dos totais.</div>' : '')
+    + '<div class="tabw"><table class="gtab"><tr><th>Cor</th>' + tams.map(function (t) { return '<th>' + esc(t) + '</th>'; }).join('') + '<th>Total</th></tr>'
+    + cores.map(function (c) { return '<tr><td>' + esc(c) + '</td>' + tams.map(function (t) { var l = cel[c + '|' + t]; return '<td>' + (l ? num(l.saldo) : '') + '</td>'; }).join('') + '<td>' + num(tc[c] === undefined ? null : tc[c]) + '</td></tr>'; }).join('')
+    + (cores.length > 1 ? '<tr><th>Total</th>' + tams.map(function (t) { return '<th>' + (tt[t] === undefined ? '—' : tt[t]) + '</th>'; }).join('') + '<th>' + S.total + '</th></tr>' : '') + '</table></div>'
+    + '<div class="mu" style="margin-top:6px"><b>Total da referência: ' + S.total + (S.total == 1 ? ' peça' : ' peças') + '.</b> Desde a contagem: entradas ' + en + ' · saídas ' + sa + ' · devoluções ' + dv + '. Saldo do estoque da ' + esc(F.nome) + ', não das lojas.</div>'
+    + (fotos.length ? '<div class="mu">' + fotos.map(function (x) { return '<a href="' + esc(x.url) + '" target="_blank">ver a foto' + (x.cor ? ' (' + esc(x.cor) + ')' : '') + '</a>'; }).join(' · ') + '</div>' : '')
+    + (S.historico.length ? '<details><summary>Movimentos dos últimos 30 dias (' + S.historico.length + ')</summary><div class="tabw"><table><tr><th>Data</th><th>Movimento</th><th>Cor · tam.</th><th>Qtd</th></tr>' + S.historico.map(function (m) {
+      return '<tr><td>' + dt(m.quando) + '</td><td>' + esc(m.rotulo) + (m.nf ? ' · NF ' + esc(m.nf) : '') + (m.destino ? ' · ' + esc(m.destino) : '') + (m.estornado ? ' <span class="pill av">estornado</span>' : '') + '</td><td>' + esc(m.cor + ' ' + m.tamanho) + '</td><td>' + (m.tipo == 'contagem' ? '= ' : (m.qtd > 0 ? '+' : '')) + m.qtd + '</td></tr>'; }).join('') + '</table></div></details>' : '')
+    + '<div class="lin">' + fecha + '</div></div>';
+}
+$('conteudo').addEventListener('click', function (e) {
+  if (!PAINEL || LOJA_ADM || FORN_ADM) return;
+  var a = e.target.closest('[data-fficha]'); if (a) { e.preventDefault(); var k = a.dataset.fficha.split('|'); return fichaForn(k[0], k[1]); }
+  var b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.fconsb) { var i = document.querySelector('[data-fcons="' + b.dataset.fconsb + '"]'); return fichaForn(b.dataset.fconsb, i ? i.value : ''); }
+  if (b.dataset.fichax) { FICHA = null; render(); }
+});
+$('conteudo').addEventListener('keydown', function (e) { if (e.key != 'Enter' || !PAINEL || LOJA_ADM || FORN_ADM) return; var i = e.target.closest('[data-fcons]'); if (i) { e.preventDefault(); fichaForn(i.dataset.fcons, i.value); } });
 function hFornPainel(p) {
   return (p.fornecedores || []).map(function (F) {
     var r = F.resumo || {}, fx = F.fluxo || {};
@@ -1301,7 +1382,8 @@ function hFornPainel(p) {
       + '<div class="mu">' + pl(r.pecas, 'peça', 'peças') + ' em ' + pl(r.skus, 'código', 'códigos') + ' · ' + pl(r.refs, 'referência contada', 'referências contadas') + ' · ' + pl(r.refsSem, 'com movimento e ainda sem contagem', 'com movimento e ainda sem contagem') + (F.ultimo ? ' · último movimento ' + dt(F.ultimo) : '') + '.' + (r.pecas ? ' Das ' + pl(r.pecas, 'peça', 'peças') + ', ' + (r.pecasDupla || 0) + ' vêm de contagem dupla (conferida pela bipagem).' : '') + '</div>'
       + '<div class="mu">Entradas: ' + fx.entradas7 + ' peças em 7 dias, ' + fx.entradas30 + ' em 30 · Saídas: ' + fx.saidas7 + ' em 7 dias, ' + fx.saidas30 + ' em 30 · Devoluções 30 dias: ' + fx.devolucoes30 + '.</div>'
       + '<div class="lin"><button class="btn sec" data-fver="' + esc(F.id) + '">Ver como a ' + esc(F.nome) + '</button><a class="btn sec" href="' + esc(F.planilha) + '" target="_blank">Planilha</a></div>';
-    if ((F.fotos || []).length) h += '<details><summary>Fotos tiradas na contagem (30 dias): ' + F.fotos.length + '</summary><div class="fgrid">' + F.fotos.map(function (x) { return '<a href="' + esc(x.url) + '" target="_blank">' + (x.mini ? '<img alt="" src="data:image/jpeg;base64,' + x.mini + '">' : '') + '<b>' + esc(x.ref) + '</b> ' + esc(x.cor) + '<br><span class="mu">' + esc(x.quem) + ' · ' + dt(x.quando) + '</span></a>'; }).join('') + '</div></details>'; // v2.14
+    h += '<label>Consultar referência</label><div class="lin" style="margin-top:0"><input data-fcons="' + esc(F.id) + '" inputmode="numeric" placeholder="referência ou código" value="' + esc(FICHA && FICHA.forn == F.id ? FICHA.txt : '') + '"><button class="btn" data-fconsb="' + esc(F.id) + '" style="flex:0 0 auto">Ver saldo</button></div>' + hFichaForn(F); // v2.19
+    if ((F.fotos || []).length) h += '<details' + (DOB['fotos|' + F.id] ? ' open' : '') + ' data-dob="fotos|' + esc(F.id) + '"><summary>Fotos tiradas na contagem (30 dias): ' + F.fotos.length + '</summary><div class="mu">Toque na foto para ver o saldo da referência.</div><div class="fgrid">' + F.fotos.map(function (x) { return '<a href="' + esc(x.url) + '" target="_blank" data-fficha="' + esc(F.id) + '|' + esc(x.ref) + '">' + (x.mini ? '<img alt="" src="data:image/jpeg;base64,' + x.mini + '">' : '') + '<b>' + esc(x.ref) + '</b> ' + esc(x.cor) + '<br><span class="mu">' + esc(x.quem) + ' · ' + dt(x.quando) + '</span></a>'; }).join('') + '</div></details>'; // v2.14
     if (F.abertos.length) h += '<h3>Abertos agora</h3>' + F.abertos.map(function (m) { return '<div class="mu" style="padding:3px 0">' + esc(m.rotulo) + (m.ref ? ' ref ' + esc(m.ref) : '') + (m.destino_nome ? ' · ' + esc(m.destino_nome) : '') + ' · ' + esc(m.aberto_por) + ' · desde ' + dt(m.aberto_em) + (m.parado ? ' <span class="pill er">parado há ' + m.dias + ' dias</span>' : '') + '</div>'; }).join('');
     var al = '';
     if (F.negativos.length) al += '<details open><summary><span class="pill er">' + F.negativos.length + '</span> código(s) com saldo negativo</summary><div class="mu">Saiu mais do que foi contado: conte a referência de novo.</div>' + F.negativos.map(function (x) { return '<div class="mu">Ref ' + esc(x.ref) + ' ' + esc(x.descricao + ' ' + x.cor + ' ' + x.tamanho) + ': ' + x.saldo + '</div>'; }).join('') + '</details>';
@@ -1309,7 +1391,7 @@ function hFornPainel(p) {
     if ((F.etiquetaTrocar || []).length) al += '<details open><summary><span class="pill er">' + F.etiquetaTrocar.length + '</span> tamanho(s) com etiqueta a trocar</summary><div class="mu">Na contagem dupla, a peça e a etiqueta não bateram nem na recontagem. O saldo ficou o contado pela peça; a MX deve trocar a etiqueta e recontar a referência.</div>' + F.etiquetaTrocar.map(function (x) { return '<div class="mu">Ref ' + esc(x.ref) + ' ' + esc(x.descricao + ' ' + x.cor + ' ' + x.tamanho) + ' · contada em ' + dt(x.contada_em) + '</div>'; }).join('') + '</details>';
     if (F.outroFornecedor.length) al += '<details><summary><span class="pill av">' + F.outroFornecedor.length + '</span> peça(s) de outro fornecedor</summary>' + F.outroFornecedor.map(function (x) { return '<div class="mu">' + esc(x.sku) + ' · ref ' + esc(x.ref) + ' ' + esc(x.descricao + ' ' + x.cor + ' ' + x.tamanho) + '</div>'; }).join('') + '</details>';
     h += al ? '<h3>Alertas</h3>' + al : '';
-    h += '<details><summary>Movimentos dos últimos 30 dias (' + F.movimentos.length + ')</summary><div class="tabw"><table><tr><th>Quando</th><th>Movimento</th><th>Peças</th><th></th></tr>' + F.movimentos.map(function (m) {
+    h += '<details' + (DOB['mov|' + F.id] ? ' open' : '') + ' data-dob="mov|' + esc(F.id) + '"><summary>Movimentos dos últimos 30 dias (' + F.movimentos.length + ')</summary><div class="tabw"><table><tr><th>Quando</th><th>Movimento</th><th>Peças</th><th></th></tr>' + F.movimentos.map(function (m) {
       return '<tr><td>' + dt(m.concluido_em) + '</td><td>' + esc(m.rotulo) + (m.pedido ? ' · pedido ' + esc(m.pedido) : '') + (m.ref ? ' ref ' + esc(m.ref) : '') + (m.modo ? ' <span class="pill">' + (m.modo == 'dupla' ? 'dupla' : 'rápida') + '</span>' : '') + (m.difEtiqueta ? ' <span class="pill er">' + m.difEtiqueta + ' etiqueta(s) a trocar</span>' : '') + (m.etiOutras ? ' <span class="pill av">' + m.etiOutras + ' etiqueta(s) de outro produto</span>' : '') + (m.nf ? ' · NF ' + esc(m.nf) : '') + (m.destino_nome ? ' · ' + esc(m.destino_nome) : '') + '<div class="mu">' + esc(m.quem) + '</div>' + (m.situacao == 'estornado' ? '<div class="mu">' + esc(m.obs) + '</div>' : '') + '</td><td>' + m.pecas + '</td><td>'
         + (m.situacao == 'estornado' ? '<span class="pill av">estornado</span>' : (m.tipo != 'contagem' ? '<button class="btn sec pq" data-festorn="' + esc(F.id) + '|' + m.id + '">Estornar</button>' : '')) + '</td></tr>'; }).join('') + '</table></div></details></div>';
     return h + hFPedPainel(F);
